@@ -1,7 +1,7 @@
 defmodule SiwaServer.RuntimeConfig do
   @moduledoc false
 
-  def base_rpc_url, do: fetch("BASE_RPC_URL") || "https://mainnet.base.org"
+  def base_rpc_url, do: fetch("BASE_RPC_URL")
 
   def siwa_http_signature_tolerance_seconds,
     do: fetch_integer("SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS", 300)

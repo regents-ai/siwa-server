@@ -4,7 +4,7 @@ defmodule SiwaServer.TestEthereumAdapter do
 
   @spec sign_message(String.t(), String.t()) :: String.t()
   def sign_message(address, message) do
-    "signed:#{String.downcase(address)}:#{Base.url_encode64(message, padding: false)}"
+    "0x" <> Base.encode16(signature_bytes(address, message), case: :lower)
   end
 
   @impl true
@@ -15,7 +15,11 @@ defmodule SiwaServer.TestEthereumAdapter do
   @impl true
   def verify_signature(address, message, signature) do
     expected = sign_message(address, message)
-    if signature == expected, do: :ok, else: {:error, "Invalid signature"}
+
+    case normalize_signature(signature) do
+      {:ok, ^expected} -> :ok
+      _ -> {:error, "Invalid signature"}
+    end
   end
 
   @impl true
@@ -57,4 +61,18 @@ defmodule SiwaServer.TestEthereumAdapter do
        |> Base.encode16(case: :lower)
        |> binary_part(0, 64))
   end
+
+  defp signature_bytes(address, message) do
+    payload = "#{String.downcase(address)}|#{message}"
+    :crypto.hash(:sha512, payload) <> <<27>>
+  end
+
+  defp normalize_signature("0x" <> hex = signature) when byte_size(hex) == 130 do
+    case Base.decode16(hex, case: :mixed) do
+      {:ok, <<_::binary-size(65)>>} -> {:ok, String.downcase(signature)}
+      _ -> :error
+    end
+  end
+
+  defp normalize_signature(_signature), do: :error
 end

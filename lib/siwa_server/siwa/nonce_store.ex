@@ -25,6 +25,16 @@ defmodule SiwaServer.Siwa.NonceStore do
     end
   end
 
+  def cleanup_expired(now \\ DateTime.utc_now()) do
+    case Repo.query(
+           "DELETE FROM siwa_nonces WHERE expiration_time <= $1",
+           [DateTime.truncate(now, :second)]
+         ) do
+      {:ok, _result} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   def consume(key, nonce) do
     query = """
     DELETE FROM siwa_nonces

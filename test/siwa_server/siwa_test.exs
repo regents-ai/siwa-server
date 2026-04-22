@@ -1,7 +1,8 @@
 defmodule SiwaServer.SiwaTest do
   use SiwaServer.DataCase, async: false
 
-  alias SiwaServer.{Repo, RuntimeConfig, Siwa, TestEthereumAdapter}
+  alias SiwaServer.{Ethereum, Repo, RuntimeConfig, Siwa, TestEthereumAdapter}
+  alias SiwaServer.Ethereum.CastAdapter
 
   @wallet_address "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
   @chain_id 84_532
@@ -9,9 +10,13 @@ defmodule SiwaServer.SiwaTest do
   @token_id "77"
 
   setup do
+    original_base_rpc_url = System.get_env("BASE_RPC_URL")
+    System.put_env("BASE_RPC_URL", "https://base-rpc.test")
+
     TestEthereumAdapter.put_owner(@registry_address, @token_id, @wallet_address)
 
     on_exit(fn ->
+      restore_env("BASE_RPC_URL", original_base_rpc_url)
       TestEthereumAdapter.delete_owner(@registry_address, @token_id)
     end)
 
@@ -113,6 +118,48 @@ defmodule SiwaServer.SiwaTest do
     assert message =~ "does not match"
   end
 
+  test "signed requests reject malformed header maps" do
+    receipt = verified_receipt()
+    body = Jason.encode!(%{"summary" => "Malformed headers", "details" => "blocked"})
+    created = System.os_time(:second)
+    expires = created + 120
+
+    bad_headers =
+      signed_headers(receipt, body, created, expires)
+      |> Map.put("x-agent-chain-id", 84_532)
+
+    assert {:error, {400, "invalid_headers", message}} =
+             Siwa.verify_http_request(%{
+               "method" => "POST",
+               "path" => "/v1/agent/bug-report",
+               "headers" => bad_headers,
+               "body" => body
+             })
+
+    assert message =~ "string headers"
+  end
+
+  test "signed requests reject duplicate normalized header names" do
+    receipt = verified_receipt()
+    body = Jason.encode!(%{"summary" => "Duplicate headers", "details" => "blocked"})
+    created = System.os_time(:second)
+    expires = created + 120
+
+    headers =
+      signed_headers(receipt, body, created, expires)
+      |> Map.put("X-Key-Id", @wallet_address)
+
+    assert {:error, {400, "invalid_headers", message}} =
+             Siwa.verify_http_request(%{
+               "method" => "POST",
+               "path" => "/v1/agent/bug-report",
+               "headers" => headers,
+               "body" => body
+             })
+
+    assert message =~ "string headers"
+  end
+
   test "signed requests reject a receipt for the wrong audience" do
     receipt = verified_receipt("techtree")
     body = Jason.encode!(%{"summary" => "Audience mismatch", "details" => "blocked"})
@@ -186,6 +233,82 @@ defmodule SiwaServer.SiwaTest do
       Chain ID: #{@chain_id}
       Nonce: #{nonce}
       Issued At: 2026-04-16T00:00:00Z
+      """
+      |> String.trim()
+
+    assert {:error, {401, "signature_invalid", message}} =
+             Siwa.verify_session(%{
+               "wallet_address" => @wallet_address,
+               "chain_id" => @chain_id,
+               "registry_address" => @registry_address,
+               "token_id" => @token_id,
+               "nonce" => nonce,
+               "message" => bad_message,
+               "signature" => TestEthereumAdapter.sign_message(@wallet_address, bad_message)
+             })
+
+    assert message =~ "canonical SIWA format"
+  end
+
+  test "shared sign-in rejects duplicate SIWA fields" do
+    assert {:ok, %{"data" => %{"nonce" => nonce}}} =
+             Siwa.issue_nonce(%{
+               "wallet_address" => @wallet_address,
+               "chain_id" => @chain_id,
+               "registry_address" => @registry_address,
+               "token_id" => @token_id,
+               "audience" => "platform"
+             })
+
+    bad_message =
+      """
+      regent.cx wants you to sign in with your Ethereum account:
+      #{@wallet_address}
+
+      URI: https://regent.cx/v1/agent/siwa/verify
+      Version: 1
+      Chain ID: #{@chain_id}
+      Nonce: #{nonce}
+      Nonce: duplicate
+      Issued At: 2026-04-16T00:00:00Z
+      """
+      |> String.trim()
+
+    assert {:error, {401, "signature_invalid", message}} =
+             Siwa.verify_session(%{
+               "wallet_address" => @wallet_address,
+               "chain_id" => @chain_id,
+               "registry_address" => @registry_address,
+               "token_id" => @token_id,
+               "nonce" => nonce,
+               "message" => bad_message,
+               "signature" => TestEthereumAdapter.sign_message(@wallet_address, bad_message)
+             })
+
+    assert message =~ "canonical SIWA format"
+  end
+
+  test "shared sign-in rejects extra SIWA fields" do
+    assert {:ok, %{"data" => %{"nonce" => nonce}}} =
+             Siwa.issue_nonce(%{
+               "wallet_address" => @wallet_address,
+               "chain_id" => @chain_id,
+               "registry_address" => @registry_address,
+               "token_id" => @token_id,
+               "audience" => "platform"
+             })
+
+    bad_message =
+      """
+      regent.cx wants you to sign in with your Ethereum account:
+      #{@wallet_address}
+
+      URI: https://regent.cx/v1/agent/siwa/verify
+      Version: 1
+      Chain ID: #{@chain_id}
+      Nonce: #{nonce}
+      Issued At: 2026-04-16T00:00:00Z
+      Resources: https://example.com
       """
       |> String.trim()
 
@@ -280,6 +403,113 @@ defmodule SiwaServer.SiwaTest do
              })
   end
 
+  test "signed requests reject duplicate covered components" do
+    receipt = verified_receipt()
+    body = Jason.encode!(%{"summary" => "Duplicate components", "details" => "blocked"})
+    created = System.os_time(:second)
+    expires = created + 120
+
+    components = [
+      "@method",
+      "@path",
+      "x-siwa-receipt",
+      "x-key-id",
+      "x-key-id",
+      "x-timestamp",
+      "x-agent-wallet-address",
+      "x-agent-chain-id",
+      "x-agent-registry-address",
+      "x-agent-token-id",
+      "content-digest"
+    ]
+
+    assert {:error, {401, "http_signature_input_invalid", message}} =
+             Siwa.verify_http_request(%{
+               "method" => "POST",
+               "path" => "/v1/agent/bug-report",
+               "headers" => signed_headers(receipt, body, created, expires, %{}, components),
+               "body" => body
+             })
+
+    assert message =~ "signature-input"
+  end
+
+  test "signed requests reject unknown covered components" do
+    receipt = verified_receipt()
+    body = Jason.encode!(%{"summary" => "Unknown components", "details" => "blocked"})
+    created = System.os_time(:second)
+    expires = created + 120
+
+    components = [
+      "@method",
+      "@path",
+      "x-siwa-receipt",
+      "x-key-id",
+      "x-timestamp",
+      "x-agent-wallet-address",
+      "x-agent-chain-id",
+      "x-agent-registry-address",
+      "x-agent-token-id",
+      "content-digest",
+      "x-extra-header"
+    ]
+
+    headers =
+      signed_headers(
+        receipt,
+        body,
+        created,
+        expires,
+        %{"x-extra-header" => "surprise"},
+        components
+      )
+
+    assert {:error, {401, "http_signature_input_invalid", message}} =
+             Siwa.verify_http_request(%{
+               "method" => "POST",
+               "path" => "/v1/agent/bug-report",
+               "headers" => headers,
+               "body" => body
+             })
+
+    assert message =~ "signature-input"
+  end
+
+  test "json rpc rejects invalid responses cleanly" do
+    url =
+      tcp_rpc_server(fn socket ->
+        send_http_response(
+          socket,
+          "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 2\r\n\r\n{}"
+        )
+      end)
+
+    assert {:error, "invalid rpc response"} = Ethereum.json_rpc(url, "eth_call", [])
+  end
+
+  test "json rpc times out cleanly" do
+    url = tcp_rpc_server(fn _socket -> Process.sleep(150) end)
+
+    with_app_env(:siwa_server, :ethereum_rpc_timeout_ms, 50, fn ->
+      assert {:error, "rpc request timed out"} = Ethereum.json_rpc(url, "eth_call", [])
+    end)
+  end
+
+  test "cast calls time out cleanly" do
+    script_path = write_temp_script("sleep 1\n")
+
+    with_app_env(:siwa_server, :cast_executable, script_path, fn ->
+      with_app_env(:siwa_server, :cast_timeout_ms, 50, fn ->
+        assert {:error, "cast command timed out"} =
+                 CastAdapter.verify_signature(
+                   @wallet_address,
+                   "hello",
+                   "0x" <> String.duplicate("0", 130)
+                 )
+      end)
+    end)
+  end
+
   defp verified_receipt(audience \\ "regents.sh") do
     assert {:ok, %{"data" => %{"nonce" => nonce}}} =
              Siwa.issue_nonce(%{
@@ -321,7 +551,14 @@ defmodule SiwaServer.SiwaTest do
     |> String.trim()
   end
 
-  defp signed_headers(receipt, body, created, expires, extra_headers \\ %{}) do
+  defp signed_headers(
+         receipt,
+         body,
+         created,
+         expires,
+         extra_headers \\ %{},
+         components_override \\ nil
+       ) do
     base_headers = %{
       "x-siwa-receipt" => receipt,
       "x-key-id" => @wallet_address,
@@ -336,18 +573,19 @@ defmodule SiwaServer.SiwaTest do
     headers = Map.merge(base_headers, extra_headers)
 
     components =
-      [
-        "@method",
-        "@path",
-        "x-siwa-receipt",
-        "x-key-id",
-        "x-timestamp",
-        "x-agent-wallet-address",
-        "x-agent-chain-id",
-        "x-agent-registry-address",
-        "x-agent-token-id",
-        "content-digest"
-      ]
+      components_override ||
+        [
+          "@method",
+          "@path",
+          "x-siwa-receipt",
+          "x-key-id",
+          "x-timestamp",
+          "x-agent-wallet-address",
+          "x-agent-chain-id",
+          "x-agent-registry-address",
+          "x-agent-token-id",
+          "content-digest"
+        ]
 
     signature_params =
       "(#{Enum.map_join(components, " ", &~s("#{&1}"))})" <>
@@ -373,7 +611,7 @@ defmodule SiwaServer.SiwaTest do
 
     signature =
       TestEthereumAdapter.sign_message(@wallet_address, signing_message)
-      |> Base.encode64()
+      |> signature_payload()
 
     headers
     |> Map.put("signature-input", "sig1=#{signature_params}")
@@ -384,4 +622,68 @@ defmodule SiwaServer.SiwaTest do
     [_, nonce] = Regex.run(~r/;nonce="([^"]+)"/, Map.fetch!(headers, "signature-input"))
     nonce
   end
+
+  defp signature_payload("0x" <> hex) do
+    hex
+    |> Base.decode16!(case: :mixed)
+    |> Base.encode64()
+  end
+
+  defp tcp_rpc_server(handler) do
+    parent = self()
+
+    listener =
+      start_supervised!(
+        Task.child_spec(fn ->
+          {:ok, listen_socket} =
+            :gen_tcp.listen(0, [:binary, packet: :raw, active: false, reuseaddr: true])
+
+          {:ok, port} = :inet.port(listen_socket)
+          send(parent, {:tcp_server_ready, self(), port})
+
+          {:ok, socket} = :gen_tcp.accept(listen_socket)
+          handler.(socket)
+          :gen_tcp.close(socket)
+          :gen_tcp.close(listen_socket)
+        end)
+      )
+
+    assert_receive {:tcp_server_ready, ^listener, port}
+    "http://127.0.0.1:#{port}"
+  end
+
+  defp send_http_response(socket, response) do
+    :ok = :gen_tcp.send(socket, response)
+  end
+
+  defp write_temp_script(contents) do
+    path =
+      Path.join(System.tmp_dir!(), "siwa-cast-timeout-#{System.unique_integer([:positive])}.sh")
+
+    File.write!(path, "#!/bin/sh\n#{contents}")
+    File.chmod!(path, 0o755)
+
+    on_exit(fn ->
+      File.rm(path)
+    end)
+
+    path
+  end
+
+  defp with_app_env(app, key, value, fun) do
+    original = Application.get_env(app, key, :__missing__)
+    Application.put_env(app, key, value)
+
+    try do
+      fun.()
+    after
+      case original do
+        :__missing__ -> Application.delete_env(app, key)
+        _ -> Application.put_env(app, key, original)
+      end
+    end
+  end
+
+  defp restore_env(key, nil), do: System.delete_env(key)
+  defp restore_env(key, value), do: System.put_env(key, value)
 end

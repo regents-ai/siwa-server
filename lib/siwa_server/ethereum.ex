@@ -2,9 +2,11 @@ defmodule SiwaServer.Ethereum do
   @moduledoc false
 
   alias SiwaServer.Ethereum.CastAdapter
+  alias Req.TransportError
 
   @address_regex ~r/^0x[a-fA-F0-9]{40}$/
   @tx_hash_regex ~r/^0x[a-fA-F0-9]{64}$/
+  @default_rpc_timeout_ms 5_000
 
   @spec normalize_address(term()) :: String.t() | nil
   def normalize_address(value) when is_binary(value) do
@@ -65,9 +67,14 @@ defmodule SiwaServer.Ethereum do
 
   @spec json_rpc(String.t(), String.t(), list()) :: {:ok, map() | nil} | {:error, String.t()}
   def json_rpc(url, method, params) do
+    timeout_ms = rpc_timeout_ms()
+
     request =
       Req.new(
         url: url,
+        connect_options: [timeout: timeout_ms],
+        receive_timeout: timeout_ms,
+        retry: false,
         json: %{
           id: 1,
           jsonrpc: "2.0",
@@ -77,15 +84,17 @@ defmodule SiwaServer.Ethereum do
       )
 
     case Req.post(request) do
-      {:ok, response} ->
-        case response.body do
-          %{"error" => %{"message" => message}} -> {:error, message}
-          %{"result" => result} -> {:ok, result}
-          other -> {:error, "Unexpected RPC response: #{inspect(other)}"}
-        end
+      {:ok, %{status: status, body: body}} when status in 200..299 ->
+        parse_rpc_response(body)
+
+      {:ok, %{status: _status}} ->
+        {:error, "rpc request failed"}
+
+      {:error, %TransportError{reason: :timeout}} ->
+        {:error, "rpc request timed out"}
 
       {:error, error} ->
-        {:error, Exception.message(error)}
+        {:error, map_rpc_error(error)}
     end
   end
 
@@ -99,5 +108,28 @@ defmodule SiwaServer.Ethereum do
 
   defp adapter do
     Application.get_env(:siwa_server, :ethereum_adapter, CastAdapter)
+  end
+
+  defp parse_rpc_response(%{"error" => %{"message" => message}})
+       when is_binary(message) and byte_size(message) > 0 do
+    {:error, message}
+  end
+
+  defp parse_rpc_response(%{"error" => _error}), do: {:error, "rpc request failed"}
+  defp parse_rpc_response(%{"result" => result}), do: {:ok, result}
+  defp parse_rpc_response(_body), do: {:error, "invalid rpc response"}
+
+  defp map_rpc_error(error) do
+    message = Exception.message(error)
+
+    if String.contains?(String.downcase(message), "timeout") do
+      "rpc request timed out"
+    else
+      "rpc request failed"
+    end
+  end
+
+  defp rpc_timeout_ms do
+    Application.get_env(:siwa_server, :ethereum_rpc_timeout_ms, @default_rpc_timeout_ms)
   end
 end

@@ -15,6 +15,18 @@ defmodule SiwaServerWeb.Internal.KeyringRouterTest do
     |> put_req_header("x-keyring-signature", headers["x-keyring-signature"])
   end
 
+  defp restore_keyring_env(old_env) do
+    current_keys = Application.get_all_env(:siwa_keyring) |> Keyword.keys()
+
+    Enum.each(current_keys, fn key ->
+      Application.delete_env(:siwa_keyring, key)
+    end)
+
+    Enum.each(old_env, fn {key, value} ->
+      Application.put_env(:siwa_keyring, key, value)
+    end)
+  end
+
   test "internal keyring routes support the normal wallet lifecycle" do
     path = Path.join(System.tmp_dir!(), "siwa-keyring-#{System.unique_integer([:positive])}.json")
     old_env = Application.get_all_env(:siwa_keyring)
@@ -60,6 +72,91 @@ defmodule SiwaServerWeb.Internal.KeyringRouterTest do
 
     response = call_endpoint(conn)
     assert response.status == 401
+    assert Jason.decode!(response.resp_body) == %{"error" => "unauthorized"}
+  end
+
+  test "internal keyring routes reject empty signing inputs" do
+    path = Path.join(System.tmp_dir!(), "siwa-keyring-#{System.unique_integer([:positive])}.json")
+    old_env = Application.get_all_env(:siwa_keyring)
+
+    Application.put_env(:siwa_keyring, :path, path)
+    Application.put_env(:siwa_keyring, :password, "router-password")
+    Application.put_env(:siwa_keyring, :secret, "router-secret")
+
+    on_exit(fn ->
+      File.rm(path)
+      restore_keyring_env(old_env)
+    end)
+
+    message_response =
+      signed_conn("POST", "/internal/keyring/sign-message", "{}", "router-secret")
+      |> call_endpoint()
+
+    assert message_response.status == 400
+    assert Jason.decode!(message_response.resp_body) == %{"error" => "message_required"}
+
+    transaction_response =
+      signed_conn(
+        "POST",
+        "/internal/keyring/sign-transaction",
+        ~s({"transaction":{}}),
+        "router-secret"
+      )
+      |> call_endpoint()
+
+    assert transaction_response.status == 400
+    assert Jason.decode!(transaction_response.resp_body) == %{"error" => "transaction_required"}
+  end
+
+  test "internal keyring routes return a clean error when the wallet is missing" do
+    path = Path.join(System.tmp_dir!(), "siwa-keyring-#{System.unique_integer([:positive])}.json")
+    old_env = Application.get_all_env(:siwa_keyring)
+
+    Application.put_env(:siwa_keyring, :path, path)
+    Application.put_env(:siwa_keyring, :password, "router-password")
+    Application.put_env(:siwa_keyring, :secret, "router-secret")
+
+    on_exit(fn ->
+      File.rm(path)
+      restore_keyring_env(old_env)
+    end)
+
+    address_response =
+      signed_conn("POST", "/internal/keyring/get-address", "{}", "router-secret")
+      |> call_endpoint()
+
+    assert address_response.status == 404
+    assert Jason.decode!(address_response.resp_body) == %{"error" => "wallet_not_found"}
+
+    sign_response =
+      signed_conn(
+        "POST",
+        "/internal/keyring/sign-message",
+        Jason.encode!(%{"message" => "hello from keyring"}),
+        "router-secret"
+      )
+      |> call_endpoint()
+
+    assert sign_response.status == 422
+    assert Jason.decode!(sign_response.resp_body) == %{"error" => "message_sign_failed"}
+  end
+
+  test "internal keyring has-wallet failures do not crash the route" do
+    old_env = Application.get_all_env(:siwa_keyring)
+    Application.put_env(:siwa_keyring, :path, nil)
+    Application.put_env(:siwa_keyring, :password, "router-password")
+    Application.put_env(:siwa_keyring, :secret, "router-secret")
+
+    on_exit(fn ->
+      restore_keyring_env(old_env)
+    end)
+
+    response =
+      signed_conn("POST", "/internal/keyring/has-wallet", "{}", "router-secret")
+      |> call_endpoint()
+
+    assert response.status == 422
+    assert Jason.decode!(response.resp_body) == %{"error" => "wallet_check_failed"}
   end
 
   test "internal keyring body reader preserves the full raw body across multiple reads" do

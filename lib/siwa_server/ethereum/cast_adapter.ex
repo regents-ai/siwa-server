@@ -1,6 +1,7 @@
 defmodule SiwaServer.Ethereum.CastAdapter do
   @moduledoc false
   @behaviour SiwaServer.Ethereum.Adapter
+  @default_cast_timeout_ms 5_000
 
   @impl true
   def namehash(name) do
@@ -9,20 +10,10 @@ defmodule SiwaServer.Ethereum.CastAdapter do
 
   @impl true
   def verify_signature(address, message, signature) do
-    case System.cmd(
-           "cast",
-           ["wallet", "verify", "--address", String.trim(address), message, signature],
-           stderr_to_stdout: true
-         ) do
-      {_, 0} -> :ok
-      {output, _status} -> {:error, String.trim(output)}
+    case run_cast(["wallet", "verify", "--address", String.trim(address), message, signature]) do
+      {:ok, _output} -> :ok
+      {:error, reason} -> {:error, reason}
     end
-  rescue
-    error in ErlangError ->
-      {:error, format_system_error(error)}
-  catch
-    :exit, reason ->
-      {:error, inspect(reason)}
   end
 
   @impl true
@@ -52,13 +43,15 @@ defmodule SiwaServer.Ethereum.CastAdapter do
   end
 
   defp run_cast(args) do
-    case System.cmd("cast", args, stderr_to_stdout: true) do
-      {output, 0} -> {:ok, String.trim(output)}
-      {output, _status} -> {:error, String.trim(output)}
+    with {:ok, executable} <- resolve_executable(cast_executable()) do
+      port =
+        Port.open(
+          {:spawn_executable, executable},
+          [:binary, :exit_status, :hide, :use_stdio, :stderr_to_stdout, args: args]
+        )
+
+      collect_output(port, "", cast_timeout_ms())
     end
-  rescue
-    error in ErlangError ->
-      {:error, format_system_error(error)}
   catch
     :exit, reason ->
       {:error, inspect(reason)}
@@ -77,15 +70,42 @@ defmodule SiwaServer.Ethereum.CastAdapter do
     end
   end
 
-  defp format_system_error(%ErlangError{original: :enoent}) do
-    "cast executable not found on the server"
+  defp resolve_executable(executable) when is_binary(executable) do
+    cond do
+      Path.type(executable) != :relative and File.exists?(executable) ->
+        {:ok, executable}
+
+      resolved = System.find_executable(executable) ->
+        {:ok, resolved}
+
+      true ->
+        {:error, "#{Path.basename(executable)} executable not found on the server"}
+    end
   end
 
-  defp format_system_error(%ErlangError{original: original}) when is_atom(original) do
-    Atom.to_string(original)
+  defp collect_output(port, output, timeout_ms) do
+    receive do
+      {^port, {:data, data}} ->
+        collect_output(port, output <> data, timeout_ms)
+
+      {^port, {:exit_status, 0}} ->
+        {:ok, String.trim(output)}
+
+      {^port, {:exit_status, _status}} ->
+        trimmed = String.trim(output)
+        {:error, if(trimmed == "", do: "cast command failed", else: trimmed)}
+    after
+      timeout_ms ->
+        Port.close(port)
+        {:error, "cast command timed out"}
+    end
   end
 
-  defp format_system_error(%ErlangError{} = error) do
-    Exception.message(error)
+  defp cast_executable do
+    Application.get_env(:siwa_server, :cast_executable, "cast")
+  end
+
+  defp cast_timeout_ms do
+    Application.get_env(:siwa_server, :cast_timeout_ms, @default_cast_timeout_ms)
   end
 end

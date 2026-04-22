@@ -8,8 +8,6 @@ defmodule SiwaServer.Siwa.ReplayStore do
     expires_at = DateTime.from_unix!(expires_at_unix)
 
     Repo.transaction(fn ->
-      cleanup_expired(now)
-
       case Repo.query(
              """
              INSERT INTO siwa_request_replays (id, replay_key, expires_at, inserted_at, updated_at)
@@ -36,10 +34,13 @@ defmodule SiwaServer.Siwa.ReplayStore do
     end
   end
 
-  defp cleanup_expired(now) do
-    Repo.query(
-      "DELETE FROM siwa_request_replays WHERE expires_at <= $1",
-      [now]
-    )
+  def cleanup_expired(now \\ DateTime.utc_now()) do
+    case Repo.query(
+           "DELETE FROM siwa_request_replays WHERE expires_at <= $1",
+           [DateTime.truncate(now, :second)]
+         ) do
+      {:ok, _result} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
   end
 end
