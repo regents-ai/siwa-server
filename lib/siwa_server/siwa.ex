@@ -12,7 +12,7 @@ defmodule SiwaServer.Siwa do
   @content_digest_regex ~r/^sha-256=:(?<payload>[A-Za-z0-9+\/=]+):$/
   @domain "regent.cx"
   @verify_uri "https://regent.cx/v1/agent/siwa/verify"
-  @supported_chain_ids [8453, 84532]
+  @supported_chain_ids [8453, 84_532]
   @required_headers ~w(
     x-siwa-receipt
     signature
@@ -32,6 +32,18 @@ defmodule SiwaServer.Siwa do
     x-agent-chain-id
   )
   @siwa_field_names ["URI", "Version", "Chain ID", "Nonce", "Issued At"]
+  @signature_components ~w(
+    @method
+    @path
+    x-siwa-receipt
+    x-key-id
+    x-timestamp
+    x-agent-wallet-address
+    x-agent-chain-id
+    x-agent-registry-address
+    x-agent-token-id
+    content-digest
+  )
 
   def issue_nonce(params) when is_map(params) do
     with {:ok, wallet_address} <- required_address(params, "wallet_address"),
@@ -281,56 +293,40 @@ defmodule SiwaServer.Siwa do
     do: {:error, {401, "http_signature_input_invalid", "invalid signature-input header"}}
 
   defp parse_components(blob) when is_binary(blob) do
-    blob
-    |> String.split(~r/\s+/, trim: true)
-    |> Enum.reduce_while({:ok, []}, fn token, {:ok, components} ->
-      with {:ok, component} <- parse_component(token),
-           false <- component in components do
-        {:cont, {:ok, components ++ [component]}}
-      else
-        true -> {:halt, {:error, :invalid}}
-        {:error, _reason} -> {:halt, {:error, :invalid}}
-      end
-    end)
-    |> case do
-      {:ok, []} -> {:error, :invalid}
-      {:ok, components} -> {:ok, components}
+    case(
+      blob
+      |> String.split(~r/\s+/, trim: true)
+      |> Enum.reduce_while([], &reduce_signature_component/2)
+    ) do
       {:error, reason} -> {:error, reason}
+      components -> {:ok, Enum.reverse(components)}
     end
   end
 
   defp parse_signature_params(blob) do
-    entries =
+    case(
       blob
       |> String.split(";", trim: true)
-      |> Enum.reduce_while({:ok, %{}}, fn entry, {:ok, acc} ->
-        case String.split(entry, "=", parts: 2) do
-          [key, value] ->
-            if Map.has_key?(acc, key) do
-              {:halt, {:error, :invalid}}
-            else
-              {:cont, {:ok, Map.put(acc, key, String.trim(value, "\""))}}
-            end
+      |> Enum.reduce_while(%{}, &reduce_signature_param/2)
+    ) do
+      {:error, reason} ->
+        {:error, reason}
 
-          _ ->
-            {:halt, {:error, :invalid}}
+      entries ->
+        with {:ok, created} <- parse_positive_integer(entries["created"]),
+             {:ok, expires} <- parse_positive_integer(entries["expires"]),
+             {:ok, nonce} <- required_value(entries["nonce"]),
+             true <- expires > created do
+          {:ok,
+           %{
+             created: created,
+             expires: expires,
+             nonce: nonce,
+             key_id: normalize_optional_text(entries["keyid"])
+           }}
+        else
+          _ -> {:error, :invalid}
         end
-      end)
-
-    with {:ok, entries} <- entries,
-         {:ok, created} <- parse_positive_integer(entries["created"]),
-         {:ok, expires} <- parse_positive_integer(entries["expires"]),
-         {:ok, nonce} <- required_value(entries["nonce"]),
-         true <- expires > created do
-      {:ok,
-       %{
-         created: created,
-         expires: expires,
-         nonce: nonce,
-         key_id: normalize_optional_text(entries["keyid"])
-       }}
-    else
-      _ -> {:error, :invalid}
     end
   end
 
@@ -434,13 +430,19 @@ defmodule SiwaServer.Siwa do
   end
 
   defp ensure_header_binding(headers, claims) do
-    with :ok <- ensure_key_id_binding(headers, claims),
-         :ok <- ensure_wallet_binding(headers, claims),
-         :ok <- ensure_chain_binding(headers, claims),
-         :ok <- ensure_registry_binding(headers, claims),
-         :ok <- ensure_token_binding(headers, claims) do
-      :ok
-    end
+    [
+      fn -> ensure_key_id_binding(headers, claims) end,
+      fn -> ensure_wallet_binding(headers, claims) end,
+      fn -> ensure_chain_binding(headers, claims) end,
+      fn -> ensure_registry_binding(headers, claims) end,
+      fn -> ensure_token_binding(headers, claims) end
+    ]
+    |> Enum.reduce_while(:ok, fn check, :ok ->
+      case check.() do
+        :ok -> {:cont, :ok}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
   end
 
   defp ensure_body_binding(headers, nil) do
@@ -493,8 +495,7 @@ defmodule SiwaServer.Siwa do
       {:error, :replayed_request} ->
         {:error, {409, "request_replayed", "request replay detected"}}
 
-      {:error, reason} ->
-        _ = reason
+      {:error, _reason} ->
         {:error, {500, "request_replay_failed", "could not verify replay state"}}
     end
   end
@@ -581,18 +582,10 @@ defmodule SiwaServer.Siwa do
   end
 
   defp parse_siwa_fields(field_lines) do
-    Enum.reduce_while(field_lines, {:ok, %{}}, fn line, {:ok, acc} ->
-      case String.split(line, ": ", parts: 2) do
-        [key, value] ->
-          cond do
-            key not in @siwa_field_names -> {:halt, {:error, :invalid}}
-            value == "" -> {:halt, {:error, :invalid}}
-            Map.has_key?(acc, key) -> {:halt, {:error, :invalid}}
-            true -> {:cont, {:ok, Map.put(acc, key, value)}}
-          end
-
-        _ ->
-          {:halt, {:error, :invalid}}
+    Enum.reduce_while(field_lines, {:ok, %{}}, fn line, {:ok, fields} ->
+      case parse_siwa_field(line, fields) do
+        {:ok, updated_fields} -> {:cont, {:ok, updated_fields}}
+        {:error, _reason} -> {:halt, {:error, :invalid}}
       end
     end)
   end
@@ -608,6 +601,75 @@ defmodule SiwaServer.Siwa do
       :ok
     else
       _ -> {:error, "message does not match the canonical SIWA format"}
+    end
+  end
+
+  defp parse_signature_param_entry(entry, acc) do
+    case String.split(entry, "=", parts: 2) do
+      [key, value] ->
+        if Map.has_key?(acc, key) do
+          {:error, :duplicate}
+        else
+          {:ok, Map.put(acc, key, String.trim(value, "\""))}
+        end
+
+      _ ->
+        {:error, :invalid}
+    end
+  end
+
+  defp parse_siwa_field(line, fields) do
+    case String.split(line, ": ", parts: 2) do
+      [key, value] ->
+        cond do
+          key not in @siwa_field_names -> {:error, :invalid}
+          value == "" -> {:error, :invalid}
+          Map.has_key?(fields, key) -> {:error, :invalid}
+          true -> {:ok, Map.put(fields, key, value)}
+        end
+
+      _ ->
+        {:error, :invalid}
+    end
+  end
+
+  defp normalize_header_entry({name, value}, acc) when is_binary(name) and is_binary(value) do
+    normalized_name = String.downcase(name)
+
+    if Map.has_key?(acc, normalized_name) do
+      {:error, :duplicate}
+    else
+      {:ok, Map.put(acc, normalized_name, String.trim(value))}
+    end
+  end
+
+  defp normalize_header_entry(_entry, _acc), do: {:error, :invalid}
+
+  defp reduce_signature_component(token, components) do
+    case parse_component(token) do
+      {:ok, component} ->
+        if component in components do
+          {:halt, {:error, :invalid}}
+        else
+          {:cont, [component | components]}
+        end
+
+      {:error, _reason} ->
+        {:halt, {:error, :invalid}}
+    end
+  end
+
+  defp reduce_signature_param(entry, acc) do
+    case parse_signature_param_entry(entry, acc) do
+      {:ok, updated_acc} -> {:cont, updated_acc}
+      {:error, reason} -> {:halt, {:error, reason}}
+    end
+  end
+
+  defp normalize_header_entry_step(entry, acc) do
+    case normalize_header_entry(entry, acc) do
+      {:ok, updated_acc} -> {:cont, updated_acc}
+      {:error, reason} -> {:halt, {:error, reason}}
     end
   end
 
@@ -672,20 +734,13 @@ defmodule SiwaServer.Siwa do
   defp required_header_map(params, key) do
     case Map.get(params, key) do
       headers when is_map(headers) ->
-        headers
-        |> Enum.reduce_while({:ok, %{}}, fn
-          {name, value}, {:ok, acc} when is_binary(name) and is_binary(value) ->
-            normalized_name = String.downcase(name)
+        case Enum.reduce_while(headers, %{}, &normalize_header_entry_step/2) do
+          {:error, _reason} ->
+            {:error, {"invalid_#{key}", "#{key} must be an object of string headers"}}
 
-            if Map.has_key?(acc, normalized_name) do
-              {:halt, {:error, {"invalid_#{key}", "#{key} must be an object of string headers"}}}
-            else
-              {:cont, {:ok, Map.put(acc, normalized_name, String.trim(value))}}
-            end
-
-          _entry, _acc ->
-            {:halt, {:error, {"invalid_#{key}", "#{key} must be an object of string headers"}}}
-        end)
+          normalized_headers ->
+            {:ok, normalized_headers}
+        end
 
       _ ->
         {:error, {"invalid_#{key}", "#{key} must be an object of string headers"}}
@@ -794,31 +849,20 @@ defmodule SiwaServer.Siwa do
     {401, "signature_invalid", "message does not match the requested SIWA claims"}
   end
 
-  defp map_nonce_error(reason) do
-    _ = reason
-    {400, "invalid_nonce", "could not issue or consume the SIWA nonce"}
-  end
+  defp map_nonce_error(_reason),
+    do: {400, "invalid_nonce", "could not issue or consume the SIWA nonce"}
 
   defp agent_registry_string(chain_id, registry_address),
     do: "eip155:#{chain_id}:#{registry_address}"
-
-  defp parse_component(~s("@method")), do: {:ok, "@method"}
-  defp parse_component(~s("@path")), do: {:ok, "@path"}
 
   defp parse_component(token) when is_binary(token) do
     if String.starts_with?(token, "\"") and String.ends_with?(token, "\"") do
       normalized = token |> String.trim_leading("\"") |> String.trim_trailing("\"")
 
-      case normalized do
-        "x-siwa-receipt" -> {:ok, normalized}
-        "x-key-id" -> {:ok, normalized}
-        "x-timestamp" -> {:ok, normalized}
-        "x-agent-wallet-address" -> {:ok, normalized}
-        "x-agent-chain-id" -> {:ok, normalized}
-        "x-agent-registry-address" -> {:ok, normalized}
-        "x-agent-token-id" -> {:ok, normalized}
-        "content-digest" -> {:ok, normalized}
-        _ -> {:error, :invalid}
+      if normalized in @signature_components do
+        {:ok, normalized}
+      else
+        {:error, :invalid}
       end
     else
       {:error, :invalid}
@@ -832,10 +876,16 @@ defmodule SiwaServer.Siwa do
     do: ensure_claim_binding(headers, claims, "x-agent-wallet-address", "sub")
 
   defp ensure_chain_binding(headers, claims) do
-    if parse_positive_integer!(Map.get(headers, "x-agent-chain-id")) == claims["chain_id"] do
-      :ok
-    else
-      header_binding_mismatch("x-agent-chain-id", "does not match SIWA receipt")
+    case parse_positive_integer(Map.get(headers, "x-agent-chain-id")) do
+      {:ok, chain_id} ->
+        if chain_id == claims["chain_id"] do
+          :ok
+        else
+          header_binding_mismatch("x-agent-chain-id", "does not match SIWA receipt")
+        end
+
+      _ ->
+        header_binding_mismatch("x-agent-chain-id", "does not match SIWA receipt")
     end
   end
 

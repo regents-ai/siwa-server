@@ -139,6 +139,27 @@ defmodule SiwaServer.SiwaTest do
     assert message =~ "string headers"
   end
 
+  test "signed requests reject a malformed chain header without crashing" do
+    receipt = verified_receipt()
+    body = Jason.encode!(%{"summary" => "Malformed chain", "details" => "blocked"})
+    created = System.os_time(:second)
+    expires = created + 120
+
+    headers =
+      signed_headers(receipt, body, created, expires)
+      |> Map.put("x-agent-chain-id", "not-a-number")
+
+    assert {:error, {401, "receipt_binding_mismatch", message}} =
+             Siwa.verify_http_request(%{
+               "method" => "POST",
+               "path" => "/v1/agent/bug-report",
+               "headers" => headers,
+               "body" => body
+             })
+
+    assert message =~ "x-agent-chain-id"
+  end
+
   test "signed requests reject duplicate normalized header names" do
     receipt = verified_receipt()
     body = Jason.encode!(%{"summary" => "Duplicate headers", "details" => "blocked"})

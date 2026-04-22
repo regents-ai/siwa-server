@@ -16,6 +16,17 @@ defmodule SiwaServer.Siwa.NonceStoreTest do
     assert %NonceRecord{nonce: "active-nonce"} = Repo.get_by(NonceRecord, nonce: "active-nonce")
   end
 
+  test "cleanup_expired deletes at most one batch per call" do
+    now = ~U[2026-04-22 12:00:00Z]
+
+    insert_nonce!("expired-nonce-1", DateTime.add(now, -60, :second))
+    insert_nonce!("expired-nonce-2", DateTime.add(now, -30, :second))
+
+    assert :ok = NonceStore.cleanup_expired(now, 1)
+
+    assert Repo.aggregate(NonceRecord, :count, :id) == 1
+  end
+
   defp insert_nonce!(nonce, expiration_time) do
     %NonceRecord{}
     |> NonceRecord.changeset(%{

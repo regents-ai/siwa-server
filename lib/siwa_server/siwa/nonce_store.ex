@@ -3,6 +3,7 @@ defmodule SiwaServer.Siwa.NonceStore do
 
   alias SiwaServer.Repo
   alias SiwaServer.Siwa.NonceRecord
+  @default_cleanup_limit 1_000
 
   def put(key, nonce, metadata, params) do
     attrs = %{
@@ -25,10 +26,19 @@ defmodule SiwaServer.Siwa.NonceStore do
     end
   end
 
-  def cleanup_expired(now \\ DateTime.utc_now()) do
+  def cleanup_expired(now \\ DateTime.utc_now(), limit \\ @default_cleanup_limit) do
     case Repo.query(
-           "DELETE FROM siwa_nonces WHERE expiration_time <= $1",
-           [DateTime.truncate(now, :second)]
+           """
+           DELETE FROM siwa_nonces
+           WHERE id IN (
+             SELECT id
+             FROM siwa_nonces
+             WHERE expiration_time <= $1
+             ORDER BY expiration_time
+             LIMIT $2
+           )
+           """,
+           [DateTime.truncate(now, :second), limit]
          ) do
       {:ok, _result} -> :ok
       {:error, reason} -> {:error, reason}

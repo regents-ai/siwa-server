@@ -9,9 +9,18 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
   @token_id "77"
 
   setup do
+    previous_base_rpc_url = System.get_env("BASE_RPC_URL")
+
+    System.put_env("BASE_RPC_URL", "https://base-rpc.test")
+
     TestEthereumAdapter.put_owner(@registry_address, @token_id, @wallet_address)
 
     on_exit(fn ->
+      case previous_base_rpc_url do
+        nil -> System.delete_env("BASE_RPC_URL")
+        value -> System.put_env("BASE_RPC_URL", value)
+      end
+
       TestEthereumAdapter.delete_owner(@registry_address, @token_id)
     end)
 

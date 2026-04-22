@@ -1,8 +1,8 @@
 defmodule SiwaServer.Ethereum do
   @moduledoc false
 
-  alias SiwaServer.Ethereum.CastAdapter
   alias Req.TransportError
+  alias SiwaServer.Ethereum.CastAdapter
 
   @address_regex ~r/^0x[a-fA-F0-9]{40}$/
   @tx_hash_regex ~r/^0x[a-fA-F0-9]{64}$/

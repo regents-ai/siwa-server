@@ -25,6 +25,16 @@ defmodule SiwaServer.Siwa.ReplayStoreTest do
     assert replay_count("active-replay") == 1
   end
 
+  test "cleanup_expired deletes at most one batch per call" do
+    now = ~U[2026-04-22 12:00:00Z]
+    insert_replay!("expired-replay-1", DateTime.add(now, -60, :second))
+    insert_replay!("expired-replay-2", DateTime.add(now, -30, :second))
+
+    assert :ok = ReplayStore.cleanup_expired(now, 1)
+
+    assert replay_count("expired-replay-1") + replay_count("expired-replay-2") == 1
+  end
+
   defp insert_replay!(replay_key, expires_at) do
     now = DateTime.add(expires_at, -60, :second)
 

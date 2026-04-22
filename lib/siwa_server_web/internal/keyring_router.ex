@@ -1,4 +1,8 @@
 defmodule SiwaServerWeb.Internal.KeyringRouter do
+  @moduledoc """
+  Internal routes for the local wallet service.
+  """
+
   use Plug.Router
   require Logger
 
