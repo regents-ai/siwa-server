@@ -97,6 +97,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Verification failed because the nonce was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Verification could not finish because required SIWA configuration is missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "502":
+          description: Verification could not confirm on-chain agent ownership
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /v1/agent/siwa/http-verify:
     post:
       operationId: verifySharedSiwaHttpEnvelope
@@ -133,6 +151,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Envelope verification rejected a replayed request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Envelope verification could not finish because replay state or SIWA configuration failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /internal/keyring/health:
     get:
       operationId: siwaKeyringHealth
@@ -143,7 +173,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/KeyringHealthResponse"
   /internal/keyring/create-wallet:
     post:
       operationId: siwaKeyringCreateWallet
@@ -153,26 +183,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LooseObject"
+              $ref: "#/components/schemas/EmptyObject"
       responses:
         "200":
           description: Wallet created or returned
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/KeyringWalletResponse"
         "401":
           description: Internal signer authentication failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/UnauthorizedErrorResponse"
         "422":
           description: Internal signer request failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/WalletCreateFailedErrorResponse"
   /internal/keyring/has-wallet:
     post:
       operationId: siwaKeyringHasWallet
@@ -182,20 +212,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LooseObject"
+              $ref: "#/components/schemas/EmptyObject"
       responses:
         "200":
           description: Wallet presence check
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/HasWalletResponse"
         "401":
           description: Internal signer authentication failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/UnauthorizedErrorResponse"
+        "422":
+          description: Wallet presence check failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletCheckFailedErrorResponse"
   /internal/keyring/get-address:
     post:
       operationId: siwaKeyringGetAddress
@@ -205,26 +241,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LooseObject"
+              $ref: "#/components/schemas/EmptyObject"
       responses:
         "200":
           description: Wallet address lookup
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/GetAddressResponse"
         "401":
           description: Internal signer authentication failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/UnauthorizedErrorResponse"
         "404":
           description: Wallet address was not found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/WalletNotFoundErrorResponse"
+        "422":
+          description: Wallet address lookup failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletLookupFailedErrorResponse"
   /internal/keyring/sign-message:
     post:
       operationId: siwaKeyringSignMessage
@@ -234,26 +276,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LooseObject"
+              $ref: "#/components/schemas/SignMessageRequest"
       responses:
         "200":
           description: Message signed with the internal keyring
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/SignMessageResponse"
+        "400":
+          description: Signing request did not include a message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageRequiredErrorResponse"
         "401":
           description: Internal signer authentication failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/UnauthorizedErrorResponse"
         "422":
           description: Signing request failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/MessageSignFailedErrorResponse"
   /internal/keyring/sign-raw-message:
     post:
       operationId: siwaKeyringSignRawMessage
@@ -263,26 +311,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LooseObject"
+              $ref: "#/components/schemas/SignRawMessageRequest"
       responses:
         "200":
           description: Raw payload signed with the internal keyring
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/SignRawMessageResponse"
+        "400":
+          description: Signing request did not include a payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayloadRequiredErrorResponse"
         "401":
           description: Internal signer authentication failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/UnauthorizedErrorResponse"
         "422":
           description: Signing request failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/RawMessageSignFailedErrorResponse"
   /internal/keyring/sign-transaction:
     post:
       operationId: siwaKeyringSignTransaction
@@ -292,26 +346,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LooseObject"
+              $ref: "#/components/schemas/SignTransactionRequest"
       responses:
         "200":
           description: Transaction signed with the internal keyring
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/SignTransactionResponse"
+        "400":
+          description: Signing request did not include a transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionRequiredErrorResponse"
         "401":
           description: Internal signer authentication failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/UnauthorizedErrorResponse"
         "422":
           description: Signing request failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/TransactionSignFailedErrorResponse"
   /internal/keyring/sign-authorization:
     post:
       operationId: siwaKeyringSignAuthorization
@@ -321,26 +381,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LooseObject"
+              $ref: "#/components/schemas/SignAuthorizationRequest"
       responses:
         "200":
           description: Authorization payload signed with the internal keyring
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/SignAuthorizationResponse"
+        "400":
+          description: Signing request did not include an authorization payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthorizationRequiredErrorResponse"
         "401":
           description: Internal signer authentication failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/UnauthorizedErrorResponse"
         "422":
           description: Signing request failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/AuthorizationSignFailedErrorResponse"
 components:
   schemas:
     ErrorEnvelope:
@@ -360,13 +426,239 @@ components:
               type: string
           additionalProperties: false
       additionalProperties: false
-    LooseObject:
+    EmptyObject:
       type: object
-      additionalProperties: true
+      additionalProperties: false
+      maxProperties: 0
     HeaderMap:
       type: object
       additionalProperties:
         type: string
+    KeyringHealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
+      additionalProperties: false
+    KeyringWalletResponse:
+      type: object
+      required: [private_key, public_key, address, signer_type]
+      properties:
+        private_key:
+          type: string
+        public_key:
+          type: string
+        address:
+          type: string
+        signer_type:
+          type: string
+      additionalProperties: false
+    HasWalletResponse:
+      type: object
+      required: [has_wallet]
+      properties:
+        has_wallet:
+          type: boolean
+      additionalProperties: false
+    GetAddressResponse:
+      type: object
+      required: [address]
+      properties:
+        address:
+          type: string
+      additionalProperties: false
+    InternalSignature:
+      type: object
+      required: [purpose, signer_type, digest, signature, public_key, address]
+      properties:
+        purpose:
+          type: string
+          enum: [personal_sign, raw]
+        signer_type:
+          type: string
+        digest:
+          type: string
+        signature:
+          type: string
+        public_key:
+          type: string
+        address:
+          type: string
+      additionalProperties: false
+    SignMessageRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1
+      additionalProperties: false
+    SignRawMessageRequest:
+      type: object
+      required: [payload]
+      properties:
+        payload:
+          type: string
+          minLength: 1
+      additionalProperties: false
+    SignTransactionRequest:
+      type: object
+      required: [transaction]
+      properties:
+        transaction:
+          type: object
+          minProperties: 1
+          additionalProperties: true
+      additionalProperties: false
+    SignAuthorizationRequest:
+      type: object
+      required: [authorization]
+      properties:
+        authorization:
+          type: object
+          minProperties: 1
+          additionalProperties: true
+      additionalProperties: false
+    SignMessageResponse:
+      type: object
+      required: [signature]
+      properties:
+        signature:
+          $ref: "#/components/schemas/InternalSignature"
+      additionalProperties: false
+    SignRawMessageResponse:
+      type: object
+      required: [signature]
+      properties:
+        signature:
+          $ref: "#/components/schemas/InternalSignature"
+      additionalProperties: false
+    SignTransactionResponse:
+      type: object
+      required: [transaction, signature]
+      properties:
+        transaction:
+          type: object
+          additionalProperties: true
+        signature:
+          $ref: "#/components/schemas/InternalSignature"
+      additionalProperties: false
+    SignAuthorizationResponse:
+      type: object
+      required: [authorization, signature]
+      properties:
+        authorization:
+          type: object
+          additionalProperties: true
+        signature:
+          $ref: "#/components/schemas/InternalSignature"
+      additionalProperties: false
+    UnauthorizedErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: unauthorized
+      additionalProperties: false
+    WalletCreateFailedErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: wallet_create_failed
+      additionalProperties: false
+    WalletCheckFailedErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: wallet_check_failed
+      additionalProperties: false
+    WalletNotFoundErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: wallet_not_found
+      additionalProperties: false
+    WalletLookupFailedErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: wallet_lookup_failed
+      additionalProperties: false
+    MessageRequiredErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: message_required
+      additionalProperties: false
+    PayloadRequiredErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: payload_required
+      additionalProperties: false
+    TransactionRequiredErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: transaction_required
+      additionalProperties: false
+    AuthorizationRequiredErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: authorization_required
+      additionalProperties: false
+    MessageSignFailedErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: message_sign_failed
+      additionalProperties: false
+    RawMessageSignFailedErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: raw_message_sign_failed
+      additionalProperties: false
+    TransactionSignFailedErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: transaction_sign_failed
+      additionalProperties: false
+    AuthorizationSignFailedErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: authorization_sign_failed
+      additionalProperties: false
     SiwaNonceRequest:
       type: object
       required: [wallet_address, chain_id, registry_address, token_id, audience]
@@ -552,8 +844,7 @@ components:
             keyId:
               type: string
             agent_claims:
-              type: object
-              additionalProperties: true
+              $ref: "#/components/schemas/AgentClaims"
             receiptExpiresAt:
               type: string
               format: date-time
@@ -570,4 +861,17 @@ components:
               items:
                 type: string
           additionalProperties: false
+      additionalProperties: false
+    AgentClaims:
+      type: object
+      required: [wallet_address, chain_id, registry_address, token_id]
+      properties:
+        wallet_address:
+          type: string
+        chain_id:
+          type: integer
+        registry_address:
+          type: string
+        token_id:
+          type: string
       additionalProperties: false
