@@ -37,9 +37,4 @@ layer2.md
 layer3.md
 .codex/
 .claude/
-
-# Local planning and agent notes.
-AGENTS.md
-IMPLEMENTATION_PLAN.md
-layer2.md
-layer3.md
+/output/imagegen/
