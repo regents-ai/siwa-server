@@ -1,0 +1,33 @@
+app = "siwa-server"
+primary_region = "iad"
+kill_signal = "SIGTERM"
+kill_timeout = "5s"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[deploy]
+  release_command = "/app/bin/siwa_server eval SiwaServer.Release.migrate"
+
+[env]
+  ECTO_IPV6 = "true"
+  PHX_HOST = "siwa-server.fly.dev"
+  PHX_SERVER = "true"
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_start_machines = true
+  auto_stop_machines = "off"
+  min_machines_running = 1
+  processes = ["app"]
+
+[[mounts]]
+  source = "siwa_data"
+  destination = "/data"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

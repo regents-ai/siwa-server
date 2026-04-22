@@ -1,0 +1,68 @@
+# siwa-server
+
+`siwa-server` is the shared SIWA service that runs on Fly.io for Regent apps.
+
+It owns:
+
+- public SIWA sign-in routes
+- protected request verification
+- internal keyring routes for signer operations
+- health, metrics, and the served shared services contract
+
+It does not own product-specific app logic. Platform now calls this service over HTTP instead of serving shared SIWA locally.
+
+## Routes
+
+Public routes:
+
+- `POST /v1/agent/siwa/nonce`
+- `POST /v1/agent/siwa/verify`
+- `POST /v1/agent/siwa/http-verify`
+- `GET /healthz`
+- `GET /metrics`
+- `GET /regent-services-contract.openapiv3.yaml`
+
+Internal signer routes:
+
+- `GET /internal/keyring/health`
+- `POST /internal/keyring/create-wallet`
+- `POST /internal/keyring/has-wallet`
+- `POST /internal/keyring/get-address`
+- `POST /internal/keyring/sign-message`
+- `POST /internal/keyring/sign-raw-message`
+- `POST /internal/keyring/sign-transaction`
+- `POST /internal/keyring/sign-authorization`
+
+## Local Setup
+
+Run:
+
+```sh
+mix setup
+mix test
+mix phx.server
+```
+
+## Required Environment
+
+- `DATABASE_URL`
+- `SECRET_KEY_BASE`
+- `SIWA_RECEIPT_SECRET`
+- `KEYSTORE_PASSWORD`
+- `KEYRING_PROXY_SECRET`
+
+Optional:
+
+- `PHX_HOST`
+- `PORT`
+- `BASE_RPC_URL`
+- `SIWA_NONCE_TTL_SECONDS`
+- `SIWA_RECEIPT_TTL_SECONDS`
+- `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS`
+- `KEYSTORE_BACKEND`
+- `KEYSTORE_PATH`
+- `ECTO_IPV6`
+
+## Fly.io
+
+`fly.toml` keeps one machine running, mounts `/data` for the encrypted key store, and runs database migrations before each deploy.
