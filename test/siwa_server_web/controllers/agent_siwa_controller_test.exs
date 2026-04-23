@@ -1,9 +1,9 @@
 defmodule SiwaServerWeb.AgentSiwaControllerTest do
   use SiwaServerWeb.ConnCase, async: false
 
-  alias SiwaServer.TestEthereumAdapter
+  alias SiwaServer.{TestRpcServer, TestWallet}
 
-  @wallet_address "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+  @wallet_address TestWallet.address()
   @chain_id 84_532
   @registry_address "0x3333333333333333333333333333333333333333"
   @token_id "77"
@@ -11,17 +11,13 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
   setup do
     previous_base_rpc_url = System.get_env("BASE_RPC_URL")
 
-    System.put_env("BASE_RPC_URL", "https://base-rpc.test")
-
-    TestEthereumAdapter.put_owner(@registry_address, @token_id, @wallet_address)
+    System.put_env("BASE_RPC_URL", TestRpcServer.owner_of(@wallet_address))
 
     on_exit(fn ->
       case previous_base_rpc_url do
         nil -> System.delete_env("BASE_RPC_URL")
         value -> System.put_env("BASE_RPC_URL", value)
       end
-
-      TestEthereumAdapter.delete_owner(@registry_address, @token_id)
     end)
 
     :ok
@@ -29,7 +25,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
   test "public SIWA endpoints complete the shared auth flow", %{conn: conn} do
     nonce_conn =
-      post(conn, "/v1/agent/siwa/nonce", %{
+      json_post(conn, "/v1/agent/siwa/nonce", %{
         "wallet_address" => @wallet_address,
         "chain_id" => @chain_id,
         "registry_address" => @registry_address,
@@ -42,14 +38,14 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     message = siwa_message(nonce)
 
     verify_conn =
-      post(conn, "/v1/agent/siwa/verify", %{
+      json_post(conn, "/v1/agent/siwa/verify", %{
         "wallet_address" => @wallet_address,
         "chain_id" => @chain_id,
         "registry_address" => @registry_address,
         "token_id" => @token_id,
         "nonce" => nonce,
         "message" => message,
-        "signature" => TestEthereumAdapter.sign_message(@wallet_address, message)
+        "signature" => TestWallet.sign_message(message)
       })
 
     %{"data" => %{"receipt" => receipt}} = json_response(verify_conn, 200)
@@ -59,7 +55,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     expires = created + 120
 
     http_verify_conn =
-      post(conn, "/v1/agent/siwa/http-verify", %{
+      json_post(conn, "/v1/agent/siwa/http-verify", %{
         "method" => "POST",
         "path" => "/v1/agent/bug-report",
         "headers" => signed_headers(receipt, body, created, expires),
@@ -74,7 +70,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
   test "http verify enforces the requested app audience", %{conn: conn} do
     nonce_conn =
-      post(conn, "/v1/agent/siwa/nonce", %{
+      json_post(conn, "/v1/agent/siwa/nonce", %{
         "wallet_address" => @wallet_address,
         "chain_id" => @chain_id,
         "registry_address" => @registry_address,
@@ -86,14 +82,14 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     message = siwa_message(nonce)
 
     verify_conn =
-      post(conn, "/v1/agent/siwa/verify", %{
+      json_post(conn, "/v1/agent/siwa/verify", %{
         "wallet_address" => @wallet_address,
         "chain_id" => @chain_id,
         "registry_address" => @registry_address,
         "token_id" => @token_id,
         "nonce" => nonce,
         "message" => message,
-        "signature" => TestEthereumAdapter.sign_message(@wallet_address, message)
+        "signature" => TestWallet.sign_message(message)
       })
 
     %{"data" => %{"receipt" => receipt}} = json_response(verify_conn, 200)
@@ -105,7 +101,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     conn =
       conn
       |> put_req_header("x-siwa-audience", "techtree")
-      |> post("/v1/agent/siwa/http-verify", %{
+      |> json_post("/v1/agent/siwa/http-verify", %{
         "method" => "POST",
         "path" => "/v1/agent/bug-report",
         "headers" => signed_headers(receipt, body, created, expires),
@@ -114,6 +110,20 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
     %{"error" => %{"code" => code}} = json_response(conn, 401)
     assert code == "receipt_binding_mismatch"
+  end
+
+  test "public SIWA endpoints accept JSON requests", %{conn: conn} do
+    conn =
+      json_post(conn, "/v1/agent/siwa/nonce", %{
+        "wallet_address" => @wallet_address,
+        "chain_id" => @chain_id,
+        "registry_address" => @registry_address,
+        "token_id" => @token_id,
+        "audience" => "platform"
+      })
+
+    %{"data" => %{"nonce" => nonce}} = json_response(conn, 200)
+    assert is_binary(nonce)
   end
 
   test "discovery endpoints expose health, metrics, and the services contract", %{conn: conn} do
@@ -139,6 +149,12 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     Issued At: 2026-04-16T00:00:00Z
     """
     |> String.trim()
+  end
+
+  defp json_post(conn, path, params) do
+    conn
+    |> put_req_header("content-type", "application/json")
+    |> post(path, Jason.encode!(params))
   end
 
   defp signed_headers(receipt, body, created, expires) do
@@ -189,11 +205,17 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       |> Enum.join("\n")
 
     signature =
-      TestEthereumAdapter.sign_message(@wallet_address, signing_message)
-      |> Base.encode64()
+      TestWallet.sign_message(signing_message)
+      |> signature_payload()
 
     headers
     |> Map.put("signature-input", "sig1=#{signature_params}")
     |> Map.put("signature", "sig1=:#{signature}:")
+  end
+
+  defp signature_payload("0x" <> hex) do
+    hex
+    |> Base.decode16!(case: :mixed)
+    |> Base.encode64()
   end
 end

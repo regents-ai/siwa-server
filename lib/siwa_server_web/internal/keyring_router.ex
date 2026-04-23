@@ -103,7 +103,7 @@ defmodule SiwaServerWeb.Internal.KeyringRouter do
 
   defp authorize(conn, _opts) do
     secret = Application.fetch_env!(:siwa_keyring, :secret)
-    body = conn.private[:raw_body] || Jason.encode!(conn.body_params || %{})
+    body = request_body(conn)
 
     case SiwaKeyring.Auth.verify_hmac(
            secret,
@@ -119,6 +119,27 @@ defmodule SiwaServerWeb.Internal.KeyringRouter do
       {:error, reason} ->
         Logger.warning("keyring request authorization failed: #{inspect(reason)}")
         conn |> send_error(401, "unauthorized") |> halt()
+    end
+  end
+
+  defp request_body(conn) do
+    case conn.private[:raw_body] do
+      body when is_binary(body) and body != "" ->
+        body
+
+      _ ->
+        encoded_body_params(conn)
+    end
+  end
+
+  defp encoded_body_params(conn) do
+    content_type = Plug.Conn.get_req_header(conn, "content-type")
+
+    case {content_type, conn.body_params} do
+      {[], _params} -> ""
+      {_content_type, %Plug.Conn.Unfetched{}} -> ""
+      {_content_type, params} when is_map(params) -> Jason.encode!(params)
+      {_content_type, _params} -> ""
     end
   end
 

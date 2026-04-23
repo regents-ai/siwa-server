@@ -1,45 +1,45 @@
 defmodule SiwaServer.Ethereum do
   @moduledoc false
 
-  alias Req.TransportError
-  alias SiwaServer.Ethereum.CastAdapter
-
-  @address_regex ~r/^0x[a-fA-F0-9]{40}$/
-  @tx_hash_regex ~r/^0x[a-fA-F0-9]{64}$/
   @default_rpc_timeout_ms 5_000
 
   @spec normalize_address(term()) :: String.t() | nil
-  def normalize_address(value) when is_binary(value) do
-    trimmed = String.trim(value)
-
-    if Regex.match?(@address_regex, trimmed) do
-      String.downcase(trimmed)
-    else
-      nil
+  def normalize_address(value) do
+    case Siwa.Ethereum.normalize_address(value) do
+      {:ok, address} -> address
+      {:error, _reason} -> nil
     end
   end
 
-  def normalize_address(_value), do: nil
-
   @spec valid_address?(term()) :: boolean()
-  def valid_address?(value), do: not is_nil(normalize_address(value))
+  def valid_address?(value), do: Siwa.Ethereum.valid_address?(value)
 
   @spec valid_tx_hash?(term()) :: boolean()
-  def valid_tx_hash?(value) when is_binary(value),
-    do: Regex.match?(@tx_hash_regex, String.trim(value))
-
-  def valid_tx_hash?(_value), do: false
+  def valid_tx_hash?(value), do: Siwa.Ethereum.valid_tx_hash?(value)
 
   @spec namehash(String.t()) :: {:ok, String.t()} | {:error, String.t()}
   def namehash(name) do
-    adapter().namehash(name)
+    case Siwa.Ethereum.namehash(name) do
+      {:ok, hash} -> {:ok, hash}
+      {:error, :invalid_ens_name} -> {:error, "invalid ENS name"}
+    end
   end
 
   @spec verify_signature(String.t(), String.t(), String.t()) :: :ok | {:error, String.t()}
   def verify_signature(address, message, signature) do
     case normalize_address(address) do
-      nil -> {:error, "invalid address"}
-      normalized_address -> adapter().verify_signature(normalized_address, message, signature)
+      nil ->
+        {:error, "invalid address"}
+
+      normalized_address ->
+        case Siwa.EvmPersonalSign.verify_personal_signature(
+               message,
+               signature,
+               normalized_address
+             ) do
+          :ok -> :ok
+          {:error, _reason} -> {:error, "Invalid signature"}
+        end
     end
   end
 
@@ -48,54 +48,35 @@ defmodule SiwaServer.Ethereum do
     do: parts |> Enum.join(":") |> synthetic_tx_hash()
 
   def synthetic_tx_hash(payload) when is_binary(payload) do
-    adapter().synthetic_tx_hash(payload)
+    Siwa.Ethereum.keccak_hex(payload)
   end
 
-  @spec owner_of(String.t(), pos_integer(), keyword()) :: {:ok, String.t()} | {:error, String.t()}
+  @spec owner_of(String.t(), String.t(), keyword()) :: {:ok, String.t()} | {:error, String.t()}
   def owner_of(registry_address, token_id, opts \\ []) do
-    with normalized_registry when is_binary(normalized_registry) <-
-           normalize_address(registry_address),
-         true <- is_integer(token_id) and token_id > 0,
-         {:ok, owner} <- adapter().owner_of(normalized_registry, token_id, opts),
-         normalized_owner when is_binary(normalized_owner) <- normalize_address(owner) do
-      {:ok, normalized_owner}
-    else
-      nil -> {:error, "invalid address"}
-      _ -> {:error, "invalid owner"}
-    end
+    rpc_url = Keyword.get(opts, :rpc_url)
+
+    telemetry_span(:owner_of, %{registry_address: registry_address}, fn ->
+      result =
+        Siwa.Ethereum.owner_of(registry_address, token_id, rpc_url,
+          timeout_ms: rpc_timeout_ms(),
+          finch: SiwaServer.Finch
+        )
+
+      {map_ethereum_result(result), %{result: telemetry_result(result)}}
+    end)
   end
 
   @spec json_rpc(String.t(), String.t(), list()) :: {:ok, map() | nil} | {:error, String.t()}
   def json_rpc(url, method, params) do
-    timeout_ms = rpc_timeout_ms()
+    telemetry_span(:json_rpc, %{method: method}, fn ->
+      result =
+        Siwa.Ethereum.json_rpc(url, method, params,
+          timeout_ms: rpc_timeout_ms(),
+          finch: SiwaServer.Finch
+        )
 
-    request =
-      Req.new(
-        url: url,
-        connect_options: [timeout: timeout_ms],
-        receive_timeout: timeout_ms,
-        retry: false,
-        json: %{
-          id: 1,
-          jsonrpc: "2.0",
-          method: method,
-          params: params
-        }
-      )
-
-    case Req.post(request) do
-      {:ok, %{status: status, body: body}} when status in 200..299 ->
-        parse_rpc_response(body)
-
-      {:ok, %{status: _status}} ->
-        {:error, "rpc request failed"}
-
-      {:error, %TransportError{reason: :timeout}} ->
-        {:error, "rpc request timed out"}
-
-      {:error, error} ->
-        {:error, map_rpc_error(error)}
-    end
+      {map_ethereum_result(result), %{result: telemetry_result(result)}}
+    end)
   end
 
   @spec hex_to_integer(term()) :: integer()
@@ -106,30 +87,32 @@ defmodule SiwaServer.Ethereum do
 
   def hex_to_integer(_value), do: 0
 
-  defp adapter do
-    Application.get_env(:siwa_server, :ethereum_adapter, CastAdapter)
-  end
-
-  defp parse_rpc_response(%{"error" => %{"message" => message}})
-       when is_binary(message) and byte_size(message) > 0 do
-    {:error, message}
-  end
-
-  defp parse_rpc_response(%{"error" => _error}), do: {:error, "rpc request failed"}
-  defp parse_rpc_response(%{"result" => result}), do: {:ok, result}
-  defp parse_rpc_response(_body), do: {:error, "invalid rpc response"}
-
-  defp map_rpc_error(error) do
-    message = Exception.message(error)
-
-    if String.contains?(String.downcase(message), "timeout") do
-      "rpc request timed out"
-    else
-      "rpc request failed"
-    end
-  end
-
   defp rpc_timeout_ms do
     Application.get_env(:siwa_server, :ethereum_rpc_timeout_ms, @default_rpc_timeout_ms)
   end
+
+  defp telemetry_span(operation, metadata, fun) do
+    :telemetry.span(
+      [:siwa_server, :ethereum, :rpc],
+      Map.put(metadata, :operation, operation),
+      fun
+    )
+  end
+
+  defp telemetry_result({:ok, _value}), do: :ok
+  defp telemetry_result({:error, reason}), do: reason
+
+  defp map_ethereum_result({:ok, value}), do: {:ok, value}
+  defp map_ethereum_result({:error, {:rpc_error, message}}), do: {:error, message}
+  defp map_ethereum_result({:error, :invalid_address}), do: {:error, "invalid address"}
+  defp map_ethereum_result({:error, :invalid_token_id}), do: {:error, "invalid token id"}
+  defp map_ethereum_result({:error, :token_id_too_large}), do: {:error, "invalid token id"}
+  defp map_ethereum_result({:error, :rpc_url_required}), do: {:error, "rpc url is required"}
+
+  defp map_ethereum_result({:error, :rpc_request_timed_out}),
+    do: {:error, "rpc request timed out"}
+
+  defp map_ethereum_result({:error, :invalid_rpc_response}), do: {:error, "invalid rpc response"}
+  defp map_ethereum_result({:error, :invalid_owner}), do: {:error, "invalid owner"}
+  defp map_ethereum_result({:error, _reason}), do: {:error, "rpc request failed"}
 end

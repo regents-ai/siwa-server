@@ -75,6 +75,32 @@ defmodule SiwaServerWeb.Internal.KeyringRouterTest do
     assert Jason.decode!(response.resp_body) == %{"error" => "unauthorized"}
   end
 
+  test "internal keyring routes accept signed requests with no body" do
+    path = Path.join(System.tmp_dir!(), "siwa-keyring-#{System.unique_integer([:positive])}.json")
+    old_env = Application.get_all_env(:siwa_keyring)
+
+    Application.put_env(:siwa_keyring, :path, path)
+    Application.put_env(:siwa_keyring, :password, "router-password")
+    Application.put_env(:siwa_keyring, :secret, "router-secret")
+
+    on_exit(fn ->
+      File.rm(path)
+      restore_keyring_env(old_env)
+    end)
+
+    headers =
+      SiwaKeyring.Auth.compute_hmac("router-secret", "POST", "/internal/keyring/has-wallet", "")
+
+    response =
+      conn("POST", "/internal/keyring/has-wallet")
+      |> put_req_header("x-keyring-timestamp", headers["x-keyring-timestamp"])
+      |> put_req_header("x-keyring-signature", headers["x-keyring-signature"])
+      |> call_endpoint()
+
+    assert response.status == 200
+    assert Jason.decode!(response.resp_body) == %{"has_wallet" => false}
+  end
+
   test "internal keyring routes reject empty signing inputs" do
     path = Path.join(System.tmp_dir!(), "siwa-keyring-#{System.unique_integer([:positive])}.json")
     old_env = Application.get_all_env(:siwa_keyring)
@@ -141,7 +167,7 @@ defmodule SiwaServerWeb.Internal.KeyringRouterTest do
     assert Jason.decode!(sign_response.resp_body) == %{"error" => "message_sign_failed"}
   end
 
-  test "internal keyring has-wallet failures do not crash the route" do
+  test "internal keyring has-wallet returns false when the wallet path is missing" do
     old_env = Application.get_all_env(:siwa_keyring)
     Application.put_env(:siwa_keyring, :path, nil)
     Application.put_env(:siwa_keyring, :password, "router-password")
@@ -155,8 +181,8 @@ defmodule SiwaServerWeb.Internal.KeyringRouterTest do
       signed_conn("POST", "/internal/keyring/has-wallet", "{}", "router-secret")
       |> call_endpoint()
 
-    assert response.status == 422
-    assert Jason.decode!(response.resp_body) == %{"error" => "wallet_check_failed"}
+    assert response.status == 200
+    assert Jason.decode!(response.resp_body) == %{"has_wallet" => false}
   end
 
   test "internal keyring body reader preserves the full raw body across multiple reads" do
