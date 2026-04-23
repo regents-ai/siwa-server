@@ -7,7 +7,7 @@ defmodule SiwaServer.Repo.Migrations.CreateSiwaNonces do
       add :nonce_key, :string, null: false
       add :nonce, :string, null: false
       add :address, :string, null: false
-      add :agent_id, :bigint, null: false
+      add :agent_id, :text, null: false
       add :agent_registry, :string, null: false
       add :audience, :string, null: false
       add :issued_at, :utc_datetime, null: false

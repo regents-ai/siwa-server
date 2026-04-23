@@ -9,7 +9,7 @@ defmodule SiwaServer.Siwa.NonceRecord do
     field :nonce_key, :string
     field :nonce, :string
     field :address, :string
-    field :agent_id, :integer
+    field :agent_id, :string
     field :agent_registry, :string
     field :audience, :string
     field :issued_at, :utc_datetime

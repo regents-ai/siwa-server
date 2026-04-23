@@ -40,7 +40,7 @@ defmodule SiwaServer.Siwa.NonceStore do
            """,
            [DateTime.truncate(now, :second), limit]
          ) do
-      {:ok, _result} -> :ok
+      {:ok, %{num_rows: count}} -> {:ok, count}
       {:error, reason} -> {:error, reason}
     end
   end
