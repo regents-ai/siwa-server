@@ -21,6 +21,7 @@ if System.get_env("PHX_SERVER") do
 end
 
 current_siwa = Application.get_env(:siwa_server, :siwa, [])
+current_siwa_cleanup = Application.get_env(:siwa_server, :siwa_cleanup, [])
 current_keyring = Application.get_all_env(:siwa_keyring)
 
 env_integer = fn name, default ->
@@ -33,6 +34,16 @@ end
 env_value = fn name, default ->
   case System.get_env(name) do
     value when is_binary(value) and value != "" -> value
+    _ -> default
+  end
+end
+
+env_boolean = fn name, default ->
+  case System.get_env(name) do
+    "true" -> true
+    "1" -> true
+    "false" -> false
+    "0" -> false
     _ -> default
   end
 end
@@ -50,6 +61,17 @@ config :siwa_server, :siwa,
       Keyword.get(current_siwa, :receipt_ttl_seconds, 3_600)
     ),
   receipt_secret: env_value.("SIWA_RECEIPT_SECRET", Keyword.get(current_siwa, :receipt_secret))
+
+config :siwa_server, :siwa_cleanup,
+  enabled:
+    env_boolean.("SIWA_CLEANUP_ENABLED", Keyword.get(current_siwa_cleanup, :enabled, true)),
+  interval_ms:
+    env_integer.(
+      "SIWA_CLEANUP_INTERVAL_MS",
+      Keyword.get(current_siwa_cleanup, :interval_ms, 60_000)
+    ),
+  batch_size:
+    env_integer.("SIWA_CLEANUP_BATCH_SIZE", Keyword.get(current_siwa_cleanup, :batch_size, 1_000))
 
 config :siwa_keyring,
   backend:

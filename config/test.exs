@@ -24,12 +24,12 @@ config :siwa_server, SiwaServerWeb.Endpoint,
   secret_key_base: "3OnskX0TNNRGq/xv7Qljewzf8XgYe96C4rlmL23Z2ptW8irw1GICd4a22ir0sZW5",
   server: false
 
-config :siwa_server, :ethereum_adapter, SiwaServer.TestEthereumAdapter
-
 config :siwa_server, :siwa,
   nonce_ttl_seconds: 300,
   receipt_ttl_seconds: 3_600,
   receipt_secret: "siwa-server-test-receipt-secret"
+
+config :siwa_server, :siwa_cleanup, enabled: false, interval_ms: 60_000, batch_size: 1_000
 
 config :siwa_keyring,
   backend: "encrypted_file",

@@ -11,8 +11,6 @@ config :siwa_server,
   ecto_repos: [SiwaServer.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 
-config :siwa_server, :ethereum_adapter, SiwaServer.Ethereum.CastAdapter
-
 config :siwa,
   nonce_store: :unused,
   nonce_secret: "siwa-server-unused-nonce-secret"
@@ -21,6 +19,11 @@ config :siwa_server, :siwa,
   nonce_ttl_seconds: 300,
   receipt_ttl_seconds: 3_600,
   receipt_secret: nil
+
+config :siwa_server, :siwa_cleanup,
+  enabled: true,
+  interval_ms: 60_000,
+  batch_size: 1_000
 
 # Configure the endpoint
 config :siwa_server, SiwaServerWeb.Endpoint,

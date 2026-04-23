@@ -63,11 +63,69 @@ defmodule SiwaServerWeb.Telemetry do
         reporter_options: [buckets: @query_duration_buckets],
         description: "The total database query duration in seconds"
       ),
+      counter("siwa_server.ethereum.rpc.calls.total",
+        event_name: [:siwa_server, :ethereum, :rpc, :stop],
+        measurement: fn _measurements, _metadata -> 1 end,
+        tags: [:operation, :result],
+        description: "The total number of Ethereum RPC operations"
+      ),
+      distribution("siwa_server.ethereum.rpc.duration.seconds",
+        event_name: [:siwa_server, :ethereum, :rpc, :stop],
+        measurement: :duration,
+        tags: [:operation, :result],
+        unit: {:native, :second},
+        reporter_options: [buckets: @request_duration_buckets],
+        description: "Ethereum RPC operation duration in seconds"
+      ),
+      counter("siwa_server.siwa.cleanup.runs.total",
+        event_name: [:siwa_server, :siwa, :cleanup],
+        measurement: fn _measurements, _metadata -> 1 end,
+        tags: [:result],
+        description: "The total number of SIWA cleanup runs"
+      ),
+      counter("siwa_server.siwa.cleanup.nonces.deleted.total",
+        event_name: [:siwa_server, :siwa, :cleanup],
+        measurement: :nonce_count,
+        description: "The total number of expired SIWA nonces removed"
+      ),
+      counter("siwa_server.siwa.cleanup.replays.deleted.total",
+        event_name: [:siwa_server, :siwa, :cleanup],
+        measurement: :replay_count,
+        description: "The total number of expired SIWA replay records removed"
+      ),
+      distribution("siwa_server.siwa.cleanup.duration.seconds",
+        event_name: [:siwa_server, :siwa, :cleanup],
+        measurement: :duration,
+        tags: [:result],
+        unit: {:native, :second},
+        reporter_options: [buckets: @query_duration_buckets],
+        description: "SIWA cleanup duration in seconds"
+      ),
       last_value("siwa_server.vm.memory.total.bytes",
         event_name: [:vm, :memory],
         measurement: :total,
         unit: :byte,
         description: "The total BEAM memory footprint in bytes"
+      ),
+      last_value("siwa_server.vm.system.atom_count",
+        event_name: [:siwa_server, :vm, :system_counts],
+        measurement: :atom_count,
+        description: "The current number of loaded atoms"
+      ),
+      last_value("siwa_server.vm.system.ets_count",
+        event_name: [:siwa_server, :vm, :system_counts],
+        measurement: :ets_count,
+        description: "The current number of ETS tables"
+      ),
+      last_value("siwa_server.vm.system.port_count",
+        event_name: [:siwa_server, :vm, :system_counts],
+        measurement: :port_count,
+        description: "The current number of open ports"
+      ),
+      last_value("siwa_server.vm.system.process_count",
+        event_name: [:siwa_server, :vm, :system_counts],
+        measurement: :process_count,
+        description: "The current number of running processes"
       )
     ]
   end

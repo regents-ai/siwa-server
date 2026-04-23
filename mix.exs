@@ -44,21 +44,17 @@ defmodule SiwaServer.MixProject do
       {:ecto_sql, "~> 3.13"},
       {:postgrex, ">= 0.0.0"},
       {:req, "~> 0.5"},
+      {:finch, "~> 0.21"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_metrics_prometheus_core, "~> 1.2"},
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.2"},
+      {:keccak_ex, "~> 0.4.2"},
+      {:ex_secp256k1, "~> 0.8.0"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
-      {:siwa,
-       git: "https://github.com/regents-ai/elixir-utils.git",
-       sparse: "siwa/siwa-elixir/apps/siwa",
-       runtime: false,
-       override: true},
-      {:siwa_keyring,
-       git: "https://github.com/regents-ai/elixir-utils.git",
-       sparse: "siwa/siwa-elixir/apps/siwa_keyring",
-       runtime: false},
+      {:siwa, path: "../elixir-utils/siwa/siwa-elixir/apps/siwa", runtime: false, override: true},
+      {:siwa_keyring, path: "../elixir-utils/siwa/siwa-elixir/apps/siwa_keyring", runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end
@@ -75,7 +71,16 @@ defmodule SiwaServer.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test --max-cases 8"],
-      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
+      "check.services_contract": [
+        "cmd node ../regents-cli/scripts/check-shared-services-contract.mjs"
+      ],
+      precommit: [
+        "compile --warnings-as-errors",
+        "deps.unlock --unused",
+        "format",
+        "check.services_contract",
+        "test"
+      ]
     ]
   end
 end

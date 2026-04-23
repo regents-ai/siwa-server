@@ -8,6 +8,8 @@ defmodule SiwaServer.Application do
     children = [
       SiwaServerWeb.Telemetry,
       SiwaServer.Repo,
+      {Finch, name: SiwaServer.Finch},
+      {SiwaServer.Siwa.CleanupWorker, []},
       {DNSCluster, query: Application.get_env(:siwa_server, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: SiwaServer.PubSub},
       SiwaServerWeb.Endpoint

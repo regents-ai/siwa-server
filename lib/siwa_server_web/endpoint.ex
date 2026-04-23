@@ -1,20 +1,6 @@
 defmodule SiwaServerWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :siwa_server
 
-  # The session will be stored in the cookie and signed,
-  # this means its contents can be read but not tampered with.
-  # Set :encryption_salt if you would also like to encrypt it.
-  @session_options [
-    store: :cookie,
-    key: "_siwa_server_key",
-    signing_salt: "qVBgaJSw",
-    same_site: "Lax"
-  ]
-
-  # socket "/live", Phoenix.LiveView.Socket,
-  #   websocket: [connect_info: [session: @session_options]],
-  #   longpoll: [connect_info: [session: @session_options]]
-
   # Serve at "/" the static files from "priv/static" directory.
   #
   # When code reloading is disabled (e.g., in production),
@@ -38,12 +24,10 @@ defmodule SiwaServerWeb.Endpoint do
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
   plug Plug.Parsers,
-    parsers: [:urlencoded, :multipart, :json],
-    pass: ["*/*"],
+    parsers: [:json],
+    pass: [],
     json_decoder: Phoenix.json_library()
 
-  plug Plug.MethodOverride
   plug Plug.Head
-  plug Plug.Session, @session_options
   plug SiwaServerWeb.Router
 end
