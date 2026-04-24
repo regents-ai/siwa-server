@@ -1581,9 +1581,13 @@ components:
           type: string
         total_staked:
           $ref: "#/components/schemas/DecimalString"
-        total_recognized_rewards_usdc_raw:
+        total_usdc_received_raw:
           type: string
-        total_recognized_rewards_usdc:
+        total_usdc_received:
+          $ref: "#/components/schemas/DecimalString"
+        direct_deposit_usdc_raw:
+          type: string
+        direct_deposit_usdc:
           $ref: "#/components/schemas/DecimalString"
         treasury_residual_usdc_raw:
           type: string
@@ -1602,6 +1606,10 @@ components:
         wallet_claimable_usdc_raw:
           type: string
         wallet_claimable_usdc:
+          $ref: "#/components/schemas/DecimalString"
+        wallet_funded_claimable_regent_raw:
+          type: string
+        wallet_funded_claimable_regent:
           $ref: "#/components/schemas/DecimalString"
       additionalProperties: true
     RegentStakingOverviewResponse:
