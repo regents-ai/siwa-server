@@ -26,7 +26,7 @@ defmodule SiwaServer.SiwaTest do
     expires = created + 30
 
     assert {:error, {401, "http_signature_invalid", message}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => signed_headers(receipt, body, created, expires),
@@ -43,7 +43,7 @@ defmodule SiwaServer.SiwaTest do
     expires = System.os_time(:second) + 30
 
     assert {:error, {401, "http_signature_invalid", message}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => signed_headers(receipt, body, created, expires),
@@ -65,7 +65,7 @@ defmodule SiwaServer.SiwaTest do
       |> Map.put("content-digest", Siwa.content_digest_for_body("different-body"))
 
     assert {:error, {401, "http_body_binding_invalid", message}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
@@ -82,7 +82,7 @@ defmodule SiwaServer.SiwaTest do
     expires = created + 120
 
     assert {:error, {401, "http_body_binding_missing", message}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => signed_headers(receipt, body, created, expires)
@@ -104,7 +104,7 @@ defmodule SiwaServer.SiwaTest do
       })
 
     assert {:error, {401, "receipt_binding_mismatch", message}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
@@ -125,7 +125,7 @@ defmodule SiwaServer.SiwaTest do
       |> Map.put("x-agent-chain-id", 84_532)
 
     assert {:error, {400, "invalid_headers", message}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => bad_headers,
@@ -146,7 +146,7 @@ defmodule SiwaServer.SiwaTest do
       |> Map.put("x-agent-chain-id", "not-a-number")
 
     assert {:error, {401, "receipt_binding_mismatch", message}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
@@ -167,7 +167,7 @@ defmodule SiwaServer.SiwaTest do
       |> Map.put("X-Key-Id", @wallet_address)
 
     assert {:error, {400, "invalid_headers", message}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
@@ -184,7 +184,7 @@ defmodule SiwaServer.SiwaTest do
     expires = created + 120
 
     assert {:error, {401, "receipt_binding_mismatch", message}} =
-             Siwa.verify_http_request(
+             verify_http_request(
                %{
                  "method" => "POST",
                  "path" => "/v1/agent/bug-report",
@@ -247,11 +247,13 @@ defmodule SiwaServer.SiwaTest do
 
     bad_message =
       """
-      regent.cx wants you to sign in with your Ethereum account:
+      regent.cx wants you to sign in with your Agent account:
       #{@wallet_address}
 
       URI: https://wrong.example.com/v1/agent/siwa/verify
       Version: 1
+      Agent ID: #{@token_id}
+      Agent Registry: eip155:#{@chain_id}:#{@registry_address}
       Chain ID: #{@chain_id}
       Nonce: #{nonce}
       Issued At: 2026-04-16T00:00:00Z
@@ -284,11 +286,13 @@ defmodule SiwaServer.SiwaTest do
 
     bad_message =
       """
-      regent.cx wants you to sign in with your Ethereum account:
+      regent.cx wants you to sign in with your Agent account:
       #{@wallet_address}
 
       URI: https://regent.cx/v1/agent/siwa/verify
       Version: 1
+      Agent ID: #{@token_id}
+      Agent Registry: eip155:#{@chain_id}:#{@registry_address}
       Chain ID: #{@chain_id}
       Nonce: #{nonce}
       Nonce: duplicate
@@ -322,11 +326,13 @@ defmodule SiwaServer.SiwaTest do
 
     bad_message =
       """
-      regent.cx wants you to sign in with your Ethereum account:
+      regent.cx wants you to sign in with your Agent account:
       #{@wallet_address}
 
       URI: https://regent.cx/v1/agent/siwa/verify
       Version: 1
+      Agent ID: #{@token_id}
+      Agent Registry: eip155:#{@chain_id}:#{@registry_address}
       Chain ID: #{@chain_id}
       Nonce: #{nonce}
       Issued At: 2026-04-16T00:00:00Z
@@ -362,7 +368,7 @@ defmodule SiwaServer.SiwaTest do
     end)
 
     assert {:error, {500, "siwa_not_configured", message}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => signed_headers(receipt, body, created, expires),
@@ -379,7 +385,7 @@ defmodule SiwaServer.SiwaTest do
     expires = created + 120
 
     assert {:ok, %{"data" => %{"agent_claims" => claims}}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => signed_headers(receipt, body, created, expires),
@@ -400,7 +406,7 @@ defmodule SiwaServer.SiwaTest do
     headers = signed_headers(receipt, body, created, expires)
 
     assert {:ok, _payload} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
@@ -417,7 +423,7 @@ defmodule SiwaServer.SiwaTest do
              )
 
     assert {:error, {409, "request_replayed", _message}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
@@ -441,7 +447,7 @@ defmodule SiwaServer.SiwaTest do
 
     results =
       1..20
-      |> Task.async_stream(fn _ -> Siwa.verify_http_request(request) end,
+      |> Task.async_stream(fn _ -> verify_http_request(request) end,
         max_concurrency: 20,
         timeout: 5_000
       )
@@ -472,7 +478,7 @@ defmodule SiwaServer.SiwaTest do
     ]
 
     assert {:error, {401, "http_signature_input_invalid", message}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => signed_headers(receipt, body, created, expires, %{}, components),
@@ -513,7 +519,7 @@ defmodule SiwaServer.SiwaTest do
       )
 
     assert {:error, {401, "http_signature_input_invalid", message}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
@@ -542,7 +548,7 @@ defmodule SiwaServer.SiwaTest do
     ]
 
     assert {:error, {401, "http_required_components_missing", message}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => signed_headers(receipt, body, created, expires, %{}, components),
@@ -564,7 +570,7 @@ defmodule SiwaServer.SiwaTest do
       |> Map.delete("x-key-id")
 
     assert {:error, {401, "http_headers_missing", message}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
@@ -586,7 +592,7 @@ defmodule SiwaServer.SiwaTest do
       |> Map.put("signature", "sig1=:!!!!:")
 
     assert {:error, {401, "http_signature_invalid", message}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
@@ -613,7 +619,7 @@ defmodule SiwaServer.SiwaTest do
       end)
 
     assert {:error, {401, "signature_invalid", message}} =
-             Siwa.verify_http_request(%{
+             verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
@@ -747,11 +753,13 @@ defmodule SiwaServer.SiwaTest do
 
   defp siwa_message(nonce) do
     """
-    regent.cx wants you to sign in with your Ethereum account:
+    regent.cx wants you to sign in with your Agent account:
     #{@wallet_address}
 
     URI: https://regent.cx/v1/agent/siwa/verify
     Version: 1
+    Agent ID: #{@token_id}
+    Agent Registry: eip155:#{@chain_id}:#{@registry_address}
     Chain ID: #{@chain_id}
     Nonce: #{nonce}
     Issued At: 2026-04-16T00:00:00Z
@@ -829,6 +837,10 @@ defmodule SiwaServer.SiwaTest do
   defp request_nonce(headers) do
     [_, nonce] = Regex.run(~r/;nonce="([^"]+)"/, Map.fetch!(headers, "signature-input"))
     nonce
+  end
+
+  defp verify_http_request(params, opts \\ []) do
+    Siwa.verify_http_request(params, Keyword.put_new(opts, :audience, "regents.sh"))
   end
 
   defp signature_payload("0x" <> hex) do

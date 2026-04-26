@@ -67,13 +67,14 @@ defmodule SiwaServer.Siwa.SignatureInput do
         with {:ok, created} <- parse_positive_integer(entries["created"]),
              {:ok, expires} <- parse_positive_integer(entries["expires"]),
              {:ok, nonce} <- required_value(entries["nonce"]),
+             {:ok, key_id} <- required_value(entries["keyid"]),
              true <- expires > created do
           {:ok,
            %{
              created: created,
              expires: expires,
              nonce: nonce,
-             key_id: normalize_optional_text(entries["keyid"])
+             key_id: key_id
            }}
         else
           _ -> {:error, :invalid}
@@ -143,13 +144,4 @@ defmodule SiwaServer.Siwa.SignatureInput do
   defp required_value(nil), do: {:error, :missing}
   defp required_value(""), do: {:error, :missing}
   defp required_value(value), do: {:ok, value}
-
-  defp normalize_optional_text(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      normalized -> normalized
-    end
-  end
-
-  defp normalize_optional_text(_value), do: nil
 end

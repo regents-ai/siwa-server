@@ -59,8 +59,9 @@ defmodule SiwaServerWeb.Internal.KeyringRouterTest do
     assert sign_response.status == 200
 
     %{"signature" => signature} = Jason.decode!(sign_response.resp_body)
-    assert signature["address"] == address
-    assert signature["purpose"] == "personal_sign"
+    assert is_binary(signature)
+    assert String.starts_with?(signature, "0x")
+    assert byte_size(signature) == 132
   end
 
   test "internal keyring routes reject requests with a bad signature" do

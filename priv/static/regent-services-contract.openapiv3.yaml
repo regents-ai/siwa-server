@@ -232,10 +232,10 @@ paths:
       parameters:
         - in: header
           name: x-siwa-audience
-          required: false
+          required: true
           schema:
             type: string
-          description: Optional app audience that the SIWA receipt must match for this protected request
+          description: App audience that the SIWA receipt must match for this protected request
       requestBody:
         required: true
         content:
@@ -607,124 +607,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
-  /api/regent/staking:
-    get:
-      operationId: getRegentStakingOverview
-      tags: [regent-staking]
-      responses:
-        "200":
-          description: Staking overview
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RegentStakingOverviewResponse"
-  /api/regent/staking/account/{address}:
-    get:
-      operationId: getRegentStakingAccount
-      tags: [regent-staking]
-      parameters:
-        - name: address
-          in: path
-          required: true
-          schema:
-            $ref: "#/components/schemas/Address"
-      responses:
-        "200":
-          description: Account staking state
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RegentStakingAccountResponse"
-  /api/regent/staking/stake:
-    post:
-      operationId: stakeRegent
-      tags: [regent-staking]
-      security: [{ PrivySessionCookie: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AmountRequest"
-      responses:
-        "200":
-          description: Stake prepared
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PreparedActionResponse"
-  /api/regent/staking/unstake:
-    post:
-      operationId: unstakeRegent
-      tags: [regent-staking]
-      security: [{ PrivySessionCookie: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AmountRequest"
-      responses:
-        "200":
-          description: Unstake prepared
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PreparedActionResponse"
-  /api/regent/staking/claim-usdc:
-    post:
-      operationId: claimRegentStakingUsdc
-      tags: [regent-staking]
-      security: [{ PrivySessionCookie: [] }]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-      responses:
-        "200":
-          description: Claim prepared
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PreparedActionResponse"
-  /api/regent/staking/claim-regent:
-    post:
-      operationId: claimRegentStakingRegent
-      tags: [regent-staking]
-      security: [{ PrivySessionCookie: [] }]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-      responses:
-        "200":
-          description: Regent claim prepared
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PreparedActionResponse"
-  /api/regent/staking/claim-and-restake-regent:
-    post:
-      operationId: claimAndRestakeRegentStakingRegent
-      tags: [regent-staking]
-      security: [{ PrivySessionCookie: [] }]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-      responses:
-        "200":
-          description: Regent claim and restake prepared
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PreparedActionResponse"
   /v1/agent/regent/staking:
     get:
       operationId: getAgentRegentStakingOverview
@@ -845,40 +727,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PreparedActionResponse"
-  /api/regent/staking/deposit-usdc/prepare:
-    post:
-      operationId: prepareRegentStakingDepositUsdc
-      tags: [regent-staking]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/DepositUsdcRequest"
-      responses:
-        "200":
-          description: Deposit prepared
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PreparedActionResponse"
-  /api/regent/staking/withdraw-treasury/prepare:
-    post:
-      operationId: prepareRegentStakingTreasuryWithdraw
-      tags: [regent-staking]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/WithdrawTreasuryRequest"
-      responses:
-        "200":
-          description: Treasury withdraw prepared
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PreparedActionResponse"
   /v1/agent/bug-report:
     post:
       operationId: createAgentBugReport
@@ -932,14 +780,11 @@ components:
     AgentSiwaHeaders:
       type: apiKey
       in: header
-      name: x-regent-agent-address
+      name: x-siwa-receipt
       description: >
-        Placeholder for the signed shared-SIWA header bundle used by authenticated agent requests.
-        The concrete header set is carried by the CLI request signer and verified by the shared SIWA rail.
-    PrivySessionCookie:
-      type: apiKey
-      in: cookie
-      name: _autolaunch_key
+        Signed Agent account header bundle for authenticated agent requests. The current
+        shape includes the receipt, signature, signature-input, key ID, timestamp, wallet,
+        chain, registry address, token ID, and content digest when the request has a body.
   schemas:
     Address:
       type: string
@@ -1059,6 +904,7 @@ components:
           type: string
         message:
           type: string
+          description: Canonical SIWA message containing wallet address, chain id, registry address, token id, nonce, and issue time.
         signature:
           $ref: "#/components/schemas/HexData"
         address:
@@ -1314,8 +1160,14 @@ components:
           type: string
         path:
           type: string
+          description: Absolute signed path, including the query string when present.
         headers:
           type: object
+          description: >
+            Signed Agent account headers. The current shape requires x-siwa-receipt,
+            signature, signature-input, x-key-id, x-timestamp, x-agent-wallet-address,
+            x-agent-chain-id, x-agent-registry-address, and x-agent-token-id. Requests
+            with a body also require content-digest.
           additionalProperties:
             type: string
         body:
@@ -1497,26 +1349,6 @@ components:
       properties:
         amount:
           $ref: "#/components/schemas/DecimalString"
-      additionalProperties: false
-    DepositUsdcRequest:
-      type: object
-      required: [amount, source_tag, source_ref]
-      properties:
-        amount:
-          $ref: "#/components/schemas/DecimalString"
-        source_tag:
-          type: string
-        source_ref:
-          type: string
-      additionalProperties: false
-    WithdrawTreasuryRequest:
-      type: object
-      required: [amount]
-      properties:
-        amount:
-          $ref: "#/components/schemas/DecimalString"
-        recipient:
-          $ref: "#/components/schemas/Address"
       additionalProperties: false
     TxRequest:
       type: object

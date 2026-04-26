@@ -55,7 +55,9 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     expires = created + 120
 
     http_verify_conn =
-      json_post(conn, "/v1/agent/siwa/http-verify", %{
+      conn
+      |> put_req_header("x-siwa-audience", "platform")
+      |> json_post("/v1/agent/siwa/http-verify", %{
         "method" => "POST",
         "path" => "/v1/agent/bug-report",
         "headers" => signed_headers(receipt, body, created, expires),
@@ -139,11 +141,13 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
   defp siwa_message(nonce) do
     """
-    regent.cx wants you to sign in with your Ethereum account:
+    regent.cx wants you to sign in with your Agent account:
     #{@wallet_address}
 
     URI: https://regent.cx/v1/agent/siwa/verify
     Version: 1
+    Agent ID: #{@token_id}
+    Agent Registry: eip155:#{@chain_id}:#{@registry_address}
     Chain ID: #{@chain_id}
     Nonce: #{nonce}
     Issued At: 2026-04-16T00:00:00Z

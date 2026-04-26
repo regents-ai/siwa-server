@@ -22,6 +22,12 @@ Public routes:
 - `GET /metrics`
 - `GET /regent-services-contract.openapiv3.yaml`
 
+The current Agent account shape is mandatory across these routes: wallet, chain,
+registry address, token ID, audience, nonce, and the request body when a protected
+request has one. Protected request verification also expects the signed path to
+include the query string when a query string is present, and callers must send
+the app audience that owns the request.
+
 Internal signer routes:
 
 - `GET /internal/keyring/health`

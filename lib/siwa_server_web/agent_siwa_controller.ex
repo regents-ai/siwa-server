@@ -7,17 +7,16 @@ defmodule SiwaServerWeb.AgentSiwaController do
   def verify(conn, params), do: render_result(conn, Siwa.verify_session(params))
 
   def http_verify(conn, params) do
-    audience =
-      conn
-      |> get_req_header("x-siwa-audience")
-      |> List.first()
-
-    render_result(
-      conn,
-      params
-      |> Map.take(["method", "path", "headers", "body"])
-      |> Siwa.verify_http_request(audience: audience)
-    )
+    with {:ok, audience} <- required_header(conn, "x-siwa-audience") do
+      render_result(
+        conn,
+        params
+        |> Map.take(["method", "path", "headers", "body"])
+        |> Siwa.verify_http_request(audience: audience)
+      )
+    else
+      {:error, code, message} -> render_result(conn, {:error, {401, code, message}})
+    end
   end
 
   defp render_result(conn, {:ok, payload}), do: json(conn, payload)
@@ -32,5 +31,21 @@ defmodule SiwaServerWeb.AgentSiwaController do
         "message" => message
       }
     })
+  end
+
+  defp required_header(conn, name) do
+    conn
+    |> get_req_header(name)
+    |> List.first()
+    |> case do
+      value when is_binary(value) ->
+        case String.trim(value) do
+          "" -> {:error, "receipt_audience_required", "request audience is required"}
+          audience -> {:ok, audience}
+        end
+
+      _ ->
+        {:error, "receipt_audience_required", "request audience is required"}
+    end
   end
 end

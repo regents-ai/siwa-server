@@ -16,6 +16,8 @@ defmodule SiwaServer.Siwa.HttpVerifier do
     x-timestamp
     x-agent-wallet-address
     x-agent-chain-id
+    x-agent-registry-address
+    x-agent-token-id
   )
   @base_components ~w(
     @method
@@ -142,8 +144,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   defp required_components_for_headers(headers, body_digest) do
     @base_components
     |> maybe_append_content_digest(headers, body_digest)
-    |> maybe_append_component(headers, "x-agent-registry-address")
-    |> maybe_append_component(headers, "x-agent-token-id")
+    |> Kernel.++(["x-agent-registry-address", "x-agent-token-id"])
   end
 
   defp required_headers(body_digest) do
@@ -160,10 +161,6 @@ defmodule SiwaServer.Siwa.HttpVerifier do
     end
   end
 
-  defp maybe_append_component(components, headers, header_name) do
-    if Map.has_key?(headers, header_name), do: components ++ [header_name], else: components
-  end
-
   defp ensure_signature_window(parsed_signature_input, headers) do
     now = now_unix_seconds()
     tolerance = RuntimeConfig.siwa_http_signature_tolerance_seconds()
@@ -173,6 +170,9 @@ defmodule SiwaServer.Siwa.HttpVerifier do
         cond do
           header_timestamp != parsed_signature_input.created ->
             {:error, {401, "http_signature_invalid", "invalid x-timestamp header"}}
+
+          parsed_signature_input.key_id != Map.get(headers, "x-key-id") ->
+            {:error, {401, "http_signature_invalid", "invalid signature keyid"}}
 
           parsed_signature_input.created > now + tolerance ->
             {:error, {401, "http_signature_invalid", "signed request is not yet valid"}}
@@ -196,6 +196,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
     with {:ok, secret} <- receipt_secret(),
          {:ok, claims} <- Siwa.verify_receipt(receipt, receipt_secret: secret),
          true <- claims["typ"] == "siwa_receipt",
+         :ok <- ensure_current_receipt(claims),
          :ok <- ensure_audience(claims, opts) do
       {:ok, claims}
     else
@@ -210,7 +211,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   defp ensure_audience(claims, opts) do
     case Keyword.get(opts, :audience) do
       nil ->
-        :ok
+        {:error, {401, "receipt_audience_required", "request audience is required"}}
 
       expected ->
         if claims["aud"] == expected do
@@ -220,6 +221,24 @@ defmodule SiwaServer.Siwa.HttpVerifier do
         end
     end
   end
+
+  defp ensure_current_receipt(%{
+         "jti" => jti,
+         "sub" => sub,
+         "aud" => aud,
+         "chain_id" => chain_id,
+         "nonce" => nonce,
+         "key_id" => key_id,
+         "registry_address" => registry_address,
+         "token_id" => token_id
+       })
+       when is_binary(jti) and is_binary(sub) and is_binary(aud) and is_integer(chain_id) and
+              is_binary(nonce) and is_binary(key_id) and is_binary(registry_address) and
+              is_binary(token_id),
+       do: :ok
+
+  defp ensure_current_receipt(_claims),
+    do: {:error, {401, "receipt_invalid", "invalid SIWA receipt"}}
 
   defp ensure_header_binding(headers, claims) do
     [
@@ -460,11 +479,11 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   end
 
   defp ensure_registry_binding(headers, claims) do
-    ensure_optional_claim_binding(headers, claims, "x-agent-registry-address", "registry_address")
+    ensure_claim_binding(headers, claims, "x-agent-registry-address", "registry_address")
   end
 
   defp ensure_token_binding(headers, claims) do
-    ensure_optional_claim_binding(headers, claims, "x-agent-token-id", "token_id")
+    ensure_claim_binding(headers, claims, "x-agent-token-id", "token_id")
   end
 
   defp ensure_claim_binding(headers, claims, header_name, claim_name) do
@@ -472,22 +491,6 @@ defmodule SiwaServer.Siwa.HttpVerifier do
       :ok
     else
       header_binding_mismatch(header_name, "does not match SIWA receipt")
-    end
-  end
-
-  defp ensure_optional_claim_binding(headers, claims, header_name, claim_name) do
-    case {claims[claim_name], Map.has_key?(headers, header_name), Map.get(headers, header_name)} do
-      {nil, false, _value} ->
-        :ok
-
-      {nil, true, _value} ->
-        header_binding_mismatch(header_name, "is not verified in the SIWA receipt")
-
-      {claim_value, _present?, value} when claim_value == value ->
-        :ok
-
-      {_claim_value, _present?, _value} ->
-        header_binding_mismatch(header_name, "does not match SIWA receipt")
     end
   end
 
