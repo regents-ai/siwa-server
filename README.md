@@ -11,6 +11,14 @@ It owns:
 
 It does not own product-specific app logic. Platform now calls this service over HTTP instead of serving shared SIWA locally.
 
+For the full local and Fly launch checklist across SIWA Server, Dragonfly, Platform, Autolaunch, and Regents CLI, use:
+
+- `/Users/sean/Documents/regent/docs/regent-local-and-fly-launch-testing.md`
+
+For the repo-local mirror, use:
+
+- `/Users/sean/Documents/regent/siwa-server/docs/regent-local-and-fly-launch-testing.md`
+
 ## Routes
 
 Public routes:

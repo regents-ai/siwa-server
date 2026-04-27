@@ -16,6 +16,11 @@
 # If the VM crashes, it generates a dump, let's ignore it too.
 erl_crash.dump
 
+# Local environment files.
+.env
+.env.local
+.envrc
+
 # Also ignore archive artifacts (built via "mix archive.build").
 *.ez
 
@@ -33,6 +38,7 @@ NOTES.md
 SCRATCH.md
 WORKFLOW.md
 codeplan.md
+docs/regent-local-and-fly-launch-testing.md
 layer2.md
 layer3.md
 .codex/
