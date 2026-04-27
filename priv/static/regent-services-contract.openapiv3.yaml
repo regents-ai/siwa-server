@@ -1088,7 +1088,7 @@ components:
       additionalProperties: false
     SiwaVerifyRequest:
       type: object
-      required: [wallet_address, chain_id, registry_address, token_id, nonce, message, signature]
+      required: [wallet_address, chain_id, registry_address, token_id, audience, nonce, message, signature]
       properties:
         wallet_address:
           $ref: "#/components/schemas/Address"
@@ -1104,6 +1104,8 @@ components:
         registry_address:
           $ref: "#/components/schemas/Address"
         token_id:
+          type: string
+        audience:
           type: string
       additionalProperties: false
     SiwaVerifyResponse:

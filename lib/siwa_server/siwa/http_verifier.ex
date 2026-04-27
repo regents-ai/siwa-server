@@ -459,10 +459,10 @@ defmodule SiwaServer.Siwa.HttpVerifier do
     do: unix_ms |> DateTime.from_unix!(:millisecond) |> DateTime.to_iso8601()
 
   defp ensure_key_id_binding(headers, claims),
-    do: ensure_claim_binding(headers, claims, "x-key-id", "key_id")
+    do: ensure_address_claim_binding(headers, claims, "x-key-id", "key_id")
 
   defp ensure_wallet_binding(headers, claims),
-    do: ensure_claim_binding(headers, claims, "x-agent-wallet-address", "sub")
+    do: ensure_address_claim_binding(headers, claims, "x-agent-wallet-address", "sub")
 
   defp ensure_chain_binding(headers, claims) do
     case parse_positive_integer(Map.get(headers, "x-agent-chain-id")) do
@@ -479,7 +479,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   end
 
   defp ensure_registry_binding(headers, claims) do
-    ensure_claim_binding(headers, claims, "x-agent-registry-address", "registry_address")
+    ensure_address_claim_binding(headers, claims, "x-agent-registry-address", "registry_address")
   end
 
   defp ensure_token_binding(headers, claims) do
@@ -493,6 +493,17 @@ defmodule SiwaServer.Siwa.HttpVerifier do
       header_binding_mismatch(header_name, "does not match SIWA receipt")
     end
   end
+
+  defp ensure_address_claim_binding(headers, claims, header_name, claim_name) do
+    if normalize_address(Map.get(headers, header_name)) == normalize_address(claims[claim_name]) do
+      :ok
+    else
+      header_binding_mismatch(header_name, "does not match SIWA receipt")
+    end
+  end
+
+  defp normalize_address(value) when is_binary(value), do: String.downcase(value)
+  defp normalize_address(_value), do: nil
 
   defp header_binding_mismatch(header_name, detail) do
     {:error, {401, "receipt_binding_mismatch", "#{header_name} #{detail}"}}

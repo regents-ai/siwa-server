@@ -53,6 +53,7 @@ defmodule SiwaServer.Siwa do
          {:ok, chain_id} <- required_positive_integer(params, "chain_id"),
          {:ok, registry_address} <- required_address(params, "registry_address"),
          {:ok, token_id} <- required_positive_integer_string(params, "token_id"),
+         {:ok, audience} <- required_string(params, "audience"),
          {:ok, nonce} <- required_string(params, "nonce"),
          {:ok, message} <- required_string(params, "message"),
          {:ok, signature} <- required_string(params, "signature"),
@@ -60,7 +61,7 @@ defmodule SiwaServer.Siwa do
            Message.validate(message, wallet_address, chain_id, registry_address, token_id, nonce),
          :ok <- verify_wallet_signature(wallet_address, message, signature),
          {:ok, nonce_record} <-
-           consume_nonce(wallet_address, chain_id, registry_address, token_id, nonce),
+           consume_nonce(wallet_address, chain_id, registry_address, token_id, audience, nonce),
          :ok <- ensure_wallet_owns_agent(wallet_address, chain_id, registry_address, token_id),
          {:ok, receipt, receipt_expires_at} <-
            issue_receipt(%{
@@ -115,12 +116,13 @@ defmodule SiwaServer.Siwa do
     end
   end
 
-  defp consume_nonce(wallet_address, chain_id, registry_address, token_id, nonce) do
+  defp consume_nonce(wallet_address, chain_id, registry_address, token_id, audience, nonce) do
     case Siwa.verify_nonce(
            %{
              address: wallet_address,
              agent_id: token_id,
              agent_registry: agent_registry_string(chain_id, registry_address),
+             audience: audience,
              nonce: nonce
            },
            store: &NonceStore.consume/2,
@@ -302,7 +304,8 @@ defmodule SiwaServer.Siwa do
        when reason in [
               :nonce_address_mismatch,
               :nonce_agent_id_mismatch,
-              :nonce_registry_mismatch
+              :nonce_registry_mismatch,
+              :nonce_audience_mismatch
             ] do
     Error.unauthorized("signature_invalid", "message does not match the requested SIWA claims")
     |> Error.tuple()

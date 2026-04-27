@@ -114,6 +114,26 @@ defmodule SiwaServer.SiwaTest do
     assert message =~ "does not match"
   end
 
+  test "signed requests accept checksum-cased registry headers when the receipt matches" do
+    receipt = verified_receipt()
+    body = Jason.encode!(%{"summary" => "Checksum case", "details" => "accepted"})
+    created = System.os_time(:second)
+    expires = created + 120
+
+    headers =
+      signed_headers(receipt, body, created, expires, %{
+        "x-agent-registry-address" => String.upcase(@registry_address)
+      })
+
+    assert {:ok, %{"data" => %{"verified" => true}}} =
+             verify_http_request(%{
+               "method" => "POST",
+               "path" => "/v1/agent/bug-report",
+               "headers" => headers,
+               "body" => body
+             })
+  end
+
   test "signed requests reject malformed header maps" do
     receipt = verified_receipt()
     body = Jason.encode!(%{"summary" => "Malformed headers", "details" => "blocked"})
@@ -227,6 +247,7 @@ defmodule SiwaServer.SiwaTest do
                "chain_id" => @chain_id,
                "registry_address" => @registry_address,
                "token_id" => @token_id,
+               "audience" => "platform",
                "nonce" => nonce,
                "message" => message,
                "signature" => signature
@@ -266,6 +287,7 @@ defmodule SiwaServer.SiwaTest do
                "chain_id" => @chain_id,
                "registry_address" => @registry_address,
                "token_id" => @token_id,
+               "audience" => "platform",
                "nonce" => nonce,
                "message" => bad_message,
                "signature" => TestWallet.sign_message(bad_message)
@@ -306,6 +328,7 @@ defmodule SiwaServer.SiwaTest do
                "chain_id" => @chain_id,
                "registry_address" => @registry_address,
                "token_id" => @token_id,
+               "audience" => "platform",
                "nonce" => nonce,
                "message" => bad_message,
                "signature" => TestWallet.sign_message(bad_message)
@@ -346,6 +369,7 @@ defmodule SiwaServer.SiwaTest do
                "chain_id" => @chain_id,
                "registry_address" => @registry_address,
                "token_id" => @token_id,
+               "audience" => "platform",
                "nonce" => nonce,
                "message" => bad_message,
                "signature" => TestWallet.sign_message(bad_message)
@@ -718,6 +742,7 @@ defmodule SiwaServer.SiwaTest do
                "chain_id" => @chain_id,
                "registry_address" => @registry_address,
                "token_id" => @token_id,
+               "audience" => audience,
                "nonce" => nonce,
                "message" => message,
                "signature" => signature

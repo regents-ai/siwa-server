@@ -43,6 +43,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
         "chain_id" => @chain_id,
         "registry_address" => @registry_address,
         "token_id" => @token_id,
+        "audience" => "platform",
         "nonce" => nonce,
         "message" => message,
         "signature" => TestWallet.sign_message(message)
@@ -89,6 +90,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
         "chain_id" => @chain_id,
         "registry_address" => @registry_address,
         "token_id" => @token_id,
+        "audience" => "platform",
         "nonce" => nonce,
         "message" => message,
         "signature" => TestWallet.sign_message(message)
