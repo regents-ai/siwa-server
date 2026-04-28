@@ -146,6 +146,8 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     regent.cx wants you to sign in with your Agent account:
     #{@wallet_address}
 
+    Sign in to platform.
+
     URI: https://regent.cx/v1/agent/siwa/verify
     Version: 1
     Agent ID: #{@token_id}

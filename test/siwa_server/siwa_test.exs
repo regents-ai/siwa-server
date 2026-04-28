@@ -296,6 +296,33 @@ defmodule SiwaServer.SiwaTest do
     assert message =~ "canonical SIWA format"
   end
 
+  test "shared sign-in rejects messages that do not name the requested app audience" do
+    assert {:ok, %{"data" => %{"nonce" => nonce}}} =
+             Siwa.issue_nonce(%{
+               "wallet_address" => @wallet_address,
+               "chain_id" => @chain_id,
+               "registry_address" => @registry_address,
+               "token_id" => @token_id,
+               "audience" => "platform"
+             })
+
+    bad_message = siwa_message(nonce, "techtree")
+
+    assert {:error, {401, "signature_invalid", message}} =
+             Siwa.verify_session(%{
+               "wallet_address" => @wallet_address,
+               "chain_id" => @chain_id,
+               "registry_address" => @registry_address,
+               "token_id" => @token_id,
+               "audience" => "platform",
+               "nonce" => nonce,
+               "message" => bad_message,
+               "signature" => TestWallet.sign_message(bad_message)
+             })
+
+    assert message =~ "does not match"
+  end
+
   test "shared sign-in rejects duplicate SIWA fields" do
     assert {:ok, %{"data" => %{"nonce" => nonce}}} =
              Siwa.issue_nonce(%{
@@ -733,7 +760,7 @@ defmodule SiwaServer.SiwaTest do
                "audience" => audience
              })
 
-    message = siwa_message(nonce)
+    message = siwa_message(nonce, audience)
     signature = TestWallet.sign_message(message)
 
     assert {:ok, %{"data" => %{"receipt" => receipt}}} =
@@ -776,10 +803,12 @@ defmodule SiwaServer.SiwaTest do
     receipt.token
   end
 
-  defp siwa_message(nonce) do
+  defp siwa_message(nonce, audience \\ "platform") do
     """
     regent.cx wants you to sign in with your Agent account:
     #{@wallet_address}
+
+    Sign in to #{audience}.
 
     URI: https://regent.cx/v1/agent/siwa/verify
     Version: 1

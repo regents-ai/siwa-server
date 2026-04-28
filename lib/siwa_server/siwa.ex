@@ -58,7 +58,15 @@ defmodule SiwaServer.Siwa do
          {:ok, message} <- required_string(params, "message"),
          {:ok, signature} <- required_string(params, "signature"),
          :ok <-
-           Message.validate(message, wallet_address, chain_id, registry_address, token_id, nonce),
+           Message.validate(
+             message,
+             wallet_address,
+             chain_id,
+             registry_address,
+             token_id,
+             audience,
+             nonce
+           ),
          :ok <- verify_wallet_signature(wallet_address, message, signature),
          {:ok, nonce_record} <-
            consume_nonce(wallet_address, chain_id, registry_address, token_id, audience, nonce),

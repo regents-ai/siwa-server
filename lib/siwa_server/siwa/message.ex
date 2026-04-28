@@ -7,14 +7,15 @@ defmodule SiwaServer.Siwa.Message do
   @verify_uri "https://regent.cx/v1/agent/siwa/verify"
   @positive_int_regex ~r/^[1-9][0-9]*$/
 
-  @spec validate(String.t(), String.t(), pos_integer(), String.t(), String.t(), String.t()) ::
+  @spec validate(String.t(), String.t(), pos_integer(), String.t(), String.t(), String.t(), String.t()) ::
           :ok | {:error, {401, String.t(), String.t()}}
-  def validate(message, wallet_address, chain_id, registry_address, token_id, nonce) do
+  def validate(message, wallet_address, chain_id, registry_address, token_id, audience, nonce) do
     with {:ok, parsed} <- parse(message),
          true <- parsed.wallet_address == wallet_address,
          true <- parsed.chain_id == chain_id,
          true <- parsed.registry_address == registry_address,
          true <- parsed.token_id == token_id,
+         true <- parsed.statement == audience_statement(audience),
          true <- parsed.nonce == nonce do
       :ok
     else
@@ -78,4 +79,6 @@ defmodule SiwaServer.Siwa.Message do
       _ -> {:error, :invalid_issued_at}
     end
   end
+
+  defp audience_statement(audience), do: "Sign in to #{audience}."
 end

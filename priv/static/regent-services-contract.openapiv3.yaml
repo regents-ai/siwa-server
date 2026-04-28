@@ -1099,6 +1099,7 @@ components:
           type: string
         message:
           type: string
+          description: Canonical SIWA message whose statement must read "Sign in to <audience>."
         signature:
           $ref: "#/components/schemas/HexData"
         registry_address:
