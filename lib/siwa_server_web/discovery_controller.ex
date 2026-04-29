@@ -5,6 +5,16 @@ defmodule SiwaServerWeb.DiscoveryController do
     send_resp(conn, 200, "ok")
   end
 
+  def readyz(conn, _params) do
+    readiness = SiwaServer.Readiness.check()
+    status = if readiness.ready, do: 200, else: 503
+
+    conn
+    |> put_status(status)
+    |> put_resp_header("cache-control", "no-store")
+    |> json(readiness)
+  end
+
   def metrics(conn, _params) do
     conn
     |> put_resp_header("cache-control", "no-store")

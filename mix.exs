@@ -72,13 +72,17 @@ defmodule SiwaServer.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test --max-cases 8"],
       "check.services_contract": [
-        "cmd node ../regents-cli/scripts/check-shared-services-contract.mjs"
+        "siwa_server.contract_check"
+      ],
+      "check.release_packaging": [
+        "siwa_server.release_packaging_check"
       ],
       precommit: [
         "compile --warnings-as-errors",
         "deps.unlock --unused",
         "format",
         "check.services_contract",
+        "check.release_packaging",
         "test"
       ]
     ]

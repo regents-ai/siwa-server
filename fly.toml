@@ -4,7 +4,7 @@ kill_signal = "SIGTERM"
 kill_timeout = "5s"
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = "siwa-server/Dockerfile"
 
 [deploy]
   release_command = "/app/bin/siwa_server eval SiwaServer.Release.migrate"
