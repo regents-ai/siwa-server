@@ -5,17 +5,38 @@ defmodule SiwaServerWeb.ErrorJSON do
   See config/config.exs.
   """
 
-  # If you want to customize a particular status code,
-  # you may add your own clauses, such as:
-  #
-  # def render("500.json", _assigns) do
-  #   %{errors: %{detail: "Internal Server Error"}}
-  # end
-
-  # By default, Phoenix returns the status message from
-  # the template name. For example, "404.json" becomes
-  # "Not Found".
-  def render(template, _assigns) do
-    %{errors: %{detail: Phoenix.Controller.status_message_from_template(template)}}
+  def render("error.json", %{code: code, message: message}) do
+    error(code, message)
   end
+
+  def render(template, _assigns) do
+    error(
+      status_code_from_template(template),
+      Phoenix.Controller.status_message_from_template(template)
+    )
+  end
+
+  def error(code, message) when is_binary(code) and is_binary(message) do
+    %{
+      "ok" => false,
+      "error" => %{
+        "code" => code,
+        "message" => message
+      }
+    }
+  end
+
+  defp status_code_from_template(<<code::binary-size(3), ".json">>) do
+    case code do
+      "400" -> "bad_request"
+      "401" -> "unauthorized"
+      "404" -> "not_found"
+      "413" -> "request_body_too_large"
+      "415" -> "unsupported_media_type"
+      "500" -> "internal_server_error"
+      _code -> "request_failed"
+    end
+  end
+
+  defp status_code_from_template(_template), do: "request_failed"
 end

@@ -2,35 +2,33 @@ defmodule SiwaServerWeb.AgentSiwaController do
   use SiwaServerWeb, :controller
 
   alias SiwaServer.Siwa
+  alias SiwaServerWeb.AgentSiwaRequest
 
-  def nonce(conn, params), do: render_result(conn, Siwa.issue_nonce(params))
-  def verify(conn, params), do: render_result(conn, Siwa.verify_session(params))
+  action_fallback SiwaServerWeb.FallbackController
 
-  def http_verify(conn, params) do
-    with {:ok, audience} <- required_header(conn, "x-siwa-audience") do
-      render_result(
-        conn,
-        params
-        |> Map.take(["method", "path", "headers", "body"])
-        |> Siwa.verify_http_request(audience: audience)
-      )
-    else
-      {:error, code, message} -> render_result(conn, {:error, {401, code, message}})
+  def nonce(conn, params) do
+    with {:ok, request} <- AgentSiwaRequest.cast_nonce(params),
+         {:ok, payload} <- request |> AgentSiwaRequest.to_params() |> Siwa.issue_nonce() do
+      json(conn, payload)
     end
   end
 
-  defp render_result(conn, {:ok, payload}), do: json(conn, payload)
+  def verify(conn, params) do
+    with {:ok, request} <- AgentSiwaRequest.cast_verify(params),
+         {:ok, payload} <- request |> AgentSiwaRequest.to_params() |> Siwa.verify_session() do
+      json(conn, payload)
+    end
+  end
 
-  defp render_result(conn, {:error, {status, code, message}}) do
-    conn
-    |> put_status(status)
-    |> json(%{
-      "ok" => false,
-      "error" => %{
-        "code" => code,
-        "message" => message
-      }
-    })
+  def http_verify(conn, params) do
+    with {:ok, audience} <- required_header(conn, "x-siwa-audience"),
+         {:ok, request} <- AgentSiwaRequest.cast_http_verify(params),
+         {:ok, payload} <-
+           request
+           |> AgentSiwaRequest.to_params()
+           |> Siwa.verify_http_request(audience: audience) do
+      json(conn, payload)
+    end
   end
 
   defp required_header(conn, name) do
@@ -40,12 +38,15 @@ defmodule SiwaServerWeb.AgentSiwaController do
     |> case do
       value when is_binary(value) ->
         case String.trim(value) do
-          "" -> {:error, "receipt_audience_required", "request audience is required"}
+          "" -> audience_required_error()
           audience -> {:ok, audience}
         end
 
       _ ->
-        {:error, "receipt_audience_required", "request audience is required"}
+        audience_required_error()
     end
   end
+
+  defp audience_required_error,
+    do: {:error, {401, "receipt_audience_required", "request audience is required"}}
 end

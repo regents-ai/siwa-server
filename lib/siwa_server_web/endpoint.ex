@@ -23,9 +23,12 @@ defmodule SiwaServerWeb.Endpoint do
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
-  plug Plug.Parsers,
+  plug SiwaServerWeb.JsonParser,
     parsers: [:json],
     pass: [],
+    length: 65_536,
+    read_length: 8_192,
+    read_timeout: 5_000,
     json_decoder: Phoenix.json_library()
 
   plug Plug.Head

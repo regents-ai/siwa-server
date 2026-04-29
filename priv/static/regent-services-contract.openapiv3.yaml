@@ -3,15 +3,12 @@ info:
   title: Regent Shared Services Contract
   version: 0.1.0
   description: >
-    Source-of-truth contract for shared Regent service rails that are not product-owned.
-    This file owns shared SIWA auth, Regent staking, and shared operator reporting rails.
-    Shared SIWA implementation lives in the `elixir-utils/siwa/siwa-elixir` codebase.
+    Source-of-truth contract for the shared SIWA server. This service owns shared
+    SIWA authentication, signed request verification, health, metrics, contract
+    discovery, and the internal keyring routes.
 tags:
-  - name: identity
   - name: auth
   - name: internal
-  - name: regent-staking
-  - name: reports
 paths:
   /healthz:
     get:
@@ -24,6 +21,23 @@ paths:
             text/plain:
               schema:
                 type: string
+  /readyz:
+    get:
+      operationId: siwaServerReadyz
+      tags: [auth]
+      responses:
+        "200":
+          description: Readiness checks passed for the shared SIWA server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+        "503":
+          description: One or more readiness checks failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
   /metrics:
     get:
       operationId: siwaServerMetrics
@@ -41,138 +55,11 @@ paths:
       tags: [auth]
       responses:
         "200":
-          description: Source-of-truth shared services contract served by the SIWA server
+          description: Source-of-truth contract served by the shared SIWA server
           content:
             application/yaml:
               schema:
                 type: string
-  /v1/identity/status:
-    post:
-      operationId: getIdentityStatus
-      tags: [identity]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/IdentityStatusRequest"
-      responses:
-        "200":
-          description: Identity status resolved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/IdentityStatusResponse"
-        "400":
-          description: Invalid identity status request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-  /v1/identity/registration-intents:
-    post:
-      operationId: createIdentityRegistrationIntent
-      tags: [identity]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/IdentityRegistrationIntentRequest"
-      responses:
-        "200":
-          description: Registration intent created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/IdentityRegistrationIntentResponse"
-        "400":
-          description: Invalid registration intent request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-  /v1/identity/registration-completions:
-    post:
-      operationId: completeIdentityRegistration
-      tags: [identity]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/IdentityRegistrationCompletionRequest"
-      responses:
-        "200":
-          description: Registration completed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/IdentityRegistrationCompletionResponse"
-        "400":
-          description: Invalid registration completion request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "401":
-          description: Registration authorization failed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-  /v1/identity/siwa/nonce:
-    post:
-      operationId: createIdentitySiwaNonce
-      tags: [identity]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/IdentitySiwaNonceRequest"
-      responses:
-        "200":
-          description: SIWA nonce issued
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/IdentitySiwaNonceResponse"
-        "400":
-          description: Invalid SIWA nonce request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-  /v1/identity/siwa/verify:
-    post:
-      operationId: verifyIdentitySiwaSession
-      tags: [identity]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/IdentitySiwaVerifyRequest"
-      responses:
-        "200":
-          description: Identity verified
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/IdentitySiwaVerifyResponse"
-        "400":
-          description: Invalid SIWA verification request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "401":
-          description: Signature or nonce validation failed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
   /v1/agent/siwa/nonce:
     post:
       operationId: createSharedAgentSiwaNonce
@@ -192,6 +79,12 @@ paths:
                 $ref: "#/components/schemas/SiwaNonceResponse"
         "400":
           description: Invalid SIWA nonce request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          description: SIWA nonce request body is too large
           content:
             application/json:
               schema:
@@ -221,6 +114,30 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "401":
           description: Signature or nonce validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: SIWA nonce was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          description: SIWA verification request body is too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: SIWA verification is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "502":
+          description: Agent identity lookup failed
           content:
             application/json:
               schema:
@@ -261,6 +178,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Request replay detected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          description: SIWA protected request envelope is too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: SIWA HTTP verification is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /internal/keyring/health:
     get:
       operationId: siwaKeyringHealth
@@ -271,520 +206,313 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/KeyringHealthResponse"
   /internal/keyring/create-wallet:
     post:
       operationId: siwaKeyringCreateWallet
       tags: [internal]
+      security:
+        - KeyringHmacTimestamp: []
+          KeyringHmacSignature: []
       requestBody:
         required: false
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LooseObject"
+              $ref: "#/components/schemas/EmptyObject"
       responses:
         "200":
-          description: Wallet created or returned
+          description: Wallet created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
-        "400":
-          description: Invalid keyring request body
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/KeyringWalletResponse"
         "401":
           description: Internal signer authentication failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "413":
-          description: Keyring request body too large
+          description: Internal signer request body is too large
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "415":
-          description: Unsupported keyring request content type
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "422":
           description: Wallet could not be created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
   /internal/keyring/has-wallet:
     post:
       operationId: siwaKeyringHasWallet
       tags: [internal]
+      security:
+        - KeyringHmacTimestamp: []
+          KeyringHmacSignature: []
       requestBody:
         required: false
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LooseObject"
+              $ref: "#/components/schemas/EmptyObject"
       responses:
         "200":
           description: Wallet presence check
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
-        "400":
-          description: Invalid keyring request body
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/KeyringHasWalletResponse"
         "401":
           description: Internal signer authentication failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "413":
-          description: Keyring request body too large
+          description: Internal signer request body is too large
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "415":
-          description: Unsupported keyring request content type
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "422":
           description: Wallet presence could not be checked
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
   /internal/keyring/get-address:
     post:
       operationId: siwaKeyringGetAddress
       tags: [internal]
+      security:
+        - KeyringHmacTimestamp: []
+          KeyringHmacSignature: []
       requestBody:
         required: false
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LooseObject"
+              $ref: "#/components/schemas/EmptyObject"
       responses:
         "200":
           description: Wallet address lookup
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
-        "400":
-          description: Invalid keyring request body
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/KeyringAddressResponse"
         "401":
           description: Internal signer authentication failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
+        "413":
+          description: Internal signer request body is too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleError"
         "404":
           description: Wallet not found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "413":
-          description: Keyring request body too large
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "415":
-          description: Unsupported keyring request content type
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "422":
           description: Wallet address could not be read
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
   /internal/keyring/sign-message:
     post:
       operationId: siwaKeyringSignMessage
       tags: [internal]
+      security:
+        - KeyringHmacTimestamp: []
+          KeyringHmacSignature: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LooseObject"
+              $ref: "#/components/schemas/KeyringSignMessageRequest"
       responses:
         "200":
           description: Message signed with the internal keyring
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/KeyringSignatureResponse"
         "400":
           description: Invalid message signing request
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "401":
           description: Internal signer authentication failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "413":
-          description: Keyring request body too large
+          description: Internal signer request body is too large
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "415":
-          description: Unsupported keyring request content type
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "422":
           description: Message could not be signed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
   /internal/keyring/sign-raw-message:
     post:
       operationId: siwaKeyringSignRawMessage
       tags: [internal]
+      security:
+        - KeyringHmacTimestamp: []
+          KeyringHmacSignature: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LooseObject"
+              $ref: "#/components/schemas/KeyringSignRawMessageRequest"
       responses:
         "200":
           description: Raw payload signed with the internal keyring
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/KeyringSignatureResponse"
         "400":
           description: Invalid raw-message signing request
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "401":
           description: Internal signer authentication failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "413":
-          description: Keyring request body too large
+          description: Internal signer request body is too large
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "415":
-          description: Unsupported keyring request content type
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "422":
           description: Raw message could not be signed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
   /internal/keyring/sign-transaction:
     post:
       operationId: siwaKeyringSignTransaction
       tags: [internal]
+      security:
+        - KeyringHmacTimestamp: []
+          KeyringHmacSignature: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LooseObject"
+              $ref: "#/components/schemas/KeyringSignTransactionRequest"
       responses:
         "200":
           description: Transaction signed with the internal keyring
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/KeyringSignedTransactionResponse"
         "400":
           description: Invalid transaction signing request
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "401":
           description: Internal signer authentication failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "413":
-          description: Keyring request body too large
+          description: Internal signer request body is too large
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "415":
-          description: Unsupported keyring request content type
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "422":
           description: Transaction could not be signed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
   /internal/keyring/sign-authorization:
     post:
       operationId: siwaKeyringSignAuthorization
       tags: [internal]
+      security:
+        - KeyringHmacTimestamp: []
+          KeyringHmacSignature: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LooseObject"
+              $ref: "#/components/schemas/KeyringSignAuthorizationRequest"
       responses:
         "200":
           description: Authorization payload signed with the internal keyring
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LooseObject"
+                $ref: "#/components/schemas/KeyringSignedAuthorizationResponse"
         "400":
           description: Invalid authorization signing request
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "401":
           description: Internal signer authentication failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "413":
-          description: Keyring request body too large
+          description: Internal signer request body is too large
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "415":
-          description: Unsupported keyring request content type
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
         "422":
           description: Authorization payload could not be signed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-  /v1/agent/regent/staking:
-    get:
-      operationId: getAgentRegentStakingOverview
-      tags: [regent-staking]
-      security: [{ AgentSiwaHeaders: [] }]
-      responses:
-        "200":
-          description: Staking overview
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RegentStakingOverviewResponse"
-  /v1/agent/regent/staking/account/{address}:
-    get:
-      operationId: getAgentRegentStakingAccount
-      tags: [regent-staking]
-      security: [{ AgentSiwaHeaders: [] }]
-      parameters:
-        - name: address
-          in: path
-          required: true
-          schema:
-            $ref: "#/components/schemas/Address"
-      responses:
-        "200":
-          description: Account staking state
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RegentStakingAccountResponse"
-  /v1/agent/regent/staking/stake:
-    post:
-      operationId: stakeAgentRegent
-      tags: [regent-staking]
-      security: [{ AgentSiwaHeaders: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AmountRequest"
-      responses:
-        "200":
-          description: Stake prepared
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PreparedActionResponse"
-  /v1/agent/regent/staking/unstake:
-    post:
-      operationId: unstakeAgentRegent
-      tags: [regent-staking]
-      security: [{ AgentSiwaHeaders: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AmountRequest"
-      responses:
-        "200":
-          description: Unstake prepared
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PreparedActionResponse"
-  /v1/agent/regent/staking/claim-usdc:
-    post:
-      operationId: claimAgentRegentStakingUsdc
-      tags: [regent-staking]
-      security: [{ AgentSiwaHeaders: [] }]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-      responses:
-        "200":
-          description: Claim prepared
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PreparedActionResponse"
-  /v1/agent/regent/staking/claim-regent:
-    post:
-      operationId: claimAgentRegentStakingRegent
-      tags: [regent-staking]
-      security: [{ AgentSiwaHeaders: [] }]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-      responses:
-        "200":
-          description: Regent claim prepared
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PreparedActionResponse"
-  /v1/agent/regent/staking/claim-and-restake-regent:
-    post:
-      operationId: claimAndRestakeAgentRegentStakingRegent
-      tags: [regent-staking]
-      security: [{ AgentSiwaHeaders: [] }]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-      responses:
-        "200":
-          description: Regent claim and restake prepared
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PreparedActionResponse"
-  /v1/agent/bug-report:
-    post:
-      operationId: createAgentBugReport
-      tags: [reports]
-      security: [{ AgentSiwaHeaders: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/BugReportRequest"
-      responses:
-        "200":
-          description: Bug report stored
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/BugReportResponse"
-        "400":
-          description: Invalid report payload
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-  /v1/agent/security-report:
-    post:
-      operationId: createAgentSecurityReport
-      tags: [reports]
-      security: [{ AgentSiwaHeaders: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SecurityReportRequest"
-      responses:
-        "200":
-          description: Security report stored
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SecurityReportResponse"
-        "400":
-          description: Invalid report payload
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                $ref: "#/components/schemas/SimpleError"
 components:
   securitySchemes:
-    AgentSiwaHeaders:
+    KeyringHmacTimestamp:
       type: apiKey
       in: header
-      name: x-siwa-receipt
-      description: >
-        Signed Agent account header bundle for authenticated agent requests. The current
-        shape includes the receipt, signature, signature-input, key ID, timestamp, wallet,
-        chain, registry address, token ID, and content digest when the request has a body.
+      name: x-keyring-timestamp
+    KeyringHmacSignature:
+      type: apiKey
+      in: header
+      name: x-keyring-signature
   schemas:
     Address:
       type: string
@@ -795,247 +523,6 @@ components:
     HexData:
       type: string
       pattern: "^0x[a-fA-F0-9]*$"
-    DecimalString:
-      type: string
-    IdentityNetwork:
-      type: string
-      enum: [base, base-sepolia]
-    IdentityProvider:
-      type: string
-      enum: [coinbase-cdp]
-    IdentityVerificationStatus:
-      type: string
-      enum: [unregistered, onchain]
-    IdentityStatusRequest:
-      type: object
-      required: [network, address, provider]
-      properties:
-        network:
-          $ref: "#/components/schemas/IdentityNetwork"
-        address:
-          $ref: "#/components/schemas/Address"
-        provider:
-          $ref: "#/components/schemas/IdentityProvider"
-        wallet_hint:
-          type: string
-      additionalProperties: false
-    IdentityStatusResponse:
-      type: object
-      required: [ok, code, data]
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        code:
-          type: string
-          enum: [identity_status_resolved]
-        data:
-          type: object
-          required: [network, address, provider, registered, verified]
-          properties:
-            network:
-              $ref: "#/components/schemas/IdentityNetwork"
-            address:
-              $ref: "#/components/schemas/Address"
-            provider:
-              $ref: "#/components/schemas/IdentityProvider"
-            registered:
-              type: boolean
-            verified:
-              $ref: "#/components/schemas/IdentityVerificationStatus"
-            agent_id:
-              type: integer
-            agent_registry:
-              type: string
-            receipt_expires_at:
-              type: string
-              format: date-time
-          additionalProperties: false
-        meta:
-          $ref: "#/components/schemas/LooseObject"
-      additionalProperties: false
-    IdentityRegistrationIntentRequest:
-      type: object
-      required: [network, address, provider]
-      properties:
-        network:
-          $ref: "#/components/schemas/IdentityNetwork"
-        address:
-          $ref: "#/components/schemas/Address"
-        provider:
-          $ref: "#/components/schemas/IdentityProvider"
-        wallet_hint:
-          type: string
-      additionalProperties: false
-    IdentityRegistrationIntentResponse:
-      type: object
-      required: [ok, code, data]
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        code:
-          type: string
-          enum: [identity_registration_intent_created]
-        data:
-          type: object
-          required: [intent_id, intent_kind, signing_payload]
-          properties:
-            intent_id:
-              type: string
-            intent_kind:
-              type: string
-            signing_payload:
-              type: object
-              required: [message]
-              properties:
-                message:
-                  type: string
-              additionalProperties: true
-          additionalProperties: false
-        meta:
-          $ref: "#/components/schemas/LooseObject"
-      additionalProperties: false
-    IdentityRegistrationCompletionRequest:
-      type: object
-      required: [intent_id, signature, address]
-      properties:
-        intent_id:
-          type: string
-        message:
-          type: string
-          description: Canonical SIWA message containing wallet address, chain id, registry address, token id, nonce, and issue time.
-        signature:
-          $ref: "#/components/schemas/HexData"
-        address:
-          $ref: "#/components/schemas/Address"
-      additionalProperties: false
-    IdentityRegistrationCompletionResponse:
-      type: object
-      required: [ok, code, data]
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        code:
-          type: string
-          enum: [identity_registration_completed]
-        data:
-          type: object
-          required: [registered, agent_id, agent_registry]
-          properties:
-            registered:
-              type: boolean
-              enum: [true]
-            agent_id:
-              type: integer
-            agent_registry:
-              type: string
-          additionalProperties: false
-        meta:
-          $ref: "#/components/schemas/LooseObject"
-      additionalProperties: false
-    IdentitySiwaNonceRequest:
-      type: object
-      required: [network, address, agent_id, agent_registry]
-      properties:
-        network:
-          $ref: "#/components/schemas/IdentityNetwork"
-        address:
-          $ref: "#/components/schemas/Address"
-        agent_id:
-          type: integer
-        agent_registry:
-          type: string
-      additionalProperties: false
-    IdentitySiwaNonceResponse:
-      type: object
-      required: [ok, code, data]
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        code:
-          type: string
-          enum: [identity_siwa_nonce_issued]
-        data:
-          type: object
-          required: [nonce_token, message, address, agent_id, agent_registry, expires_at]
-          properties:
-            nonce_token:
-              type: string
-            message:
-              type: string
-            address:
-              $ref: "#/components/schemas/Address"
-            agent_id:
-              type: integer
-            agent_registry:
-              type: string
-            expires_at:
-              type: string
-              format: date-time
-          additionalProperties: false
-        meta:
-          $ref: "#/components/schemas/LooseObject"
-      additionalProperties: false
-    IdentitySiwaVerifyRequest:
-      type: object
-      required: [network, message, signature, nonce_token]
-      properties:
-        network:
-          $ref: "#/components/schemas/IdentityNetwork"
-        address:
-          $ref: "#/components/schemas/Address"
-        agent_id:
-          type: integer
-        agent_registry:
-          type: string
-        message:
-          type: string
-        signature:
-          $ref: "#/components/schemas/HexData"
-        nonce_token:
-          type: string
-      additionalProperties: false
-    IdentitySiwaVerifyResponse:
-      type: object
-      required: [ok, code, data]
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        code:
-          type: string
-          enum: [identity_siwa_verified]
-        data:
-          type: object
-          required: [verified, network, address, agent_id, agent_registry, signer_type, receipt, receipt_issued_at, receipt_expires_at]
-          properties:
-            verified:
-              $ref: "#/components/schemas/IdentityVerificationStatus"
-            network:
-              $ref: "#/components/schemas/IdentityNetwork"
-            address:
-              $ref: "#/components/schemas/Address"
-            agent_id:
-              type: integer
-            agent_registry:
-              type: string
-            signer_type:
-              type: string
-            receipt:
-              type: string
-            receipt_issued_at:
-              type: string
-              format: date-time
-            receipt_expires_at:
-              type: string
-              format: date-time
-          additionalProperties: false
-        meta:
-          $ref: "#/components/schemas/LooseObject"
-      additionalProperties: false
     SiwaNonceRequest:
       type: object
       required: [wallet_address, chain_id, registry_address, token_id, audience]
@@ -1043,8 +530,7 @@ components:
         wallet_address:
           $ref: "#/components/schemas/Address"
         chain_id:
-          type: integer
-          minimum: 1
+          $ref: "#/components/schemas/BaseChainId"
         registry_address:
           $ref: "#/components/schemas/Address"
         token_id:
@@ -1071,8 +557,7 @@ components:
             walletAddress:
               $ref: "#/components/schemas/Address"
             chainId:
-              type: integer
-              minimum: 1
+              $ref: "#/components/schemas/BaseChainId"
             registryAddress:
               $ref: "#/components/schemas/Address"
             tokenId:
@@ -1093,21 +578,19 @@ components:
         wallet_address:
           $ref: "#/components/schemas/Address"
         chain_id:
-          type: integer
-          minimum: 1
-        nonce:
-          type: string
-        message:
-          type: string
-          description: Canonical SIWA message whose statement must read "Sign in to <audience>."
-        signature:
-          $ref: "#/components/schemas/HexData"
+          $ref: "#/components/schemas/BaseChainId"
         registry_address:
           $ref: "#/components/schemas/Address"
         token_id:
           type: string
         audience:
           type: string
+        nonce:
+          type: string
+        message:
+          type: string
+        signature:
+          $ref: "#/components/schemas/HexData"
       additionalProperties: false
     SiwaVerifyResponse:
       type: object
@@ -1129,8 +612,7 @@ components:
             walletAddress:
               $ref: "#/components/schemas/Address"
             chainId:
-              type: integer
-              minimum: 1
+              $ref: "#/components/schemas/BaseChainId"
             registryAddress:
               $ref: "#/components/schemas/Address"
             tokenId:
@@ -1163,14 +645,8 @@ components:
           type: string
         path:
           type: string
-          description: Absolute signed path, including the query string when present.
         headers:
           type: object
-          description: >
-            Signed Agent account headers. The current shape requires x-siwa-receipt,
-            signature, signature-input, x-key-id, x-timestamp, x-agent-wallet-address,
-            x-agent-chain-id, x-agent-registry-address, and x-agent-token-id. Requests
-            with a body also require content-digest.
           additionalProperties:
             type: string
         body:
@@ -1196,11 +672,11 @@ components:
             walletAddress:
               $ref: "#/components/schemas/Address"
             chainId:
-              type: integer
+              $ref: "#/components/schemas/BaseChainId"
             keyId:
               type: string
             agent_claims:
-              $ref: "#/components/schemas/ReportingAgent"
+              $ref: "#/components/schemas/AgentClaims"
             receiptExpiresAt:
               type: string
               format: date-time
@@ -1220,10 +696,7 @@ components:
         meta:
           $ref: "#/components/schemas/LooseObject"
       additionalProperties: false
-    ReportStatus:
-      type: string
-      enum: [pending, fixed, won't fix, duplicate]
-    ReportingAgent:
+    AgentClaims:
       type: object
       required: [wallet_address, chain_id, registry_address, token_id]
       properties:
@@ -1235,94 +708,160 @@ components:
           $ref: "#/components/schemas/Address"
         token_id:
           type: string
-        label:
+        audience:
           type: string
-      additionalProperties: false
-    BugReportRequest:
+      additionalProperties: true
+    EmptyObject:
       type: object
-      required: [summary, details, reporting_agent]
-      properties:
-        summary:
-          type: string
-        details:
-          type: string
-        reporting_agent:
-          $ref: "#/components/schemas/ReportingAgent"
       additionalProperties: false
-    SecurityReportRequest:
+    KeyringHealthResponse:
       type: object
-      required: [summary, details, contact, reporting_agent]
+      required: [status]
       properties:
-        summary:
-          type: string
-        details:
-          type: string
-        contact:
-          type: string
-        reporting_agent:
-          $ref: "#/components/schemas/ReportingAgent"
-      additionalProperties: false
-    BugReportRecord:
-      type: object
-      required: [report_id, summary, details, status, reporting_agent, created_at]
-      properties:
-        report_id:
-          type: string
-        summary:
-          type: string
-        details:
-          type: string
         status:
-          $ref: "#/components/schemas/ReportStatus"
-        reporting_agent:
-          $ref: "#/components/schemas/ReportingAgent"
-        created_at:
           type: string
-          format: date-time
+          enum: [ok]
       additionalProperties: false
-    SecurityReportRecord:
+    KeyringWalletResponse:
       type: object
-      required: [report_id, summary, details, contact, reporting_agent, created_at]
+      required: [public_key, address, signer_type]
       properties:
-        report_id:
+        public_key:
+          $ref: "#/components/schemas/HexData"
+        address:
+          $ref: "#/components/schemas/Address"
+        signer_type:
           type: string
-        summary:
-          type: string
-        details:
-          type: string
-        contact:
-          type: string
-        reporting_agent:
-          $ref: "#/components/schemas/ReportingAgent"
-        created_at:
-          type: string
-          format: date-time
+          enum: [eoa]
       additionalProperties: false
-    BugReportResponse:
+    KeyringHasWalletResponse:
       type: object
-      required: [ok, message, public_url, report]
+      required: [has_wallet]
       properties:
-        ok:
+        has_wallet:
           type: boolean
-          enum: [true]
+      additionalProperties: false
+    KeyringAddressResponse:
+      type: object
+      required: [address]
+      properties:
+        address:
+          $ref: "#/components/schemas/Address"
+      additionalProperties: false
+    KeyringSignMessageRequest:
+      type: object
+      required: [message]
+      properties:
         message:
           type: string
-        public_url:
-          type: string
-        report:
-          $ref: "#/components/schemas/BugReportRecord"
       additionalProperties: false
-    SecurityReportResponse:
+    KeyringSignRawMessageRequest:
       type: object
-      required: [ok, message, report]
+      required: [payload]
       properties:
-        ok:
-          type: boolean
-          enum: [true]
-        message:
+        payload:
           type: string
-        report:
-          $ref: "#/components/schemas/SecurityReportRecord"
+      additionalProperties: false
+    KeyringEnvelopeObject:
+      type: object
+      minProperties: 1
+      additionalProperties: true
+    KeyringSignTransactionRequest:
+      type: object
+      required: [transaction]
+      properties:
+        transaction:
+          $ref: "#/components/schemas/KeyringEnvelopeObject"
+      additionalProperties: false
+    KeyringSignAuthorizationRequest:
+      type: object
+      required: [authorization]
+      properties:
+        authorization:
+          $ref: "#/components/schemas/KeyringEnvelopeObject"
+      additionalProperties: false
+    KeyringSignatureResponse:
+      type: object
+      required: [signature]
+      properties:
+        signature:
+          $ref: "#/components/schemas/HexData"
+      additionalProperties: false
+    KeyringRawSignature:
+      type: object
+      required: [purpose, signer_type, digest, signature, public_key, address]
+      properties:
+        purpose:
+          type: string
+          enum: [raw]
+        signer_type:
+          type: string
+          enum: [eoa]
+        digest:
+          $ref: "#/components/schemas/HexData"
+        signature:
+          $ref: "#/components/schemas/HexData"
+        public_key:
+          $ref: "#/components/schemas/HexData"
+        address:
+          $ref: "#/components/schemas/Address"
+      additionalProperties: false
+    KeyringSignedTransactionResponse:
+      type: object
+      required: [transaction, signature]
+      properties:
+        transaction:
+          $ref: "#/components/schemas/KeyringEnvelopeObject"
+        signature:
+          $ref: "#/components/schemas/KeyringRawSignature"
+      additionalProperties: false
+    KeyringSignedAuthorizationResponse:
+      type: object
+      required: [authorization, signature]
+      properties:
+        authorization:
+          $ref: "#/components/schemas/KeyringEnvelopeObject"
+        signature:
+          $ref: "#/components/schemas/KeyringRawSignature"
+      additionalProperties: false
+    ReadinessResponse:
+      type: object
+      required: [ready, checks]
+      properties:
+        ready:
+          type: boolean
+        checks:
+          type: object
+          required:
+            - database
+            - endpoint_secret
+            - receipt_secret
+            - keyring_backend
+            - keyring_password
+            - keyring_secret
+            - keystore_path
+            - base_rpc_url
+            - base_rpc_reachable
+          properties:
+            database:
+              type: boolean
+            endpoint_secret:
+              type: boolean
+            receipt_secret:
+              type: boolean
+            keyring_backend:
+              type: boolean
+            keyring_password:
+              type: boolean
+            keyring_secret:
+              type: boolean
+            keystore_path:
+              type: boolean
+            base_rpc_url:
+              type: boolean
+            base_rpc_reachable:
+              type: boolean
+          additionalProperties: false
       additionalProperties: false
     LooseObject:
       type: object
@@ -1346,126 +885,10 @@ components:
         error:
           $ref: "#/components/schemas/ServiceError"
       additionalProperties: true
-    AmountRequest:
+    SimpleError:
       type: object
-      required: [amount]
+      required: [error]
       properties:
-        amount:
-          $ref: "#/components/schemas/DecimalString"
+        error:
+          type: string
       additionalProperties: false
-    TxRequest:
-      type: object
-      properties:
-        chain_id:
-          $ref: "#/components/schemas/BaseChainId"
-        to:
-          $ref: "#/components/schemas/Address"
-        value:
-          type: string
-        data:
-          $ref: "#/components/schemas/HexData"
-      additionalProperties: true
-    PreparedAction:
-      type: object
-      properties:
-        resource:
-          type: string
-        action:
-          type: string
-        chain_id:
-          $ref: "#/components/schemas/BaseChainId"
-        target:
-          $ref: "#/components/schemas/Address"
-        calldata:
-          $ref: "#/components/schemas/HexData"
-        tx_request:
-          $ref: "#/components/schemas/TxRequest"
-      additionalProperties: true
-    PreparedActionResponse:
-      type: object
-      required: [ok]
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        data:
-          $ref: "#/components/schemas/PreparedAction"
-      additionalProperties: true
-    CompactStakingState:
-      type: object
-      properties:
-        chain_id:
-          $ref: "#/components/schemas/BaseChainId"
-        chain_label:
-          type: string
-        contract_address:
-          $ref: "#/components/schemas/Address"
-        owner_address:
-          $ref: "#/components/schemas/Address"
-        stake_token_address:
-          $ref: "#/components/schemas/Address"
-        usdc_address:
-          $ref: "#/components/schemas/Address"
-        treasury_recipient:
-          $ref: "#/components/schemas/Address"
-        staker_share_bps:
-          type: integer
-        paused:
-          type: boolean
-        total_staked_raw:
-          type: string
-        total_staked:
-          $ref: "#/components/schemas/DecimalString"
-        total_usdc_received_raw:
-          type: string
-        total_usdc_received:
-          $ref: "#/components/schemas/DecimalString"
-        direct_deposit_usdc_raw:
-          type: string
-        direct_deposit_usdc:
-          $ref: "#/components/schemas/DecimalString"
-        treasury_residual_usdc_raw:
-          type: string
-        treasury_residual_usdc:
-          $ref: "#/components/schemas/DecimalString"
-        wallet_address:
-          $ref: "#/components/schemas/Address"
-        wallet_stake_balance_raw:
-          type: string
-        wallet_stake_balance:
-          $ref: "#/components/schemas/DecimalString"
-        wallet_token_balance_raw:
-          type: string
-        wallet_token_balance:
-          $ref: "#/components/schemas/DecimalString"
-        wallet_claimable_usdc_raw:
-          type: string
-        wallet_claimable_usdc:
-          $ref: "#/components/schemas/DecimalString"
-        wallet_funded_claimable_regent_raw:
-          type: string
-        wallet_funded_claimable_regent:
-          $ref: "#/components/schemas/DecimalString"
-      additionalProperties: true
-    RegentStakingOverviewResponse:
-      type: object
-      required: [ok]
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        staking:
-          $ref: "#/components/schemas/CompactStakingState"
-        connected_wallet_address:
-          $ref: "#/components/schemas/Address"
-      additionalProperties: true
-    RegentStakingAccountResponse:
-      type: object
-      required: [ok]
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        staking:
-          $ref: "#/components/schemas/CompactStakingState"
-      additionalProperties: true
