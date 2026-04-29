@@ -1,18 +1,20 @@
 defmodule SiwaServer.Siwa.NonceStore do
   @moduledoc false
+  @behaviour Siwa.NonceStore
 
   alias SiwaServer.Repo
   alias SiwaServer.Siwa.NonceRecord
   @default_cleanup_limit 1_000
 
-  def put(key, nonce, metadata, params) do
+  @impl Siwa.NonceStore
+  def put(key, nonce, metadata) do
     attrs = %{
       nonce_key: key,
       nonce: nonce,
       address: metadata.address,
       agent_id: metadata.agent_id,
       agent_registry: metadata.agent_registry,
-      audience: params.audience,
+      audience: metadata.audience,
       issued_at: metadata.issued_at,
       expiration_time: metadata.expiration_time
     }
@@ -45,6 +47,7 @@ defmodule SiwaServer.Siwa.NonceStore do
     end
   end
 
+  @impl Siwa.NonceStore
   def consume(key, nonce) do
     query = """
     DELETE FROM siwa_nonces

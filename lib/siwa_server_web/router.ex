@@ -7,6 +7,7 @@ defmodule SiwaServerWeb.Router do
 
   scope "/", SiwaServerWeb do
     get "/healthz", DiscoveryController, :healthz
+    get "/readyz", DiscoveryController, :readyz
     get "/metrics", DiscoveryController, :metrics
     get "/regent-services-contract.openapiv3.yaml", DiscoveryController, :services_contract
   end
@@ -19,5 +20,5 @@ defmodule SiwaServerWeb.Router do
     post "/http-verify", AgentSiwaController, :http_verify
   end
 
-  forward "/internal/keyring", SiwaServerWeb.Internal.KeyringRouter
+  forward "/internal/keyring", SiwaServerWeb.KeyringForwarder
 end

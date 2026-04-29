@@ -482,6 +482,31 @@ defmodule SiwaServer.SiwaTest do
              })
   end
 
+  test "invalid request signatures do not consume replay protection" do
+    receipt = verified_receipt()
+    body = Jason.encode!(%{"summary" => "Bad signature", "details" => "does not burn replay"})
+    created = System.os_time(:second)
+    expires = created + 600
+    headers = signed_headers(receipt, body, created, expires)
+    bad_signature = "sig1=:#{Base.encode64(<<0::520>>)}:"
+
+    assert {:error, {401, "signature_invalid", _message}} =
+             verify_http_request(%{
+               "method" => "POST",
+               "path" => "/v1/agent/bug-report",
+               "headers" => Map.put(headers, "signature", bad_signature),
+               "body" => body
+             })
+
+    assert {:ok, _payload} =
+             verify_http_request(%{
+               "method" => "POST",
+               "path" => "/v1/agent/bug-report",
+               "headers" => headers,
+               "body" => body
+             })
+  end
+
   test "signed requests allow only one concurrent use of the same signature" do
     receipt = test_receipt()
     body = Jason.encode!(%{"summary" => "Concurrent replay", "details" => "accepted once"})

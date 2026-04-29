@@ -1,4 +1,4 @@
-defmodule SiwaServerWeb.Internal.KeyringRouterTest do
+defmodule SiwaServerWeb.KeyringRouterTest do
   use SiwaServerWeb.ConnCase, async: false
 
   import Plug.Conn
@@ -62,6 +62,37 @@ defmodule SiwaServerWeb.Internal.KeyringRouterTest do
     assert is_binary(signature)
     assert String.starts_with?(signature, "0x")
     assert byte_size(signature) == 132
+
+    transaction_body =
+      Jason.encode!(%{
+        "transaction" => %{
+          "to" => address,
+          "value" => "0x0"
+        }
+      })
+
+    transaction_response =
+      signed_conn("POST", "/internal/keyring/sign-transaction", transaction_body, "router-secret")
+      |> call_endpoint()
+
+    assert transaction_response.status == 200
+
+    assert %{
+             "transaction" => %{"to" => ^address, "value" => "0x0"},
+             "signature" => %{
+               "purpose" => "raw",
+               "signer_type" => "eoa",
+               "digest" => digest,
+               "signature" => raw_signature,
+               "public_key" => public_key,
+               "address" => ^address
+             }
+           } = Jason.decode!(transaction_response.resp_body)
+
+    for value <- [digest, raw_signature, public_key] do
+      assert is_binary(value)
+      assert String.starts_with?(value, "0x")
+    end
   end
 
   test "internal keyring routes reject requests with a bad signature" do
@@ -191,21 +222,33 @@ defmodule SiwaServerWeb.Internal.KeyringRouterTest do
     conn = conn("POST", "/internal/keyring/sign-message", raw_body)
 
     assert {:more, "aaaaa", conn} =
-             SiwaServerWeb.Internal.KeyringRouter.read_body(conn, length: 5)
+             SiwaKeyring.Router.read_body(conn, length: 5)
 
     assert conn.private[:raw_body] == "aaaaa"
 
     assert {:more, "aaaaa", conn} =
-             SiwaServerWeb.Internal.KeyringRouter.read_body(conn, length: 5)
+             SiwaKeyring.Router.read_body(conn, length: 5)
 
     assert conn.private[:raw_body] == "aaaaaaaaaa"
 
     assert {:more, "aaaaa", conn} =
-             SiwaServerWeb.Internal.KeyringRouter.read_body(conn, length: 5)
+             SiwaKeyring.Router.read_body(conn, length: 5)
 
     assert conn.private[:raw_body] == "aaaaaaaaaaaaaaa"
 
-    assert {:ok, "aaaaa", conn} = SiwaServerWeb.Internal.KeyringRouter.read_body(conn, length: 5)
+    assert {:ok, "aaaaa", conn} = SiwaKeyring.Router.read_body(conn, length: 5)
     assert conn.private[:raw_body] == raw_body
+  end
+
+  test "internal keyring routes reject oversized bodies before signing work" do
+    body =
+      Jason.encode!(%{"message" => String.duplicate("a", SiwaKeyring.Router.max_body_bytes())})
+
+    response =
+      signed_conn("POST", "/internal/keyring/sign-message", body, "router-secret")
+      |> call_endpoint()
+
+    assert response.status == 413
+    assert Jason.decode!(response.resp_body) == %{"error" => "request_body_too_large"}
   end
 end

@@ -1,9 +1,11 @@
 defmodule SiwaServer.Siwa.ReplayStore do
   @moduledoc false
+  @behaviour Siwa.RequestAuth.ReplayStore
 
   alias SiwaServer.Repo
   @default_cleanup_limit 1_000
 
+  @impl Siwa.RequestAuth.ReplayStore
   def consume(replay_key, expires_at_unix) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
     expires_at = DateTime.from_unix!(expires_at_unix)

@@ -11,7 +11,7 @@ defmodule SiwaServer.Siwa do
 
   def issue_nonce(params) when is_map(params) do
     with {:ok, wallet_address} <- required_address(params, "wallet_address"),
-         {:ok, chain_id} <- required_positive_integer(params, "chain_id"),
+         {:ok, chain_id} <- required_base_chain_id(params, "chain_id"),
          {:ok, registry_address} <- required_address(params, "registry_address"),
          {:ok, token_id} <- required_positive_integer_string(params, "token_id"),
          {:ok, audience} <- required_string(params, "audience"),
@@ -23,7 +23,7 @@ defmodule SiwaServer.Siwa do
                agent_registry: agent_registry_string(chain_id, registry_address),
                audience: audience
              },
-             store: &NonceStore.put/4,
+             store: NonceStore,
              ttl_ms: nonce_ttl_seconds() * 1_000
            ) do
       expires_at = nonce_result.expiration_time
@@ -50,7 +50,7 @@ defmodule SiwaServer.Siwa do
 
   def verify_session(params) when is_map(params) do
     with {:ok, wallet_address} <- required_address(params, "wallet_address"),
-         {:ok, chain_id} <- required_positive_integer(params, "chain_id"),
+         {:ok, chain_id} <- required_base_chain_id(params, "chain_id"),
          {:ok, registry_address} <- required_address(params, "registry_address"),
          {:ok, token_id} <- required_positive_integer_string(params, "token_id"),
          {:ok, audience} <- required_string(params, "audience"),
@@ -112,7 +112,7 @@ defmodule SiwaServer.Siwa do
 
   defdelegate verify_http_request(params, opts \\ []), to: HttpVerifier, as: :verify
 
-  defdelegate content_digest_for_body(body), to: HttpVerifier
+  defdelegate content_digest_for_body(body), to: Siwa.RequestAuth
 
   defp verify_wallet_signature(wallet_address, message, signature) do
     case Ethereum.verify_signature(wallet_address, message, signature) do
@@ -133,7 +133,7 @@ defmodule SiwaServer.Siwa do
              audience: audience,
              nonce: nonce
            },
-           store: &NonceStore.consume/2,
+           store: NonceStore,
            now: DateTime.utc_now()
          ) do
       {:ok, record} ->
@@ -152,13 +152,13 @@ defmodule SiwaServer.Siwa do
   defp issue_receipt(claims) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    with {:ok, secret} <- receipt_secret(),
+    with {:ok, secret} <- RuntimeConfig.siwa_receipt_secret(),
          {:ok, receipt} <-
            Siwa.create_receipt(
              claims,
              receipt_secret: secret,
              now: now,
-             ttl_ms: receipt_ttl_seconds() * 1_000
+             ttl_ms: RuntimeConfig.siwa_receipt_ttl_seconds() * 1_000
            ) do
       {:ok, receipt.token, receipt.expires_at}
     end
@@ -178,10 +178,13 @@ defmodule SiwaServer.Siwa do
     end
   end
 
-  defp required_positive_integer(params, key) do
-    case parse_positive_integer(Map.get(params, key)) do
-      {:ok, value} -> {:ok, value}
-      {:error, _reason} -> {:error, {"invalid_#{key}", "#{key} must be a positive integer"}}
+  defp required_base_chain_id(params, key) do
+    case Map.get(params, key) do
+      value when is_integer(value) and value in @supported_chain_ids ->
+        {:ok, value}
+
+      _value ->
+        {:error, {"invalid_#{key}", "#{key} must be 8453 or 84532"}}
     end
   end
 
@@ -198,18 +201,6 @@ defmodule SiwaServer.Siwa do
         {:error, {"invalid_#{key}", "#{key} must be a positive number"}}
     end
   end
-
-  defp parse_positive_integer(value) when is_integer(value) and value > 0, do: {:ok, value}
-
-  defp parse_positive_integer(value) when is_binary(value) do
-    if Regex.match?(@positive_int_regex, String.trim(value)) do
-      {:ok, String.to_integer(String.trim(value))}
-    else
-      {:error, :invalid}
-    end
-  end
-
-  defp parse_positive_integer(_value), do: {:error, :invalid}
 
   defp required_string(params, key) do
     case normalize_optional_text(Map.get(params, key)) do
@@ -274,30 +265,7 @@ defmodule SiwaServer.Siwa do
 
   defp base_rpc_url_for_chain(_chain_id), do: {:error, "unsupported chain"}
 
-  defp receipt_secret do
-    case :siwa_server |> Application.get_env(:siwa, []) |> Keyword.get(:receipt_secret) do
-      value when is_binary(value) ->
-        case String.trim(value) do
-          "" -> {:error, {500, "siwa_not_configured", "SIWA receipt secret is not configured"}}
-          secret -> {:ok, secret}
-        end
-
-      _ ->
-        {:error, {500, "siwa_not_configured", "SIWA receipt secret is not configured"}}
-    end
-  end
-
-  defp nonce_ttl_seconds do
-    :siwa_server
-    |> Application.get_env(:siwa, [])
-    |> Keyword.get(:nonce_ttl_seconds, 300)
-  end
-
-  defp receipt_ttl_seconds do
-    :siwa_server
-    |> Application.get_env(:siwa, [])
-    |> Keyword.get(:receipt_ttl_seconds, 3_600)
-  end
+  defp nonce_ttl_seconds, do: RuntimeConfig.siwa_nonce_ttl_seconds()
 
   defp map_nonce_error(:unknown_nonce),
     do: Error.not_found("nonce_not_found", "nonce not found") |> Error.tuple()
