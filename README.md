@@ -11,7 +11,7 @@ It owns:
 
 It does not own product-specific app logic. Platform now calls this service over HTTP instead of serving shared SIWA locally.
 
-For the full local and Fly launch checklist across SIWA Server, Dragonfly, Platform, Autolaunch, and Regents CLI, use:
+For the full local and Fly launch checklist across SIWA Server, shared services, Platform, Autolaunch, and Regents CLI, use:
 
 - `/Users/sean/Documents/regent/docs/regent-local-and-fly-launch-testing.md`
 
@@ -27,6 +27,7 @@ Public routes:
 - `POST /v1/agent/siwa/verify`
 - `POST /v1/agent/siwa/http-verify`
 - `GET /healthz`
+- `GET /readyz`
 - `GET /metrics`
 - `GET /regent-services-contract.openapiv3.yaml`
 
@@ -64,12 +65,14 @@ mix phx.server
 - `SIWA_RECEIPT_SECRET`
 - `KEYSTORE_PASSWORD`
 - `KEYRING_PROXY_SECRET`
+- `BASE_RPC_URL`
 
 Optional:
 
 - `PHX_HOST`
 - `PORT`
-- `BASE_RPC_URL`
+- `DNS_CLUSTER_QUERY`
+- `POOL_SIZE`
 - `SIWA_NONCE_TTL_SECONDS`
 - `SIWA_RECEIPT_TTL_SECONDS`
 - `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS`

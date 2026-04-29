@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  precommit:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      MIX_ENV: test
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      BASE_RPC_URL: http://127.0.0.1:1
+
+    steps:
+      - name: Checkout SIWA server
+        uses: actions/checkout@v4
+        with:
+          path: siwa-server
+
+      - name: Checkout Elixir utils
+        uses: actions/checkout@v4
+        with:
+          repository: regents-ai/elixir-utils
+          path: elixir-utils
+
+      - name: Set up BEAM
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28.5"
+          elixir-version: "1.19.5"
+
+      - name: Cache Mix dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            siwa-server/deps
+            siwa-server/_build
+          key: ${{ runner.os }}-mix-${{ hashFiles('siwa-server/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-
+
+      - name: Install dependencies
+        working-directory: siwa-server
+        run: mix deps.get
+
+      - name: Run precommit
+        working-directory: siwa-server
+        run: mix precommit
