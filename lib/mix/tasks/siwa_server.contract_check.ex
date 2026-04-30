@@ -1,7 +1,7 @@
 defmodule Mix.Tasks.SiwaServer.ContractCheck do
   use Mix.Task
 
-  @shortdoc "Checks the served shared-services contract against SIWA routes and responses"
+  @shortdoc "Checks SIWA routes and responses in the shared-services contract"
   @contract_path "priv/static/regent-services-contract.openapiv3.yaml"
   @keyring_routes MapSet.new([
                     {"GET", "/internal/keyring/health"},
@@ -19,7 +19,6 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     {"POST", "/v1/agent/siwa/verify"} => MapSet.new(~w(200 400 401 404 413 500 502)),
     {"POST", "/v1/agent/siwa/http-verify"} => MapSet.new(~w(200 400 401 409 413 500))
   }
-
   @impl Mix.Task
   def run(_args) do
     Mix.Task.run("compile")
@@ -41,16 +40,20 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
       |> MapSet.union(@keyring_routes)
 
     missing_from_contract = MapSet.difference(router_routes, contract_routes)
-    extra_in_contract = MapSet.difference(contract_routes, router_routes)
+
+    unexpected_contract_routes =
+      contract_routes
+      |> MapSet.difference(router_routes)
+
     response_code_drift = response_code_drift(contract_response_codes)
 
-    if MapSet.size(missing_from_contract) == 0 and MapSet.size(extra_in_contract) == 0 and
-         response_code_drift == [] do
-      Mix.shell().info("shared services contract matches SIWA routes and expected responses")
+    if MapSet.size(missing_from_contract) == 0 and
+         MapSet.size(unexpected_contract_routes) == 0 and response_code_drift == [] do
+      Mix.shell().info("shared services contract covers SIWA routes and expected responses")
     else
-      report_drift(missing_from_contract, extra_in_contract)
+      report_drift(missing_from_contract, unexpected_contract_routes)
       report_response_code_drift(response_code_drift)
-      Mix.raise("shared services contract does not match SIWA routes or expected responses")
+      Mix.raise("shared services contract does not cover SIWA routes or expected responses")
     end
   end
 
@@ -161,15 +164,15 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     end)
   end
 
-  defp report_drift(missing_from_contract, extra_in_contract) do
+  defp report_drift(missing_from_contract, unexpected_contract_routes) do
     if MapSet.size(missing_from_contract) > 0 do
       Mix.shell().error("routes missing from contract:")
       Enum.each(missing_from_contract, &Mix.shell().error("  #{format_route(&1)}"))
     end
 
-    if MapSet.size(extra_in_contract) > 0 do
-      Mix.shell().error("contract routes not served by router:")
-      Enum.each(extra_in_contract, &Mix.shell().error("  #{format_route(&1)}"))
+    if MapSet.size(unexpected_contract_routes) > 0 do
+      Mix.shell().error("unexpected contract routes:")
+      Enum.each(unexpected_contract_routes, &Mix.shell().error("  #{format_route(&1)}"))
     end
   end
 

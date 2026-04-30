@@ -12,6 +12,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     conn(method, path, body)
     |> put_req_header("content-type", "application/json")
     |> put_req_header("x-keyring-timestamp", headers["x-keyring-timestamp"])
+    |> put_req_header("x-keyring-request-id", headers["x-keyring-request-id"])
     |> put_req_header("x-keyring-signature", headers["x-keyring-signature"])
   end
 
@@ -66,8 +67,14 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     transaction_body =
       Jason.encode!(%{
         "transaction" => %{
+          "chain_id" => 84532,
           "to" => address,
-          "value" => "0x0"
+          "value" => "0x0",
+          "data" => "0x",
+          "expected_signer" => address,
+          "expires_at" => "2026-05-01T00:00:00Z",
+          "risk_copy" => "Test wallet action",
+          "idempotency_key" => "keyring-test-transaction"
         }
       })
 
@@ -126,6 +133,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     response =
       conn("POST", "/internal/keyring/has-wallet")
       |> put_req_header("x-keyring-timestamp", headers["x-keyring-timestamp"])
+      |> put_req_header("x-keyring-request-id", headers["x-keyring-request-id"])
       |> put_req_header("x-keyring-signature", headers["x-keyring-signature"])
       |> call_endpoint()
 

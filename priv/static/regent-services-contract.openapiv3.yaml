@@ -6,6 +6,12 @@ info:
     Source-of-truth contract for the shared SIWA server. This service owns shared
     SIWA authentication, signed request verification, health, metrics, contract
     discovery, and the internal keyring routes.
+x-regent-capability:
+  status: beta
+  owner: shared-services
+  money_path: true
+  cli_surface: true
+  mobile_surface: false
 tags:
   - name: auth
   - name: internal
@@ -213,6 +219,7 @@ paths:
       tags: [internal]
       security:
         - KeyringHmacTimestamp: []
+          KeyringHmacRequestId: []
           KeyringHmacSignature: []
       requestBody:
         required: false
@@ -251,6 +258,7 @@ paths:
       tags: [internal]
       security:
         - KeyringHmacTimestamp: []
+          KeyringHmacRequestId: []
           KeyringHmacSignature: []
       requestBody:
         required: false
@@ -289,6 +297,7 @@ paths:
       tags: [internal]
       security:
         - KeyringHmacTimestamp: []
+          KeyringHmacRequestId: []
           KeyringHmacSignature: []
       requestBody:
         required: false
@@ -333,6 +342,7 @@ paths:
       tags: [internal]
       security:
         - KeyringHmacTimestamp: []
+          KeyringHmacRequestId: []
           KeyringHmacSignature: []
       requestBody:
         required: true
@@ -377,6 +387,7 @@ paths:
       tags: [internal]
       security:
         - KeyringHmacTimestamp: []
+          KeyringHmacRequestId: []
           KeyringHmacSignature: []
       requestBody:
         required: true
@@ -421,6 +432,7 @@ paths:
       tags: [internal]
       security:
         - KeyringHmacTimestamp: []
+          KeyringHmacRequestId: []
           KeyringHmacSignature: []
       requestBody:
         required: true
@@ -465,6 +477,7 @@ paths:
       tags: [internal]
       security:
         - KeyringHmacTimestamp: []
+          KeyringHmacRequestId: []
           KeyringHmacSignature: []
       requestBody:
         required: true
@@ -509,10 +522,20 @@ components:
       type: apiKey
       in: header
       name: x-keyring-timestamp
+    KeyringHmacRequestId:
+      type: apiKey
+      in: header
+      name: x-keyring-request-id
+      description: Unique request identifier included in the keyring HMAC payload and consumed once within the timestamp freshness window.
     KeyringHmacSignature:
       type: apiKey
       in: header
       name: x-keyring-signature
+    AgentSiwaHeaders:
+      type: apiKey
+      in: header
+      name: x-siwa-receipt
+      description: Signed SIWA header bundle used by authenticated agent requests.
   schemas:
     Address:
       type: string
@@ -762,23 +785,45 @@ components:
         payload:
           type: string
       additionalProperties: false
-    KeyringEnvelopeObject:
+    KeyringWalletActionEnvelope:
       type: object
-      minProperties: 1
-      additionalProperties: true
+      required: [chain_id, to, value, data, expected_signer, expires_at, risk_copy, idempotency_key]
+      properties:
+        chain_id:
+          $ref: "#/components/schemas/BaseChainId"
+        to:
+          $ref: "#/components/schemas/Address"
+        value:
+          $ref: "#/components/schemas/HexData"
+        data:
+          $ref: "#/components/schemas/HexData"
+        expected_signer:
+          $ref: "#/components/schemas/Address"
+        expires_at:
+          type: string
+          format: date-time
+        risk_copy:
+          type: string
+          minLength: 1
+        idempotency_key:
+          type: string
+          minLength: 16
+          maxLength: 128
+          pattern: "^[A-Za-z0-9._:-]+$"
+      additionalProperties: false
     KeyringSignTransactionRequest:
       type: object
       required: [transaction]
       properties:
         transaction:
-          $ref: "#/components/schemas/KeyringEnvelopeObject"
+          $ref: "#/components/schemas/KeyringWalletActionEnvelope"
       additionalProperties: false
     KeyringSignAuthorizationRequest:
       type: object
       required: [authorization]
       properties:
         authorization:
-          $ref: "#/components/schemas/KeyringEnvelopeObject"
+          $ref: "#/components/schemas/KeyringWalletActionEnvelope"
       additionalProperties: false
     KeyringSignatureResponse:
       type: object
@@ -811,7 +856,7 @@ components:
       required: [transaction, signature]
       properties:
         transaction:
-          $ref: "#/components/schemas/KeyringEnvelopeObject"
+          $ref: "#/components/schemas/KeyringWalletActionEnvelope"
         signature:
           $ref: "#/components/schemas/KeyringRawSignature"
       additionalProperties: false
@@ -820,7 +865,7 @@ components:
       required: [authorization, signature]
       properties:
         authorization:
-          $ref: "#/components/schemas/KeyringEnvelopeObject"
+          $ref: "#/components/schemas/KeyringWalletActionEnvelope"
         signature:
           $ref: "#/components/schemas/KeyringRawSignature"
       additionalProperties: false

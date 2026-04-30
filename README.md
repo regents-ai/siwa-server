@@ -9,7 +9,7 @@ It owns:
 - internal keyring routes for signer operations
 - health, metrics, and the served shared services contract
 
-It does not own product-specific app logic. Platform now calls this service over HTTP instead of serving shared SIWA locally.
+It does not own product-specific app logic. Platform now calls this service over HTTP instead of serving shared SIWA locally. Platform owns Regent staking routes and client generation.
 
 For the full local and Fly launch checklist across SIWA Server, shared services, Platform, Autolaunch, and Regents CLI, use:
 

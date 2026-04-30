@@ -10,6 +10,7 @@ defmodule SiwaServer.Application do
       SiwaServer.Repo,
       {Finch, name: SiwaServer.Finch},
       {SiwaServer.Siwa.CleanupWorker, []},
+      {SiwaKeyring.ReplayStore, name: SiwaKeyring.ReplayStore},
       {DNSCluster, query: Application.get_env(:siwa_server, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: SiwaServer.PubSub},
       SiwaServerWeb.Endpoint

@@ -329,6 +329,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     assert contract =~ "SIWA nonce was not found"
     assert contract =~ "KeyringHmacSignature"
     assert contract =~ "KeyringSignTransactionRequest"
+    refute contract =~ "/v1/agent/regent/staking"
 
     contract_paths =
       ~r/^  (\/[^:\n]+):$/m
