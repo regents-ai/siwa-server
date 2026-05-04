@@ -2,12 +2,25 @@ defmodule SiwaServer.TestRpcServer do
   @moduledoc false
 
   def owner_of(owner_address) do
+    start(fn request ->
+      result =
+        if request =~ "eth_chainId" do
+          chain_id_hex(8453)
+        else
+          "0x000000000000000000000000" <> String.trim_leading(owner_address, "0x")
+        end
+
+      %{"id" => 1, "jsonrpc" => "2.0", "result" => result}
+    end)
+  end
+
+  def chain_id(chain_id) do
+    start(fn _request -> %{"id" => 1, "jsonrpc" => "2.0", "result" => chain_id_hex(chain_id)} end)
+  end
+
+  def rpc_error(message \\ "provider error") do
     start(fn _request ->
-      %{
-        "id" => 1,
-        "jsonrpc" => "2.0",
-        "result" => "0x000000000000000000000000" <> String.trim_leading(owner_address, "0x")
-      }
+      %{"id" => 1, "jsonrpc" => "2.0", "error" => %{"code" => -32_000, "message" => message}}
     end)
   end
 
@@ -21,6 +34,8 @@ defmodule SiwaServer.TestRpcServer do
       %{}
     end)
   end
+
+  defp chain_id_hex(chain_id), do: "0x" <> Integer.to_string(chain_id, 16)
 
   def start(handler) when is_function(handler, 1) do
     {:ok, listen_socket} =

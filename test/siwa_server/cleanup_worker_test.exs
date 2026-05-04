@@ -71,7 +71,7 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
       nonce: nonce,
       address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
       agent_id: "77",
-      agent_registry: "eip155:84532:0x3333333333333333333333333333333333333333",
+      agent_registry: "eip155:8453:0x3333333333333333333333333333333333333333",
       audience: "platform",
       issued_at: DateTime.add(expiration_time, -300, :second),
       expiration_time: expiration_time

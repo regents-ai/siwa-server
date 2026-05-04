@@ -45,7 +45,7 @@ defmodule SiwaServerWeb.AgentSiwaRequest do
   @nonce_fields ~w(wallet_address chain_id registry_address token_id audience)
   @verify_fields ~w(wallet_address chain_id registry_address token_id audience nonce message signature)
   @http_verify_fields ~w(method path headers body)
-  @base_chain_ids [8453, 84_532]
+  @base_chain_id 8453
 
   def cast_nonce(params), do: cast(params, Nonce, @nonce_fields, @nonce_fields)
   def cast_verify(params), do: cast(params, Verify, @verify_fields, @verify_fields)
@@ -106,7 +106,7 @@ defmodule SiwaServerWeb.AgentSiwaRequest do
   defp cast_field(params, "chain_id", true) do
     case Map.get(params, "chain_id") do
       value when is_integer(value) ->
-        if value in @base_chain_ids, do: {:ok, value}, else: invalid_request()
+        if value == @base_chain_id, do: {:ok, value}, else: invalid_request()
 
       _value ->
         invalid_request()

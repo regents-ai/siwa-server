@@ -67,12 +67,12 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     transaction_body =
       Jason.encode!(%{
         "transaction" => %{
-          "chain_id" => 84532,
+          "chain_id" => 8453,
           "to" => address,
           "value" => "0x0",
           "data" => "0x",
           "expected_signer" => address,
-          "expires_at" => "2026-05-01T00:00:00Z",
+          "expires_at" => "2099-01-01T00:00:00Z",
           "risk_copy" => "Test wallet action",
           "idempotency_key" => "keyring-test-transaction"
         }

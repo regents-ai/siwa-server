@@ -7,7 +7,7 @@ defmodule SiwaServer.Siwa do
 
   @address_regex ~r/^0x[a-fA-F0-9]{40}$/
   @positive_int_regex ~r/^[1-9][0-9]*$/
-  @supported_chain_ids [8453, 84_532]
+  @base_chain_id 8453
 
   def issue_nonce(params) when is_map(params) do
     with {:ok, wallet_address} <- required_address(params, "wallet_address"),
@@ -180,11 +180,11 @@ defmodule SiwaServer.Siwa do
 
   defp required_base_chain_id(params, key) do
     case Map.get(params, key) do
-      value when is_integer(value) and value in @supported_chain_ids ->
+      value when is_integer(value) and value == @base_chain_id ->
         {:ok, value}
 
       _value ->
-        {:error, {"invalid_#{key}", "#{key} must be 8453 or 84532"}}
+        {:error, {"invalid_#{key}", "#{key} must be 8453"}}
     end
   end
 
@@ -250,7 +250,7 @@ defmodule SiwaServer.Siwa do
     end
   end
 
-  defp base_rpc_url_for_chain(chain_id) when chain_id in @supported_chain_ids do
+  defp base_rpc_url_for_chain(@base_chain_id) do
     case RuntimeConfig.base_rpc_url() do
       value when is_binary(value) ->
         case String.trim(value) do

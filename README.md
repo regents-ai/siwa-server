@@ -65,11 +65,12 @@ mix phx.server
 - `SIWA_RECEIPT_SECRET`
 - `KEYSTORE_PASSWORD`
 - `KEYRING_PROXY_SECRET`
-- `BASE_RPC_URL`
+- `BASE_RPC_URL` for Base mainnet
 
 Optional:
 
 - `PHX_HOST`
+- `PHX_SERVER`
 - `PORT`
 - `DNS_CLUSTER_QUERY`
 - `POOL_SIZE`

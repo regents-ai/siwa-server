@@ -4,7 +4,7 @@ defmodule SiwaServer.SiwaTest do
   alias SiwaServer.{Ethereum, Repo, RuntimeConfig, Siwa, TestRpcServer, TestWallet}
 
   @wallet_address TestWallet.address()
-  @chain_id 84_532
+  @chain_id 8453
   @registry_address "0x3333333333333333333333333333333333333333"
   @token_id "77"
 
@@ -142,7 +142,7 @@ defmodule SiwaServer.SiwaTest do
 
     bad_headers =
       signed_headers(receipt, body, created, expires)
-      |> Map.put("x-agent-chain-id", 84_532)
+      |> Map.put("x-agent-chain-id", 8453)
 
     assert {:error, {400, "invalid_headers", message}} =
              verify_http_request(%{
@@ -717,6 +717,46 @@ defmodule SiwaServer.SiwaTest do
     with_app_env(:siwa_server, :ethereum_rpc_timeout_ms, 50, fn ->
       assert {:error, "rpc request timed out"} = Ethereum.json_rpc(url, "eth_call", [])
     end)
+  end
+
+  test "ethereum rpc telemetry uses bounded result labels" do
+    ref = make_ref()
+    handler_id = "siwa-test-ethereum-rpc-#{System.unique_integer([:positive])}"
+    parent = self()
+
+    :ok =
+      :telemetry.attach(
+        handler_id,
+        [:siwa_server, :ethereum, :rpc, :stop],
+        fn _event, _measurements, metadata, _config ->
+          send(parent, {ref, metadata.result})
+        end,
+        nil
+      )
+
+    try do
+      assert {:ok, "0x2105"} = Ethereum.json_rpc(TestRpcServer.chain_id(8453), "eth_chainId", [])
+      assert_receive {^ref, :success}
+
+      assert {:error, "invalid rpc response"} =
+               Ethereum.json_rpc(TestRpcServer.invalid_response(), "eth_chainId", [])
+
+      assert_receive {^ref, :bad_response}
+
+      assert {:error, "provider failed"} =
+               Ethereum.json_rpc(TestRpcServer.rpc_error("provider failed"), "eth_call", [])
+
+      assert_receive {^ref, :provider_error}
+
+      with_app_env(:siwa_server, :ethereum_rpc_timeout_ms, 50, fn ->
+        assert {:error, "rpc request timed out"} =
+                 Ethereum.json_rpc(TestRpcServer.timeout(), "eth_call", [])
+      end)
+
+      assert_receive {^ref, :timeout}
+    after
+      :telemetry.detach(handler_id)
+    end
   end
 
   test "ethereum deterministic hashes do not shell out" do

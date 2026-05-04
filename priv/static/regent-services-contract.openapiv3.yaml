@@ -542,7 +542,7 @@ components:
       pattern: "^0x[a-fA-F0-9]{40}$"
     BaseChainId:
       type: integer
-      enum: [84532, 8453]
+      enum: [8453]
     HexData:
       type: string
       pattern: "^0x[a-fA-F0-9]*$"
@@ -886,7 +886,7 @@ components:
             - keyring_secret
             - keystore_path
             - base_rpc_url
-            - base_rpc_reachable
+            - base_rpc_chain_id
           properties:
             database:
               type: boolean
@@ -904,7 +904,7 @@ components:
               type: boolean
             base_rpc_url:
               type: boolean
-            base_rpc_reachable:
+            base_rpc_chain_id:
               type: boolean
           additionalProperties: false
       additionalProperties: false

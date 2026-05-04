@@ -5,6 +5,7 @@ defmodule SiwaServer.Readiness do
   alias SiwaServer.RuntimeConfig
   alias Siwa.Ethereum
 
+  @base_chain_id_hex "0x2105"
   @supported_keyring_backend "encrypted_file"
 
   def check do
@@ -17,7 +18,7 @@ defmodule SiwaServer.Readiness do
       keyring_secret: keyring_secret_ready?(:secret),
       keystore_path: keystore_path_ready?(),
       base_rpc_url: base_rpc_url_ready?(),
-      base_rpc_reachable: base_rpc_reachable?()
+      base_rpc_chain_id: base_rpc_chain_id_ready?()
     }
 
     %{ready: Enum.all?(Map.values(checks)), checks: checks}
@@ -89,19 +90,22 @@ defmodule SiwaServer.Readiness do
     end
   end
 
-  defp base_rpc_reachable? do
+  defp base_rpc_chain_id_ready? do
     case RuntimeConfig.base_rpc_url() do
       nil ->
         false
 
       url ->
-        match?(
-          {:ok, "0x" <> _hex},
-          Ethereum.json_rpc(url, "eth_chainId", [],
-            timeout_ms: readiness_rpc_timeout_ms(),
-            finch: SiwaServer.Finch
-          )
-        )
+        case Ethereum.json_rpc(url, "eth_chainId", [],
+               timeout_ms: readiness_rpc_timeout_ms(),
+               finch: SiwaServer.Finch
+             ) do
+          {:ok, chain_id} when is_binary(chain_id) ->
+            String.downcase(chain_id) == @base_chain_id_hex
+
+          _result ->
+            false
+        end
     end
   rescue
     _ -> false

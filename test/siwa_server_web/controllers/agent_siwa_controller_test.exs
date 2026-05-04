@@ -4,7 +4,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
   alias SiwaServer.{TestRpcServer, TestWallet}
 
   @wallet_address TestWallet.address()
-  @chain_id 84_532
+  @chain_id 8453
   @registry_address "0x3333333333333333333333333333333333333333"
   @token_id "77"
 
@@ -317,7 +317,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     assert checks["keyring_secret"] == true
     assert checks["keystore_path"] == true
     assert checks["base_rpc_url"] == true
-    assert checks["base_rpc_reachable"] == true
+    assert checks["base_rpc_chain_id"] == true
 
     metrics = response(get(conn, "/metrics"), 200)
     assert metrics =~ "siwa_server"
@@ -371,11 +371,21 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
     assert %{"ready" => false, "checks" => checks} = Jason.decode!(body)
     assert checks["base_rpc_url"] == true
-    assert checks["base_rpc_reachable"] == false
+    assert checks["base_rpc_chain_id"] == false
 
     refute body =~ "siwa-server-test-receipt-secret"
     refute body =~ "siwa-server-test-password"
     refute body =~ "siwa-server-test-keyring-secret"
+  end
+
+  test "readyz fails when the RPC reports a non-Base chain", %{conn: conn} do
+    System.put_env("BASE_RPC_URL", TestRpcServer.chain_id(1))
+
+    ready_conn = get(conn, "/readyz")
+
+    assert %{"ready" => false, "checks" => checks} = json_response(ready_conn, 503)
+    assert checks["base_rpc_url"] == true
+    assert checks["base_rpc_chain_id"] == false
   end
 
   test "readyz fails for unsupported keyring backends", %{conn: conn} do

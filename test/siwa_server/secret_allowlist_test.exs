@@ -29,6 +29,7 @@ defmodule SiwaServer.SecretAllowlistTest do
     for name <- ~w(
       BASE_RPC_URL
       DNS_CLUSTER_QUERY
+      PHX_SERVER
       POOL_SIZE
       SIWA_CLEANUP_BATCH_SIZE
     ) do

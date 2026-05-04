@@ -99,8 +99,12 @@ defmodule SiwaServer.Ethereum do
     )
   end
 
-  defp telemetry_result({:ok, _value}), do: :ok
-  defp telemetry_result({:error, reason}), do: reason
+  defp telemetry_result({:ok, _value}), do: :success
+  defp telemetry_result({:error, :rpc_request_timed_out}), do: :timeout
+  defp telemetry_result({:error, :invalid_rpc_response}), do: :bad_response
+  defp telemetry_result({:error, :invalid_owner}), do: :bad_response
+  defp telemetry_result({:error, {:rpc_error, _message}}), do: :provider_error
+  defp telemetry_result({:error, _reason}), do: :bad_request
 
   defp map_ethereum_result({:ok, value}), do: {:ok, value}
   defp map_ethereum_result({:error, {:rpc_error, message}}), do: {:error, message}
