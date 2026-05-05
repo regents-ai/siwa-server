@@ -296,6 +296,44 @@ defmodule SiwaServer.SiwaTest do
     assert message =~ "canonical SIWA format"
   end
 
+  test "invalid shared sign-in signatures do not consume the nonce" do
+    assert {:ok, %{"data" => %{"nonce" => nonce}}} =
+             Siwa.issue_nonce(%{
+               "wallet_address" => @wallet_address,
+               "chain_id" => @chain_id,
+               "registry_address" => @registry_address,
+               "token_id" => @token_id,
+               "audience" => "platform"
+             })
+
+    message = siwa_message(nonce)
+    bad_signature = "0x" <> String.duplicate("00", 65)
+
+    assert {:error, {401, "signature_invalid", _message}} =
+             Siwa.verify_session(%{
+               "wallet_address" => @wallet_address,
+               "chain_id" => @chain_id,
+               "registry_address" => @registry_address,
+               "token_id" => @token_id,
+               "audience" => "platform",
+               "nonce" => nonce,
+               "message" => message,
+               "signature" => bad_signature
+             })
+
+    assert {:ok, %{"data" => %{"verified" => true, "nonce" => ^nonce}}} =
+             Siwa.verify_session(%{
+               "wallet_address" => @wallet_address,
+               "chain_id" => @chain_id,
+               "registry_address" => @registry_address,
+               "token_id" => @token_id,
+               "audience" => "platform",
+               "nonce" => nonce,
+               "message" => message,
+               "signature" => TestWallet.sign_message(message)
+             })
+  end
+
   test "shared sign-in rejects messages that do not name the requested app audience" do
     assert {:ok, %{"data" => %{"nonce" => nonce}}} =
              Siwa.issue_nonce(%{
