@@ -23,15 +23,18 @@ defmodule SiwaServer.SecretAllowlistTest do
     refute allowlist =~ "PRIVY_APP_SECRET"
   end
 
-  test "local environment example lists runtime environment knobs" do
+  test "local environment example lists local setup knobs" do
     env_example = File.read!(".env.example")
 
     for name <- ~w(
       BASE_RPC_URL
-      DNS_CLUSTER_QUERY
-      PHX_SERVER
-      POOL_SIZE
+      DATABASE_URL
+      KEYRING_PROXY_SECRET
+      KEYSTORE_PASSWORD
+      PHX_HOST
+      PORT
       SIWA_CLEANUP_BATCH_SIZE
+      SIWA_RECEIPT_SECRET
     ) do
       assert env_example =~ "export #{name}="
     end

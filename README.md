@@ -60,8 +60,11 @@ mix phx.server
 
 ## Required Environment
 
+Production requires:
+
 - `DATABASE_URL`
 - `SECRET_KEY_BASE`
+- `PHX_HOST`
 - `SIWA_RECEIPT_SECRET`
 - `KEYSTORE_PASSWORD`
 - `KEYRING_PROXY_SECRET`
@@ -69,7 +72,6 @@ mix phx.server
 
 Optional:
 
-- `PHX_HOST`
 - `PHX_SERVER`
 - `PORT`
 - `DNS_CLUSTER_QUERY`
