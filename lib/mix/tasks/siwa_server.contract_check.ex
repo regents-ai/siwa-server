@@ -121,7 +121,7 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
   end
 
   defp path_from_line(line) do
-    case Regex.run(~r/^  (\/[^:\n]+):$/, line) do
+    case Regex.run(~r/^  (\/[^:\n]*):$/, line) do
       [_, path] -> path
       _ -> nil
     end

@@ -16,6 +16,17 @@ tags:
   - name: auth
   - name: internal
 paths:
+  /:
+    get:
+      operationId: siwaServerRoot
+      tags: [auth]
+      responses:
+        "200":
+          description: Lightweight root response for health probes that request the service root
+          content:
+            text/plain:
+              schema:
+                type: string
   /healthz:
     get:
       operationId: siwaServerHealthz

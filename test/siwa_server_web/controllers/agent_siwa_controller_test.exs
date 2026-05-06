@@ -305,6 +305,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
   end
 
   test "discovery endpoints expose health, metrics, and the services contract", %{conn: conn} do
+    assert response(get(conn, "/"), 200) == "ok"
     assert response(get(conn, "/healthz"), 200) == "ok"
 
     ready_conn = get(conn, "/readyz")
@@ -333,13 +334,14 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     refute contract =~ "/v1/agent/regent/staking"
 
     contract_paths =
-      ~r/^  (\/[^:\n]+):$/m
+      ~r/^  (\/[^:\n]*):$/m
       |> Regex.scan(contract, capture: :all_but_first)
       |> List.flatten()
       |> MapSet.new()
 
     assert contract_paths ==
              MapSet.new([
+               "/",
                "/healthz",
                "/readyz",
                "/metrics",

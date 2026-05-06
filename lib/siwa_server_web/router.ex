@@ -6,6 +6,7 @@ defmodule SiwaServerWeb.Router do
   end
 
   scope "/", SiwaServerWeb do
+    get "/", DiscoveryController, :root
     get "/healthz", DiscoveryController, :healthz
     get "/readyz", DiscoveryController, :readyz
     get "/metrics", DiscoveryController, :metrics

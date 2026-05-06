@@ -1,8 +1,12 @@
 defmodule SiwaServerWeb.DiscoveryController do
   use SiwaServerWeb, :controller
 
+  def root(conn, _params) do
+    health_response(conn)
+  end
+
   def healthz(conn, _params) do
-    send_resp(conn, 200, "ok")
+    health_response(conn)
   end
 
   def readyz(conn, _params) do
@@ -32,5 +36,11 @@ defmodule SiwaServerWeb.DiscoveryController do
     conn
     |> put_resp_content_type("application/yaml")
     |> send_resp(200, File.read!(path))
+  end
+
+  defp health_response(conn) do
+    conn
+    |> put_resp_content_type("text/plain")
+    |> send_resp(200, "ok")
   end
 end
