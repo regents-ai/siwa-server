@@ -42,7 +42,8 @@ defmodule SiwaServer.Siwa.ReplayStore do
              LIMIT $2
            )
            """,
-           [DateTime.truncate(now, :second), limit]
+           [DateTime.truncate(now, :second), limit],
+           log: false
          ) do
       {:ok, %{num_rows: count}} -> {:ok, count}
       {:error, reason} -> {:error, reason}
