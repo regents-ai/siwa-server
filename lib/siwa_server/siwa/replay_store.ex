@@ -7,8 +7,16 @@ defmodule SiwaServer.Siwa.ReplayStore do
 
   @impl Siwa.RequestAuth.ReplayStore
   def consume(replay_key, expires_at_unix) do
+    consume_until(replay_key, DateTime.from_unix!(expires_at_unix))
+  end
+
+  def consume_keyring_request(request_id, expires_at_ms) do
+    consume_until("keyring:" <> request_id, DateTime.from_unix!(expires_at_ms, :millisecond))
+  end
+
+  defp consume_until(replay_key, expires_at) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
-    expires_at = DateTime.from_unix!(expires_at_unix)
+    expires_at = DateTime.truncate(expires_at, :second)
 
     case Repo.query(
            """

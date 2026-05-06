@@ -3,16 +3,6 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
 
   @shortdoc "Checks SIWA routes and responses in the shared-services contract"
   @contract_path "priv/static/regent-services-contract.openapiv3.yaml"
-  @keyring_routes MapSet.new([
-                    {"GET", "/internal/keyring/health"},
-                    {"POST", "/internal/keyring/create-wallet"},
-                    {"POST", "/internal/keyring/has-wallet"},
-                    {"POST", "/internal/keyring/get-address"},
-                    {"POST", "/internal/keyring/sign-message"},
-                    {"POST", "/internal/keyring/sign-raw-message"},
-                    {"POST", "/internal/keyring/sign-transaction"},
-                    {"POST", "/internal/keyring/sign-authorization"}
-                  ])
   @openapi_methods ~w(get post put patch delete options head trace)
   @expected_response_codes %{
     {"POST", "/v1/agent/siwa/nonce"} => MapSet.new(~w(200 400 413)),
@@ -37,7 +27,7 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
       |> Enum.map(&{&1.verb |> to_string() |> String.upcase(), &1.path})
       |> Enum.reject(fn {_verb, path} -> String.starts_with?(path, "/internal/keyring") end)
       |> MapSet.new()
-      |> MapSet.union(@keyring_routes)
+      |> MapSet.union(keyring_routes())
 
     missing_from_contract = MapSet.difference(router_routes, contract_routes)
 
@@ -148,6 +138,45 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     case Regex.run(~r/^        "(\d{3})":$/, line) do
       [_, code] -> code
       _ -> nil
+    end
+  end
+
+  defp keyring_routes do
+    router_path =
+      :siwa_keyring
+      |> path_dep!()
+      |> Path.join("lib/siwa_keyring/router.ex")
+
+    router_path
+    |> File.read!()
+    |> String.split("\n")
+    |> Enum.flat_map(&keyring_route_from_line/1)
+    |> MapSet.new()
+  end
+
+  defp keyring_route_from_line(line) do
+    case Regex.run(~r/^\s*(get|post)\s+@prefix <> "([^"]+)"/, line) do
+      [_, verb, path] -> [{String.upcase(verb), "/internal/keyring" <> path}]
+      _ -> []
+    end
+  end
+
+  defp path_dep!(app) do
+    Mix.Project.config()
+    |> Keyword.fetch!(:deps)
+    |> Enum.find_value(fn
+      {^app, opts} when is_list(opts) ->
+        Keyword.get(opts, :path)
+
+      {^app, _requirement, opts} when is_list(opts) ->
+        Keyword.get(opts, :path)
+
+      _dep ->
+        nil
+    end)
+    |> case do
+      nil -> Mix.raise("missing local path dependency for #{app}")
+      path -> Path.expand(path, File.cwd!())
     end
   end
 

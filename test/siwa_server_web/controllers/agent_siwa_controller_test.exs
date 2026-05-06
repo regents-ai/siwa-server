@@ -328,6 +328,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     assert contract =~ "BaseChainId"
     assert contract =~ "SIWA nonce was not found"
     assert contract =~ "KeyringHmacSignature"
+    refute contract =~ "AgentSiwaHeaders"
     assert contract =~ "KeyringSignTransactionRequest"
     refute contract =~ "/v1/agent/regent/staking"
 

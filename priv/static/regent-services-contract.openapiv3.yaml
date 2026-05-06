@@ -531,11 +531,6 @@ components:
       type: apiKey
       in: header
       name: x-keyring-signature
-    AgentSiwaHeaders:
-      type: apiKey
-      in: header
-      name: x-siwa-receipt
-      description: Signed SIWA header bundle used by authenticated agent requests.
   schemas:
     Address:
       type: string

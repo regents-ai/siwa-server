@@ -41,7 +41,8 @@ config :siwa_keyring,
   backend: "encrypted_file",
   password: "change-me",
   path: "/tmp/siwa-server-keystore.bin",
-  secret: "siwa-dev-keyring-secret"
+  secret: "siwa-dev-keyring-secret",
+  replay_store: {SiwaServer.Siwa.ReplayStore, :consume_keyring_request}
 
 # Configure Elixir's Logger
 config :logger, :default_formatter,

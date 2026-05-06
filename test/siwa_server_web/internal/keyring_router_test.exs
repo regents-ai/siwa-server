@@ -4,10 +4,12 @@ defmodule SiwaServerWeb.KeyringRouterTest do
   import Plug.Conn
   import Plug.Test
 
+  alias SiwaServer.Repo
+
   defp call_endpoint(conn), do: SiwaServerWeb.Endpoint.call(conn, [])
 
-  defp signed_conn(method, path, body, secret) do
-    headers = SiwaKeyring.Auth.compute_hmac(secret, method, path, body)
+  defp signed_conn(method, path, body, secret, opts \\ []) do
+    headers = SiwaKeyring.Auth.compute_hmac(secret, method, path, body, opts)
 
     conn(method, path, body)
     |> put_req_header("content-type", "application/json")
@@ -112,6 +114,42 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     response = call_endpoint(conn)
     assert response.status == 401
     assert Jason.decode!(response.resp_body) == %{"error" => "unauthorized"}
+  end
+
+  test "internal keyring replay protection is stored durably" do
+    path = Path.join(System.tmp_dir!(), "siwa-keyring-#{System.unique_integer([:positive])}.json")
+    old_env = Application.get_all_env(:siwa_keyring)
+    request_id = "durable-replay-0001"
+
+    Application.put_env(:siwa_keyring, :path, path)
+    Application.put_env(:siwa_keyring, :password, "router-password")
+    Application.put_env(:siwa_keyring, :secret, "router-secret")
+
+    on_exit(fn ->
+      File.rm(path)
+      restore_keyring_env(old_env)
+    end)
+
+    first_response =
+      signed_conn("POST", "/internal/keyring/has-wallet", "{}", "router-secret",
+        request_id: request_id
+      )
+      |> call_endpoint()
+
+    second_response =
+      signed_conn("POST", "/internal/keyring/has-wallet", "{}", "router-secret",
+        request_id: request_id
+      )
+      |> call_endpoint()
+
+    assert first_response.status == 200
+    assert second_response.status == 401
+
+    assert %Postgrex.Result{rows: [[1]]} =
+             Repo.query!(
+               "SELECT COUNT(*) FROM siwa_request_replays WHERE replay_key = $1",
+               ["keyring:#{request_id}"]
+             )
   end
 
   test "internal keyring routes accept signed requests with no body" do

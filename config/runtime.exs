@@ -139,7 +139,8 @@ config :siwa_keyring,
       "KEYSTORE_PATH",
       Keyword.get(current_keyring, :path, "/data/siwa-server-keystore.bin")
     ),
-  secret: keyring_proxy_secret
+  secret: keyring_proxy_secret,
+  replay_store: Keyword.get(current_keyring, :replay_store)
 
 if prod? do
   database_url =
