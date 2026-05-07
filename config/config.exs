@@ -42,6 +42,9 @@ config :siwa_keyring,
   password: "change-me",
   path: "/tmp/siwa-server-keystore.bin",
   secret: "siwa-dev-keyring-secret",
+  start_server: false,
+  port: 3100,
+  host: "127.0.0.1",
   replay_store: {SiwaServer.Siwa.ReplayStore, :consume_keyring_request}
 
 # Configure Elixir's Logger

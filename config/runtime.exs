@@ -139,6 +139,9 @@ config :siwa_keyring,
       "KEYSTORE_PATH",
       Keyword.get(current_keyring, :path, "/data/siwa-server-keystore.bin")
     ),
+  start_server: false,
+  port: Keyword.get(current_keyring, :port, 3100),
+  host: Keyword.get(current_keyring, :host, "127.0.0.1"),
   secret: keyring_proxy_secret,
   replay_store: Keyword.get(current_keyring, :replay_store)
 

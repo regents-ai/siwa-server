@@ -9,19 +9,25 @@ defmodule Mix.Tasks.SiwaServer.ReleasePackagingCheck do
     dockerfile = File.read!(@dockerfile)
     repo_root = File.cwd!()
     build_context = Path.dirname(repo_root)
+    local_path_deps = local_production_path_deps(repo_root)
 
     missing =
-      repo_root
-      |> local_production_path_deps()
+      local_path_deps
       |> Enum.reject(&dockerfile_copies_path?(dockerfile, build_context, &1))
 
-    if missing == [] do
+    non_runtime = Enum.filter(local_path_deps, &runtime_disabled?/1)
+
+    if missing == [] and non_runtime == [] do
       Mix.shell().info("release packaging covers local production dependencies")
     else
-      Enum.each(missing, fn {app, path} ->
+      Enum.each(missing, fn {app, path, _opts} ->
         Mix.shell().error(
           "local production dependency not copied into release image: #{app} #{path}"
         )
+      end)
+
+      Enum.each(non_runtime, fn {app, _path, _opts} ->
+        Mix.shell().error("local production dependency must be packaged at runtime: #{app}")
       end)
 
       Mix.raise("release packaging is missing local production dependency inputs")
@@ -45,7 +51,7 @@ defmodule Mix.Tasks.SiwaServer.ReleasePackagingCheck do
 
   defp path_dep(app, opts, repo_root) do
     if Keyword.has_key?(opts, :path) and production_dep?(opts) do
-      [{app, opts |> Keyword.fetch!(:path) |> Path.expand(repo_root)}]
+      [{app, opts |> Keyword.fetch!(:path) |> Path.expand(repo_root), opts}]
     else
       []
     end
@@ -59,7 +65,9 @@ defmodule Mix.Tasks.SiwaServer.ReleasePackagingCheck do
     end
   end
 
-  defp dockerfile_copies_path?(dockerfile, build_context, {_app, path}) do
+  defp runtime_disabled?({_app, _path, opts}), do: Keyword.get(opts, :runtime) == false
+
+  defp dockerfile_copies_path?(dockerfile, build_context, {_app, path, _opts}) do
     copied_paths =
       dockerfile
       |> String.split("\n")

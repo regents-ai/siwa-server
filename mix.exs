@@ -53,8 +53,8 @@ defmodule SiwaServer.MixProject do
       {:ex_secp256k1, "~> 0.8.0"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
-      {:siwa, path: "../elixir-utils/siwa/siwa-elixir/apps/siwa", runtime: false, override: true},
-      {:siwa_keyring, path: "../elixir-utils/siwa/siwa-elixir/apps/siwa_keyring", runtime: false},
+      {:siwa, path: "../elixir-utils/siwa/siwa-elixir/apps/siwa", override: true},
+      {:siwa_keyring, path: "../elixir-utils/siwa/siwa-elixir/apps/siwa_keyring"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end
