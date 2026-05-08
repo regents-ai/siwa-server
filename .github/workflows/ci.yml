@@ -41,7 +41,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: regents-ai/elixir-utils
-          ref: 477594cbb70efde13d6711522c63faef700d36c6
           path: elixir-utils
 
       - name: Set up BEAM

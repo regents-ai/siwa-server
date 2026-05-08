@@ -43,17 +43,14 @@ If `siwa_data` is missing, create it:
 fly volumes create siwa_data --app "$SIWA_FLY_APP" --region iad --size 1
 ```
 
-Set secrets from the current `direnv` environment without printing values:
+Set secrets from the current `direnv` environment without printing values. Leave values supplied by `fly.toml` or runtime defaults out of the secrets command unless you are deliberately changing them.
 
 ```bash
 direnv exec . bash -lc 'fly secrets set --app "$SIWA_FLY_APP" \
   DATABASE_URL="$DATABASE_URL" \
   SECRET_KEY_BASE="$SECRET_KEY_BASE" \
-  PHX_HOST="$PHX_HOST" \
   SIWA_RECEIPT_SECRET="$SIWA_RECEIPT_SECRET" \
   BASE_RPC_URL="$BASE_RPC_URL" \
-  KEYSTORE_BACKEND="$KEYSTORE_BACKEND" \
-  KEYSTORE_PATH="$KEYSTORE_PATH" \
   KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" \
   KEYRING_PROXY_SECRET="$KEYRING_PROXY_SECRET" \
   SIWA_NONCE_TTL_SECONDS="$SIWA_NONCE_TTL_SECONDS" \
@@ -61,8 +58,7 @@ direnv exec . bash -lc 'fly secrets set --app "$SIWA_FLY_APP" \
   SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS="$SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS" \
   SIWA_CLEANUP_ENABLED="$SIWA_CLEANUP_ENABLED" \
   SIWA_CLEANUP_INTERVAL_MS="$SIWA_CLEANUP_INTERVAL_MS" \
-  SIWA_CLEANUP_BATCH_SIZE="$SIWA_CLEANUP_BATCH_SIZE" \
-  ECTO_IPV6="$ECTO_IPV6"'
+  SIWA_CLEANUP_BATCH_SIZE="$SIWA_CLEANUP_BATCH_SIZE"'
 ```
 
 Deploy from the workspace root because the Dockerfile copies `siwa-server/` and `elixir-utils/` from there. Pass the workspace root as the build directory; `fly.toml` keeps the Dockerfile path relative to `siwa-server/`.

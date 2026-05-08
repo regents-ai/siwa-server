@@ -23,6 +23,7 @@ For the repo-local mirror, use:
 
 Public routes:
 
+- `GET /`
 - `POST /v1/agent/siwa/nonce`
 - `POST /v1/agent/siwa/verify`
 - `POST /v1/agent/siwa/http-verify`
