@@ -26,6 +26,20 @@ defmodule SiwaServerWeb.ErrorJSON do
     }
   end
 
+  def error(code, message, meta) when is_binary(code) and is_binary(message) and is_map(meta) do
+    %{
+      "ok" => false,
+      "error" =>
+        Map.merge(
+          %{
+            "code" => code,
+            "message" => message
+          },
+          meta
+        )
+    }
+  end
+
   defp status_code_from_template(<<code::binary-size(3), ".json">>) do
     case code do
       "400" -> "bad_request"

@@ -10,9 +10,15 @@ defmodule SiwaServerWeb.KeyringForwarder do
 
   @impl Plug
   def call(conn, _opts) do
-    conn
-    |> Map.put(:path_info, conn.script_name ++ conn.path_info)
-    |> Map.put(:script_name, [])
-    |> SiwaKeyring.Router.call(@router_opts)
+    conn = SiwaServerWeb.Plugs.RateLimit.call(conn, name: :keyring_internal)
+
+    if conn.halted do
+      conn
+    else
+      conn
+      |> Map.put(:path_info, conn.script_name ++ conn.path_info)
+      |> Map.put(:script_name, [])
+      |> SiwaKeyring.Router.call(@router_opts)
+    end
   end
 end

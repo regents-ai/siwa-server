@@ -12,6 +12,13 @@ x-regent-capability:
   money_path: true
   cli_surface: true
   mobile_surface: false
+x-regent-rate-limits:
+  retry_after_header: Retry-After
+  tiers:
+    public_unauthenticated: strict bootstrap limits before SIWA identity is proven
+    verified_cli_signed_agent: higher allowance after SIWA receipt or HTTP signature verification
+    internal_service: bounded by keyring HMAC credential
+  cli_allowance_requires_verified_siwa: true
 tags:
   - name: auth
   - name: internal
@@ -112,6 +119,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
   /v1/agent/siwa/verify:
     post:
       operationId: verifySharedAgentSiwaSession
@@ -171,6 +180,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
   /v1/agent/siwa/http-verify:
     post:
       operationId: verifySharedSiwaHttpEnvelope
@@ -231,6 +242,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
   /internal/keyring/health:
     get:
       operationId: siwaKeyringHealth
@@ -242,6 +255,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/KeyringHealthResponse"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
   /internal/keyring/create-wallet:
     post:
       operationId: siwaKeyringCreateWallet
@@ -287,6 +302,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SimpleError"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
   /internal/keyring/has-wallet:
     post:
       operationId: siwaKeyringHasWallet
@@ -332,6 +349,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SimpleError"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
   /internal/keyring/get-address:
     post:
       operationId: siwaKeyringGetAddress
@@ -383,6 +402,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SimpleError"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
   /internal/keyring/sign-message:
     post:
       operationId: siwaKeyringSignMessage
@@ -434,6 +455,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SimpleError"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
   /internal/keyring/sign-raw-message:
     post:
       operationId: siwaKeyringSignRawMessage
@@ -485,6 +508,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SimpleError"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
   /internal/keyring/sign-transaction:
     post:
       operationId: siwaKeyringSignTransaction
@@ -536,6 +561,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SimpleError"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
   /internal/keyring/sign-authorization:
     post:
       operationId: siwaKeyringSignAuthorization
@@ -587,6 +614,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SimpleError"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
 components:
   securitySchemes:
     KeyringHmacTimestamp:
@@ -602,6 +631,19 @@ components:
       type: apiKey
       in: header
       name: x-keyring-signature
+  responses:
+    RateLimitError:
+      description: Too many requests
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
   schemas:
     Address:
       type: string

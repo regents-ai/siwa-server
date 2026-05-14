@@ -10,17 +10,92 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
   setup do
     previous_base_rpc_url = System.get_env("BASE_RPC_URL")
+    previous_rate_limits = Application.get_env(:siwa_server, :rate_limits, [])
 
     System.put_env("BASE_RPC_URL", TestRpcServer.owner_of(@wallet_address))
+    SiwaServer.RateLimiter.reset()
 
     on_exit(fn ->
       case previous_base_rpc_url do
         nil -> System.delete_env("BASE_RPC_URL")
         value -> System.put_env("BASE_RPC_URL", value)
       end
+
+      Application.put_env(:siwa_server, :rate_limits, previous_rate_limits)
+      SiwaServer.RateLimiter.reset()
     end)
 
     :ok
+  end
+
+  test "nonce requests are rate limited by claimed identity and caller", %{conn: conn} do
+    Application.put_env(:siwa_server, :rate_limits,
+      siwa_nonce: [limit: 1, window_ms: 60_000],
+      siwa_verify: [limit: 60, window_ms: 60_000],
+      siwa_http_verify: [limit: 600, window_ms: 60_000]
+    )
+
+    body = %{
+      "wallet_address" => @wallet_address,
+      "chain_id" => @chain_id,
+      "registry_address" => @registry_address,
+      "token_id" => @token_id,
+      "audience" => "platform"
+    }
+
+    assert %{"ok" => true} =
+             conn
+             |> recycle()
+             |> json_post("/v1/agent/siwa/nonce", body)
+             |> json_response(200)
+
+    conn =
+      conn
+      |> recycle()
+      |> json_post("/v1/agent/siwa/nonce", body)
+
+    assert_retry_after(conn)
+
+    assert %{"error" => %{"code" => "rate_limited", "retry_after_ms" => retry_after_ms}} =
+             json_response(conn, 429)
+
+    assert retry_after_ms > 0
+  end
+
+  test "http verify requests use the signed-agent allowance bucket", %{conn: conn} do
+    Application.put_env(:siwa_server, :rate_limits,
+      siwa_http_verify: [limit: 1, window_ms: 60_000],
+      siwa_nonce: [limit: 60, window_ms: 60_000],
+      siwa_verify: [limit: 60, window_ms: 60_000]
+    )
+
+    payload = %{
+      "method" => "POST",
+      "path" => "/v1/agent/bug-report",
+      "headers" => %{
+        "x-agent-wallet-address" => @wallet_address,
+        "x-agent-chain-id" => Integer.to_string(@chain_id),
+        "x-agent-registry-address" => @registry_address,
+        "x-agent-token-id" => @token_id
+      }
+    }
+
+    first_conn =
+      conn
+      |> recycle()
+      |> put_req_header("x-siwa-audience", "platform")
+      |> json_post("/v1/agent/siwa/http-verify", payload)
+
+    assert first_conn.status in [400, 401]
+
+    conn =
+      conn
+      |> recycle()
+      |> put_req_header("x-siwa-audience", "platform")
+      |> json_post("/v1/agent/siwa/http-verify", payload)
+
+    assert_retry_after(conn)
+    assert %{"error" => %{"code" => "rate_limited"}} = json_response(conn, 429)
   end
 
   test "public SIWA endpoints complete the shared auth flow", %{conn: conn} do
@@ -377,16 +452,16 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
              ])
 
     assert operation_response_codes(contract, "/v1/agent/siwa/nonce", "post") ==
-             MapSet.new(~w(200 400 413 415))
+             MapSet.new(~w(200 400 413 415 429))
 
     assert operation_response_codes(contract, "/v1/agent/siwa/verify", "post") ==
-             MapSet.new(~w(200 400 401 404 413 415 500 502))
+             MapSet.new(~w(200 400 401 404 413 415 429 500 502))
 
     assert operation_response_codes(contract, "/v1/agent/siwa/http-verify", "post") ==
-             MapSet.new(~w(200 400 401 409 413 415 500))
+             MapSet.new(~w(200 400 401 409 413 415 429 500))
 
     assert operation_response_codes(contract, "/internal/keyring/sign-authorization", "post") ==
-             MapSet.new(~w(200 400 401 413 415 422))
+             MapSet.new(~w(200 400 401 413 415 422 429))
   end
 
   test "readyz fails without exposing configured secrets when RPC is unreachable", %{conn: conn} do
@@ -566,5 +641,10 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     hex
     |> Base.decode16!(case: :mixed)
     |> Base.encode64()
+  end
+
+  defp assert_retry_after(conn) do
+    assert [value] = get_resp_header(conn, "retry-after")
+    assert String.to_integer(value) > 0
   end
 end

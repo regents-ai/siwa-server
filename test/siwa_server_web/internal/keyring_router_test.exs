@@ -6,6 +6,18 @@ defmodule SiwaServerWeb.KeyringRouterTest do
 
   alias SiwaServer.Repo
 
+  setup do
+    previous_rate_limits = Application.get_env(:siwa_server, :rate_limits, [])
+    SiwaServer.RateLimiter.reset()
+
+    on_exit(fn ->
+      Application.put_env(:siwa_server, :rate_limits, previous_rate_limits)
+      SiwaServer.RateLimiter.reset()
+    end)
+
+    :ok
+  end
+
   defp call_endpoint(conn), do: SiwaServerWeb.Endpoint.call(conn, [])
 
   defp signed_conn(method, path, body, secret, opts \\ []) do
@@ -105,6 +117,26 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     response = call_endpoint(conn)
     assert response.status == 401
     assert Jason.decode!(response.resp_body) == %{"error" => "unauthorized"}
+  end
+
+  test "internal keyring routes are rate limited before protected work" do
+    Application.put_env(:siwa_server, :rate_limits,
+      keyring_internal: [limit: 1, window_ms: 60_000]
+    )
+
+    conn =
+      conn("POST", "/internal/keyring/has-wallet", "{}")
+      |> put_req_header("content-type", "application/json")
+      |> put_req_header("x-keyring-timestamp", "123")
+      |> put_req_header("x-keyring-signature", "bad")
+
+    first_response = call_endpoint(conn)
+    assert first_response.status == 401
+
+    second_response = call_endpoint(conn)
+    assert second_response.status == 429
+    assert_retry_after(second_response)
+    assert %{"error" => %{"code" => "rate_limited"}} = Jason.decode!(second_response.resp_body)
   end
 
   test "internal keyring routes require authentication on every protected route" do
@@ -462,5 +494,10 @@ defmodule SiwaServerWeb.KeyringRouterTest do
       {"POST", "/internal/keyring/sign-authorization",
        Jason.encode!(%{"authorization" => wallet_action(address, "keyring-auth-authorization")})}
     ]
+  end
+
+  defp assert_retry_after(conn) do
+    assert [value] = Plug.Conn.get_resp_header(conn, "retry-after")
+    assert String.to_integer(value) > 0
   end
 end
