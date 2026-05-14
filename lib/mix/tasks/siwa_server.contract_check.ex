@@ -11,17 +11,18 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     {"GET", "/readyz"} => MapSet.new(~w(200 503)),
     {"GET", "/metrics"} => MapSet.new(~w(200)),
     {"GET", "/regent-services-contract.openapiv3.yaml"} => MapSet.new(~w(200)),
-    {"POST", "/v1/agent/siwa/nonce"} => MapSet.new(~w(200 400 413 415)),
-    {"POST", "/v1/agent/siwa/verify"} => MapSet.new(~w(200 400 401 404 413 415 500 502)),
-    {"POST", "/v1/agent/siwa/http-verify"} => MapSet.new(~w(200 400 401 409 413 415 500)),
-    @keyring_health_route => MapSet.new(~w(200)),
-    {"POST", "/internal/keyring/create-wallet"} => MapSet.new(~w(200 401 413 415 422)),
-    {"POST", "/internal/keyring/has-wallet"} => MapSet.new(~w(200 401 413 415 422)),
-    {"POST", "/internal/keyring/get-address"} => MapSet.new(~w(200 401 404 413 415 422)),
-    {"POST", "/internal/keyring/sign-message"} => MapSet.new(~w(200 400 401 413 415 422)),
-    {"POST", "/internal/keyring/sign-raw-message"} => MapSet.new(~w(200 400 401 413 415 422)),
-    {"POST", "/internal/keyring/sign-transaction"} => MapSet.new(~w(200 400 401 413 415 422)),
-    {"POST", "/internal/keyring/sign-authorization"} => MapSet.new(~w(200 400 401 413 415 422))
+    {"POST", "/v1/agent/siwa/nonce"} => MapSet.new(~w(200 400 413 415 429)),
+    {"POST", "/v1/agent/siwa/verify"} => MapSet.new(~w(200 400 401 404 413 415 429 500 502)),
+    {"POST", "/v1/agent/siwa/http-verify"} => MapSet.new(~w(200 400 401 409 413 415 429 500)),
+    @keyring_health_route => MapSet.new(~w(200 429)),
+    {"POST", "/internal/keyring/create-wallet"} => MapSet.new(~w(200 401 413 415 422 429)),
+    {"POST", "/internal/keyring/has-wallet"} => MapSet.new(~w(200 401 413 415 422 429)),
+    {"POST", "/internal/keyring/get-address"} => MapSet.new(~w(200 401 404 413 415 422 429)),
+    {"POST", "/internal/keyring/sign-message"} => MapSet.new(~w(200 400 401 413 415 422 429)),
+    {"POST", "/internal/keyring/sign-raw-message"} => MapSet.new(~w(200 400 401 413 415 422 429)),
+    {"POST", "/internal/keyring/sign-transaction"} => MapSet.new(~w(200 400 401 413 415 422 429)),
+    {"POST", "/internal/keyring/sign-authorization"} =>
+      MapSet.new(~w(200 400 401 413 415 422 429))
   }
   @impl Mix.Task
   def run(_args) do
