@@ -68,16 +68,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
 
     transaction_body =
       Jason.encode!(%{
-        "transaction" => %{
-          "chain_id" => 8453,
-          "to" => address,
-          "value" => "0x0",
-          "data" => "0x",
-          "expected_signer" => address,
-          "expires_at" => "2099-01-01T00:00:00Z",
-          "risk_copy" => "Test wallet action",
-          "idempotency_key" => "keyring-test-transaction"
-        }
+        "transaction" => wallet_action(address, "keyring-test-transaction")
       })
 
     transaction_response =
@@ -114,6 +105,28 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     response = call_endpoint(conn)
     assert response.status == 401
     assert Jason.decode!(response.resp_body) == %{"error" => "unauthorized"}
+  end
+
+  test "internal keyring routes require authentication on every protected route" do
+    for {method, path, body} <- protected_keyring_requests() do
+      response =
+        conn(method, path, body)
+        |> put_req_header("content-type", "application/json")
+        |> call_endpoint()
+
+      assert response.status == 401
+      assert Jason.decode!(response.resp_body) == %{"error" => "unauthorized"}
+    end
+  end
+
+  test "internal keyring routes reject unsupported media types before signing work" do
+    response =
+      conn("POST", "/internal/keyring/sign-message", "hello")
+      |> put_req_header("content-type", "text/plain")
+      |> call_endpoint()
+
+    assert response.status == 415
+    assert Jason.decode!(response.resp_body) == %{"error" => "unsupported_media_type"}
   end
 
   test "internal keyring replay protection is stored durably" do
@@ -199,6 +212,13 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     assert message_response.status == 400
     assert Jason.decode!(message_response.resp_body) == %{"error" => "message_required"}
 
+    raw_message_response =
+      signed_conn("POST", "/internal/keyring/sign-raw-message", "{}", "router-secret")
+      |> call_endpoint()
+
+    assert raw_message_response.status == 400
+    assert Jason.decode!(raw_message_response.resp_body) == %{"error" => "payload_required"}
+
     transaction_response =
       signed_conn(
         "POST",
@@ -210,6 +230,104 @@ defmodule SiwaServerWeb.KeyringRouterTest do
 
     assert transaction_response.status == 400
     assert Jason.decode!(transaction_response.resp_body) == %{"error" => "transaction_required"}
+
+    authorization_response =
+      signed_conn(
+        "POST",
+        "/internal/keyring/sign-authorization",
+        ~s({"authorization":{}}),
+        "router-secret"
+      )
+      |> call_endpoint()
+
+    assert authorization_response.status == 400
+
+    assert Jason.decode!(authorization_response.resp_body) == %{
+             "error" => "authorization_required"
+           }
+  end
+
+  test "internal keyring sign-authorization returns the signed wallet-action envelope" do
+    with_keyring_env(fn ->
+      create_response =
+        signed_conn("POST", "/internal/keyring/create-wallet", "{}", "router-secret")
+        |> call_endpoint()
+
+      assert create_response.status == 200
+      %{"address" => address} = Jason.decode!(create_response.resp_body)
+
+      authorization = wallet_action(address, "keyring-test-authorization")
+      body = Jason.encode!(%{"authorization" => authorization})
+
+      response =
+        signed_conn("POST", "/internal/keyring/sign-authorization", body, "router-secret")
+        |> call_endpoint()
+
+      assert response.status == 200
+
+      assert %{
+               "authorization" => ^authorization,
+               "signature" => %{
+                 "purpose" => "raw",
+                 "signer_type" => "eoa",
+                 "digest" => digest,
+                 "signature" => raw_signature,
+                 "public_key" => public_key,
+                 "address" => ^address
+               }
+             } = Jason.decode!(response.resp_body)
+
+      for value <- [digest, raw_signature, public_key] do
+        assert is_binary(value)
+        assert String.starts_with?(value, "0x")
+      end
+    end)
+  end
+
+  test "internal keyring signer requests reject an unexpected signer" do
+    with_keyring_env(fn ->
+      create_response =
+        signed_conn("POST", "/internal/keyring/create-wallet", "{}", "router-secret")
+        |> call_endpoint()
+
+      assert create_response.status == 200
+      %{"address" => address} = Jason.decode!(create_response.resp_body)
+
+      wrong_signer = "0x2222222222222222222222222222222222222222"
+
+      transaction =
+        wallet_action(address, "keyring-test-unexpected-tx", %{"expected_signer" => wrong_signer})
+
+      transaction_response =
+        signed_conn(
+          "POST",
+          "/internal/keyring/sign-transaction",
+          Jason.encode!(%{"transaction" => transaction}),
+          "router-secret"
+        )
+        |> call_endpoint()
+
+      assert transaction_response.status == 422
+
+      assert Jason.decode!(transaction_response.resp_body) == %{
+               "error" => "transaction_sign_failed"
+             }
+
+      authorization =
+        wallet_action(address, "keyring-test-unexpected", %{"expected_signer" => wrong_signer})
+
+      response =
+        signed_conn(
+          "POST",
+          "/internal/keyring/sign-authorization",
+          Jason.encode!(%{"authorization" => authorization}),
+          "router-secret"
+        )
+        |> call_endpoint()
+
+      assert response.status == 422
+      assert Jason.decode!(response.resp_body) == %{"error" => "authorization_sign_failed"}
+    end)
   end
 
   test "internal keyring routes return a clean error when the wallet is missing" do
@@ -296,5 +414,53 @@ defmodule SiwaServerWeb.KeyringRouterTest do
 
     assert response.status == 413
     assert Jason.decode!(response.resp_body) == %{"error" => "request_body_too_large"}
+  end
+
+  defp with_keyring_env(fun) do
+    path = Path.join(System.tmp_dir!(), "siwa-keyring-#{System.unique_integer([:positive])}.json")
+    old_env = Application.get_all_env(:siwa_keyring)
+
+    Application.put_env(:siwa_keyring, :path, path)
+    Application.put_env(:siwa_keyring, :password, "router-password")
+    Application.put_env(:siwa_keyring, :secret, "router-secret")
+
+    try do
+      fun.()
+    after
+      File.rm(path)
+      restore_keyring_env(old_env)
+    end
+  end
+
+  defp wallet_action(address, idempotency_key, overrides \\ %{}) do
+    Map.merge(
+      %{
+        "chain_id" => 8453,
+        "to" => address,
+        "value" => "0x0",
+        "data" => "0x",
+        "expected_signer" => address,
+        "expires_at" => "2099-01-01T00:00:00Z",
+        "risk_copy" => "Test wallet action",
+        "idempotency_key" => idempotency_key
+      },
+      overrides
+    )
+  end
+
+  defp protected_keyring_requests do
+    address = "0x1111111111111111111111111111111111111111"
+
+    [
+      {"POST", "/internal/keyring/create-wallet", "{}"},
+      {"POST", "/internal/keyring/has-wallet", "{}"},
+      {"POST", "/internal/keyring/get-address", "{}"},
+      {"POST", "/internal/keyring/sign-message", Jason.encode!(%{"message" => "hello"})},
+      {"POST", "/internal/keyring/sign-raw-message", Jason.encode!(%{"payload" => "hello"})},
+      {"POST", "/internal/keyring/sign-transaction",
+       Jason.encode!(%{"transaction" => wallet_action(address, "keyring-auth-transaction")})},
+      {"POST", "/internal/keyring/sign-authorization",
+       Jason.encode!(%{"authorization" => wallet_action(address, "keyring-auth-authorization")})}
+    ]
   end
 end

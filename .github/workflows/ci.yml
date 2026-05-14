@@ -66,3 +66,16 @@ jobs:
       - name: Run precommit
         working-directory: siwa-server
         run: mix precommit
+
+      - name: Build release
+        working-directory: siwa-server
+        env:
+          MIX_ENV: prod
+          BASE_RPC_URL: http://127.0.0.1:1
+          DATABASE_URL: ecto://postgres:postgres@localhost/siwa_server_test
+          KEYRING_PROXY_SECRET: ci-keyring-proxy-secret
+          KEYSTORE_PASSWORD: ci-keystore-password
+          PHX_HOST: siwa-server.example
+          SECRET_KEY_BASE: 1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz
+          SIWA_RECEIPT_SECRET: ci-siwa-receipt-secret
+        run: mix release --overwrite

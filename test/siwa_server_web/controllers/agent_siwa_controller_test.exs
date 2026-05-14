@@ -149,6 +149,23 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
            } = Jason.decode!(response_body)
   end
 
+  test "public SIWA endpoints reject unsupported media types", %{conn: conn} do
+    assert {415, _headers, response_body} =
+             assert_error_sent(415, fn ->
+               conn
+               |> put_req_header("content-type", "text/plain")
+               |> post("/v1/agent/siwa/nonce", "not-json")
+             end)
+
+    assert %{
+             "ok" => false,
+             "error" => %{
+               "code" => "unsupported_media_type",
+               "message" => "Unsupported Media Type"
+             }
+           } = Jason.decode!(response_body)
+  end
+
   test "public SIWA endpoints cast requests before verification", %{conn: conn} do
     conn =
       json_post(conn, "/v1/agent/siwa/nonce", %{
@@ -359,11 +376,17 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/internal/keyring/sign-authorization"
              ])
 
+    assert operation_response_codes(contract, "/v1/agent/siwa/nonce", "post") ==
+             MapSet.new(~w(200 400 413 415))
+
     assert operation_response_codes(contract, "/v1/agent/siwa/verify", "post") ==
-             MapSet.new(~w(200 400 401 404 413 500 502))
+             MapSet.new(~w(200 400 401 404 413 415 500 502))
 
     assert operation_response_codes(contract, "/v1/agent/siwa/http-verify", "post") ==
-             MapSet.new(~w(200 400 401 409 413 500))
+             MapSet.new(~w(200 400 401 409 413 415 500))
+
+    assert operation_response_codes(contract, "/internal/keyring/sign-authorization", "post") ==
+             MapSet.new(~w(200 400 401 413 415 422))
   end
 
   test "readyz fails without exposing configured secrets when RPC is unreachable", %{conn: conn} do

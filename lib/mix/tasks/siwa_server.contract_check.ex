@@ -4,16 +4,31 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
   @shortdoc "Checks SIWA routes and responses in the shared-services contract"
   @contract_path "priv/static/regent-services-contract.openapiv3.yaml"
   @openapi_methods ~w(get post put patch delete options head trace)
+  @keyring_health_route {"GET", "/internal/keyring/health"}
   @expected_response_codes %{
-    {"POST", "/v1/agent/siwa/nonce"} => MapSet.new(~w(200 400 413)),
-    {"POST", "/v1/agent/siwa/verify"} => MapSet.new(~w(200 400 401 404 413 500 502)),
-    {"POST", "/v1/agent/siwa/http-verify"} => MapSet.new(~w(200 400 401 409 413 500))
+    {"GET", "/"} => MapSet.new(~w(200)),
+    {"GET", "/healthz"} => MapSet.new(~w(200)),
+    {"GET", "/readyz"} => MapSet.new(~w(200 503)),
+    {"GET", "/metrics"} => MapSet.new(~w(200)),
+    {"GET", "/regent-services-contract.openapiv3.yaml"} => MapSet.new(~w(200)),
+    {"POST", "/v1/agent/siwa/nonce"} => MapSet.new(~w(200 400 413 415)),
+    {"POST", "/v1/agent/siwa/verify"} => MapSet.new(~w(200 400 401 404 413 415 500 502)),
+    {"POST", "/v1/agent/siwa/http-verify"} => MapSet.new(~w(200 400 401 409 413 415 500)),
+    @keyring_health_route => MapSet.new(~w(200)),
+    {"POST", "/internal/keyring/create-wallet"} => MapSet.new(~w(200 401 413 415 422)),
+    {"POST", "/internal/keyring/has-wallet"} => MapSet.new(~w(200 401 413 415 422)),
+    {"POST", "/internal/keyring/get-address"} => MapSet.new(~w(200 401 404 413 415 422)),
+    {"POST", "/internal/keyring/sign-message"} => MapSet.new(~w(200 400 401 413 415 422)),
+    {"POST", "/internal/keyring/sign-raw-message"} => MapSet.new(~w(200 400 401 413 415 422)),
+    {"POST", "/internal/keyring/sign-transaction"} => MapSet.new(~w(200 400 401 413 415 422)),
+    {"POST", "/internal/keyring/sign-authorization"} => MapSet.new(~w(200 400 401 413 415 422))
   }
   @impl Mix.Task
   def run(_args) do
     Mix.Task.run("compile")
 
     contract = File.read!(@contract_path)
+    keyring_routes = keyring_routes()
 
     contract_routes =
       contract_routes(contract)
@@ -21,13 +36,16 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     contract_response_codes =
       contract_response_codes(contract)
 
+    contract_security_routes =
+      contract_security_routes(contract)
+
     router_routes =
       SiwaServerWeb.Router
       |> Phoenix.Router.routes()
       |> Enum.map(&{&1.verb |> to_string() |> String.upcase(), &1.path})
       |> Enum.reject(fn {_verb, path} -> String.starts_with?(path, "/internal/keyring") end)
       |> MapSet.new()
-      |> MapSet.union(keyring_routes())
+      |> MapSet.union(keyring_routes)
 
     missing_from_contract = MapSet.difference(router_routes, contract_routes)
 
@@ -36,14 +54,19 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
       |> MapSet.difference(router_routes)
 
     response_code_drift = response_code_drift(contract_response_codes)
+    security_drift = keyring_security_drift(contract_security_routes, keyring_routes)
 
     if MapSet.size(missing_from_contract) == 0 and
-         MapSet.size(unexpected_contract_routes) == 0 and response_code_drift == [] do
-      Mix.shell().info("shared services contract covers SIWA routes and expected responses")
+         MapSet.size(unexpected_contract_routes) == 0 and response_code_drift == [] and
+         MapSet.size(security_drift) == 0 do
+      Mix.shell().info(
+        "shared services contract covers SIWA routes, expected responses, and keyring security"
+      )
     else
       report_drift(missing_from_contract, unexpected_contract_routes)
       report_response_code_drift(response_code_drift)
-      Mix.raise("shared services contract does not cover SIWA routes or expected responses")
+      report_security_drift(security_drift)
+      Mix.raise("shared services contract does not cover SIWA routes, responses, or security")
     end
   end
 
@@ -85,6 +108,13 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     |> String.split("\n")
     |> Enum.reduce({nil, nil, false, %{}}, &collect_contract_response_code/2)
     |> elem(3)
+  end
+
+  defp contract_security_routes(contract) do
+    contract
+    |> String.split("\n")
+    |> Enum.reduce({nil, nil, MapSet.new()}, &collect_contract_security_route/2)
+    |> elem(2)
   end
 
   defp collect_contract_response_code(line, {path, method, in_responses?, response_codes}) do
@@ -141,6 +171,22 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     end
   end
 
+  defp collect_contract_security_route(line, {path, method, routes}) do
+    cond do
+      path = path_from_line(line) ->
+        {path, nil, routes}
+
+      method = method_from_line(line) ->
+        {path, method, routes}
+
+      path && method && String.trim(line) == "security:" ->
+        {path, method, MapSet.put(routes, {method, path})}
+
+      true ->
+        {path, method, routes}
+    end
+  end
+
   defp keyring_routes do
     router_path =
       :siwa_keyring
@@ -193,6 +239,12 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     end)
   end
 
+  defp keyring_security_drift(contract_security_routes, keyring_routes) do
+    keyring_routes
+    |> MapSet.delete(@keyring_health_route)
+    |> MapSet.difference(contract_security_routes)
+  end
+
   defp report_drift(missing_from_contract, unexpected_contract_routes) do
     if MapSet.size(missing_from_contract) > 0 do
       Mix.shell().error("routes missing from contract:")
@@ -214,6 +266,13 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
           "  #{format_route(route)} missing #{codes |> Enum.sort() |> Enum.join(", ")}"
         )
       end)
+    end
+  end
+
+  defp report_security_drift(security_drift) do
+    if MapSet.size(security_drift) > 0 do
+      Mix.shell().error("keyring routes missing contract security:")
+      Enum.each(security_drift, &Mix.shell().error("  #{format_route(&1)}"))
     end
   end
 
