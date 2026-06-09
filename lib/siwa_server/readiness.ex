@@ -1,6 +1,7 @@
 defmodule SiwaServer.Readiness do
   @moduledoc false
 
+  alias SiwaServer.Config
   alias SiwaServer.Repo
   alias SiwaServer.RuntimeConfig
   alias Siwa.Ethereum
@@ -9,110 +10,142 @@ defmodule SiwaServer.Readiness do
   @supported_keyring_backend "encrypted_file"
 
   def check do
-    checks = %{
-      database: database_ready?(),
-      endpoint_secret: endpoint_secret_ready?(),
-      receipt_secret: app_secret_ready?(:siwa_server, :siwa, :receipt_secret),
-      keyring_backend: keyring_backend_ready?(),
-      keyring_password: keyring_secret_ready?(:password),
-      keyring_secret: keyring_secret_ready?(:secret),
-      keystore_path: keystore_path_ready?(),
-      base_rpc_url: base_rpc_url_ready?(),
-      base_rpc_chain_id: base_rpc_chain_id_ready?()
+    results = %{
+      database: database_check(),
+      endpoint_secret: endpoint_secret_check(),
+      receipt_secret: receipt_secret_check(),
+      keyring_backend: keyring_backend_check(),
+      keyring_password: keyring_secret_check(:password),
+      keyring_secret: keyring_secret_check(:secret),
+      keystore_path: keystore_path_check(),
+      base_rpc_url: base_rpc_url_check(),
+      base_rpc_chain_id: base_rpc_chain_id_check()
     }
 
-    %{ready: Enum.all?(Map.values(checks)), checks: checks}
+    checks = Map.new(results, fn {name, result} -> {name, result == :ok} end)
+    failures = for {name, {:error, reason}} <- results, into: %{}, do: {name, reason}
+
+    %{ready: failures == %{}, checks: checks, failures: failures}
   end
 
-  defp database_ready? do
-    match?({:ok, _result}, Repo.query("select 1", [], timeout: 1_000))
+  defp database_check do
+    case Repo.query("select 1", [], timeout: 1_000) do
+      {:ok, _result} -> :ok
+      {:error, error} -> {:error, "database query failed: #{Exception.message(error)}"}
+    end
   rescue
-    _ -> false
+    error in DBConnection.ConnectionError ->
+      {:error, "database connection failed: #{Exception.message(error)}"}
   end
 
-  defp app_secret_ready?(app, key, secret_key) do
-    app
-    |> Application.get_env(key, [])
-    |> Keyword.get(secret_key)
-    |> non_empty_binary?()
-  end
-
-  defp endpoint_secret_ready? do
-    :siwa_server
-    |> Application.get_env(SiwaServerWeb.Endpoint, [])
+  defp endpoint_secret_check do
+    Config.endpoint()
     |> Keyword.get(:secret_key_base)
-    |> non_empty_binary?()
+    |> secret_check("endpoint secret_key_base is not configured")
   end
 
-  defp keyring_backend_ready? do
-    Application.get_env(:siwa_keyring, :backend) == @supported_keyring_backend
+  defp receipt_secret_check do
+    Config.siwa()
+    |> Keyword.get(:receipt_secret)
+    |> secret_check("SIWA receipt secret is not configured")
   end
 
-  defp keyring_secret_ready?(key) do
+  defp keyring_backend_check do
+    case Application.get_env(:siwa_keyring, :backend) do
+      @supported_keyring_backend ->
+        :ok
+
+      backend ->
+        {:error, "keyring backend #{inspect(backend)} is not #{@supported_keyring_backend}"}
+    end
+  end
+
+  defp keyring_secret_check(key) do
     :siwa_keyring
     |> Application.get_env(key)
-    |> non_empty_binary?()
+    |> secret_check("keyring #{key} is not configured")
   end
 
-  defp keystore_path_ready? do
-    if keyring_backend_ready?() do
-      encrypted_file_keystore_path_ready?()
-    else
-      false
+  defp keystore_path_check do
+    with :ok <- keyring_backend_check() do
+      encrypted_file_keystore_path_check()
     end
   end
 
-  defp encrypted_file_keystore_path_ready? do
+  defp encrypted_file_keystore_path_check do
     path = Application.get_env(:siwa_keyring, :path)
 
-    with true <- non_empty_binary?(path),
-         parent when is_binary(parent) <- Path.dirname(path),
-         true <- File.dir?(parent),
-         probe <- Path.join(parent, ".siwa-readyz-#{System.unique_integer([:positive])}"),
-         :ok <- File.write(probe, ""),
-         :ok <- File.rm(probe) do
-      true
-    else
-      _ -> false
+    cond do
+      not non_empty_binary?(path) ->
+        {:error, "keystore path is not configured"}
+
+      not File.dir?(Path.dirname(path)) ->
+        {:error, "keystore directory does not exist"}
+
+      true ->
+        keystore_write_check(Path.dirname(path))
     end
-  rescue
-    _ -> false
   end
 
-  defp base_rpc_url_ready? do
+  defp keystore_write_check(parent) do
+    probe = Path.join(parent, ".siwa-readyz-#{System.unique_integer([:positive])}")
+
+    with :ok <- File.write(probe, ""),
+         :ok <- File.rm(probe) do
+      :ok
+    else
+      {:error, posix} -> {:error, "keystore directory is not writable: #{posix}"}
+    end
+  end
+
+  defp base_rpc_url_check do
     case RuntimeConfig.base_rpc_url() do
       nil ->
-        false
+        {:error, "BASE_RPC_URL is not configured"}
 
       url ->
         uri = URI.parse(url)
-        uri.scheme in ["http", "https"] and is_binary(uri.host)
+
+        if uri.scheme in ["http", "https"] and is_binary(uri.host) do
+          :ok
+        else
+          {:error, "BASE_RPC_URL is not a valid http(s) url"}
+        end
     end
   end
 
-  defp base_rpc_chain_id_ready? do
+  defp base_rpc_chain_id_check do
     case RuntimeConfig.base_rpc_url() do
       nil ->
-        false
+        {:error, "BASE_RPC_URL is not configured"}
 
       url ->
         case Ethereum.json_rpc(url, "eth_chainId", [],
-               timeout_ms: readiness_rpc_timeout_ms(),
+               timeout_ms: Config.readiness_rpc_timeout_ms(),
                finch: SiwaServer.Finch
              ) do
           {:ok, chain_id} when is_binary(chain_id) ->
-            String.downcase(chain_id) == @base_chain_id_hex
+            if String.downcase(chain_id) == @base_chain_id_hex do
+              :ok
+            else
+              {:error, "base rpc returned chain id #{chain_id}, expected #{@base_chain_id_hex}"}
+            end
 
-          _result ->
-            false
+          {:ok, other} ->
+            {:error, "base rpc returned an invalid chain id: #{inspect(other)}"}
+
+          {:error, reason} ->
+            {:error, "base rpc chain id probe failed: #{inspect(reason)}"}
         end
     end
   rescue
-    _ -> false
+    # Finch raises when the SiwaServer.Finch pool is not running.
+    error in ArgumentError ->
+      {:error, "base rpc chain id probe failed: #{Exception.message(error)}"}
   end
 
-  defp readiness_rpc_timeout_ms do
-    Application.get_env(:siwa_server, :readiness_rpc_timeout_ms, 1_000)
+  defp secret_check(value, missing_reason) do
+    if non_empty_binary?(value), do: :ok, else: {:error, missing_reason}
   end
 
   defp non_empty_binary?(value) when is_binary(value), do: String.trim(value) != ""

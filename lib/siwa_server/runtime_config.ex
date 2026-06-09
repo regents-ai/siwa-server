@@ -1,6 +1,9 @@
 defmodule SiwaServer.RuntimeConfig do
   @moduledoc false
 
+  alias SiwaServer.Config
+  alias SiwaServer.Text
+
   def base_rpc_url, do: fetch("BASE_RPC_URL")
 
   def siwa_receipt_secret do
@@ -21,14 +24,13 @@ defmodule SiwaServer.RuntimeConfig do
     do: fetch_integer("SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS", 300)
 
   defp fetch_siwa(key) do
-    :siwa_server
-    |> Application.get_env(:siwa, [])
+    Config.siwa()
     |> Keyword.get(key)
-    |> normalize_optional_text()
+    |> Text.normalize_optional_text()
   end
 
   defp fetch_siwa_integer(key, default) do
-    case :siwa_server |> Application.get_env(:siwa, []) |> Keyword.get(key, default) do
+    case Config.siwa() |> Keyword.get(key, default) do
       value when is_integer(value) and value > 0 -> value
       _value -> raise ArgumentError, ":siwa #{key} must be a positive integer"
     end
@@ -36,7 +38,7 @@ defmodule SiwaServer.RuntimeConfig do
 
   defp fetch(name) do
     System.get_env(name)
-    |> normalize_optional_text()
+    |> Text.normalize_optional_text()
   end
 
   defp fetch_integer(name, default) do
@@ -51,13 +53,4 @@ defmodule SiwaServer.RuntimeConfig do
         end
     end
   end
-
-  defp normalize_optional_text(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
-
-  defp normalize_optional_text(_value), do: nil
 end

@@ -6,7 +6,7 @@ defmodule SiwaServer.Release do
   def migrate do
     load_app()
 
-    for repo <- Application.fetch_env!(@app, :ecto_repos) do
+    for repo <- SiwaServer.Config.ecto_repos() do
       {:ok, _started, _apps} =
         Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
     end

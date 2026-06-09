@@ -1,9 +1,29 @@
 defmodule SiwaServer.Siwa do
-  @moduledoc false
+  @moduledoc """
+  SIWA (Sign-In With Agent) verification flows built on the `Siwa` library.
+
+  Nonce lifecycle:
+
+    1. `issue_nonce/1` validates the agent claims (wallet, Base chain id,
+       registry, token id, audience) and stores a single-use nonce in
+       `SiwaServer.Siwa.NonceStore` with a TTL.
+    2. `verify_session/1` validates the canonical SIWA message and wallet
+       signature, consumes the nonce (deleting it so it cannot be replayed),
+       confirms on-chain that the wallet owns the claimed agent identity,
+       and issues a signed receipt the agent uses for subsequent
+       signed-HTTP requests (see `SiwaServer.Siwa.HttpVerifier`).
+
+  Expired nonces are swept by `SiwaServer.Siwa.CleanupWorker`. Nonce store
+  errors are mapped to stable client-facing error codes by
+  `map_nonce_error/1`.
+  """
+
+  require Logger
 
   alias SiwaServer.Ethereum
   alias SiwaServer.RuntimeConfig
   alias SiwaServer.Siwa.{Error, HttpVerifier, Message, NonceStore}
+  alias SiwaServer.Text
 
   @address_regex ~r/^0x[a-fA-F0-9]{40}$/
   @positive_int_regex ~r/^[1-9][0-9]*$/
@@ -203,20 +223,11 @@ defmodule SiwaServer.Siwa do
   end
 
   defp required_string(params, key) do
-    case normalize_optional_text(Map.get(params, key)) do
+    case Text.normalize_optional_text(Map.get(params, key)) do
       nil -> {:error, {"missing_#{key}", "#{key} is required"}}
       value -> {:ok, value}
     end
   end
-
-  defp normalize_optional_text(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      normalized -> normalized
-    end
-  end
-
-  defp normalize_optional_text(_value), do: nil
 
   defp ensure_wallet_owns_agent(wallet_address, chain_id, registry_address, token_id) do
     with {:ok, rpc_url} <- base_rpc_url_for_chain(chain_id),
@@ -267,27 +278,53 @@ defmodule SiwaServer.Siwa do
 
   defp nonce_ttl_seconds, do: RuntimeConfig.siwa_nonce_ttl_seconds()
 
-  defp map_nonce_error(:unknown_nonce),
+  @doc false
+  def map_nonce_error(:unknown_nonce),
     do: Error.not_found("nonce_not_found", "nonce not found") |> Error.tuple()
 
-  defp map_nonce_error(:nonce_expired),
+  def map_nonce_error(:nonce_expired),
     do: Error.unauthorized("nonce_expired", "nonce expired") |> Error.tuple()
 
-  defp map_nonce_error(:nonce_already_used),
+  def map_nonce_error(:nonce_already_used),
     do: Error.unauthorized("nonce_already_used", "nonce already used") |> Error.tuple()
 
-  defp map_nonce_error(reason)
-       when reason in [
-              :nonce_address_mismatch,
-              :nonce_agent_id_mismatch,
-              :nonce_registry_mismatch,
-              :nonce_audience_mismatch
-            ] do
+  def map_nonce_error(reason)
+      when reason in [
+             :nonce_address_mismatch,
+             :nonce_agent_id_mismatch,
+             :nonce_registry_mismatch,
+             :nonce_audience_mismatch
+           ] do
     Error.unauthorized("signature_invalid", "message does not match the requested SIWA claims")
     |> Error.tuple()
   end
 
-  defp map_nonce_error(_reason),
+  # Validation shapes the Siwa library returns before the nonce store is hit.
+  # The controller validates these inputs first, so reaching them is rare but
+  # they are part of the library contract.
+  def map_nonce_error(reason) when reason in [:audience_required, :invalid_agent_registry],
+    do: invalid_nonce_error()
+
+  # Nonce insert rejected by the store (`SiwaServer.Siwa.NonceStore.put/3`
+  # surfaces the failed `Ecto.Changeset`).
+  def map_nonce_error(%Ecto.Changeset{} = changeset) do
+    Logger.warning("SIWA nonce store rejected nonce insert: #{inspect(changeset.errors)}")
+    invalid_nonce_error()
+  end
+
+  # Database failures surfaced by the nonce store as exception structs
+  # (e.g. `Postgrex.Error`, `DBConnection.ConnectionError`).
+  def map_nonce_error(%{__exception__: true} = exception) do
+    Logger.warning("SIWA nonce store failed: #{Exception.message(exception)}")
+    invalid_nonce_error()
+  end
+
+  def map_nonce_error(reason) do
+    Logger.warning("unexpected SIWA nonce error shape: #{inspect(reason)}")
+    invalid_nonce_error()
+  end
+
+  defp invalid_nonce_error,
     do:
       Error.bad_request("invalid_nonce", "could not issue or consume the SIWA nonce")
       |> Error.tuple()

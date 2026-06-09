@@ -853,6 +853,59 @@ defmodule SiwaServer.SiwaTest do
     end)
   end
 
+  describe "map_nonce_error/1" do
+    import ExUnit.CaptureLog
+
+    test "warns on unexpected error shapes and keeps the invalid_nonce response" do
+      log =
+        capture_log(fn ->
+          assert {400, "invalid_nonce", _message} = Siwa.map_nonce_error(:totally_unexpected)
+        end)
+
+      assert log =~ "unexpected SIWA nonce error shape"
+      assert log =~ "totally_unexpected"
+    end
+
+    test "warns on nonce store database exceptions and keeps the invalid_nonce response" do
+      exception = DBConnection.ConnectionError.exception("connection refused")
+
+      log =
+        capture_log(fn ->
+          assert {400, "invalid_nonce", _message} = Siwa.map_nonce_error(exception)
+        end)
+
+      assert log =~ "SIWA nonce store failed"
+      assert log =~ "connection refused"
+    end
+
+    test "warns on rejected nonce inserts and keeps the invalid_nonce response" do
+      changeset =
+        %SiwaServer.Siwa.NonceRecord{}
+        |> Ecto.Changeset.change()
+        |> Ecto.Changeset.add_error(:nonce, "is invalid")
+
+      log =
+        capture_log(fn ->
+          assert {400, "invalid_nonce", _message} = Siwa.map_nonce_error(changeset)
+        end)
+
+      assert log =~ "SIWA nonce store rejected nonce insert"
+    end
+
+    test "maps library validation shapes to invalid_nonce without warning" do
+      log =
+        capture_log(fn ->
+          assert {400, "invalid_nonce", _message} = Siwa.map_nonce_error(:audience_required)
+
+          assert {400, "invalid_nonce", _message} =
+                   Siwa.map_nonce_error(:invalid_agent_registry)
+        end)
+
+      refute log =~ "SIWA nonce"
+      refute log =~ "unexpected"
+    end
+  end
+
   defp verified_receipt(audience \\ "regents.sh") do
     assert {:ok, %{"data" => %{"nonce" => nonce}}} =
              Siwa.issue_nonce(%{

@@ -2,6 +2,7 @@ defmodule SiwaServerWeb.AgentSiwaController do
   use SiwaServerWeb, :controller
 
   alias SiwaServer.Siwa
+  alias SiwaServer.Text
   alias SiwaServerWeb.AgentSiwaRequest
 
   action_fallback SiwaServerWeb.FallbackController
@@ -35,15 +36,10 @@ defmodule SiwaServerWeb.AgentSiwaController do
     conn
     |> get_req_header(name)
     |> List.first()
+    |> Text.normalize_optional_text()
     |> case do
-      value when is_binary(value) ->
-        case String.trim(value) do
-          "" -> audience_required_error()
-          audience -> {:ok, audience}
-        end
-
-      _ ->
-        audience_required_error()
+      nil -> audience_required_error()
+      audience -> {:ok, audience}
     end
   end
 

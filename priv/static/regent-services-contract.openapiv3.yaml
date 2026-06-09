@@ -983,6 +983,11 @@ components:
       properties:
         ready:
           type: boolean
+        failures:
+          type: object
+          description: Reason strings for each failing readiness check
+          additionalProperties:
+            type: string
         checks:
           type: object
           required:

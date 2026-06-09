@@ -61,7 +61,7 @@ defmodule SiwaServer.Siwa.CleanupWorker do
   end
 
   defp config do
-    Application.get_env(:siwa_server, :siwa_cleanup, [])
+    SiwaServer.Config.siwa_cleanup()
   end
 
   defp default_batch_size do

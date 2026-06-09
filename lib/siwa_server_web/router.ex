@@ -5,19 +5,13 @@ defmodule SiwaServerWeb.Router do
     plug :accepts, ["json"]
   end
 
-  pipeline :siwa_nonce do
-    plug :accepts, ["json"]
-    plug SiwaServerWeb.Plugs.RateLimit, name: :siwa_nonce
-  end
-
-  pipeline :siwa_verify do
-    plug :accepts, ["json"]
-    plug SiwaServerWeb.Plugs.RateLimit, name: :siwa_verify
-  end
-
-  pipeline :siwa_http_verify do
-    plug :accepts, ["json"]
-    plug SiwaServerWeb.Plugs.RateLimit, name: :siwa_http_verify
+  # One pipeline per SIWA endpoint; they differ only in which rate-limit
+  # bucket they apply (limits are configured per name in :rate_limits).
+  for name <- [:siwa_nonce, :siwa_verify, :siwa_http_verify] do
+    pipeline name do
+      plug :accepts, ["json"]
+      plug SiwaServerWeb.Plugs.RateLimit, name: name
+    end
   end
 
   scope "/", SiwaServerWeb do

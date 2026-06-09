@@ -1,8 +1,26 @@
 defmodule SiwaServer.Siwa.HttpVerifier do
-  @moduledoc false
+  @moduledoc """
+  Verifies signed HTTP request envelopes presented by SIWA-authenticated
+  agents.
+
+  `verify/2` validates the request shape (method, absolute path, string
+  headers, optional body), then delegates to
+  `Siwa.RequestAuth.verify_authenticated_request/2`, which checks:
+
+    * the SIWA receipt issued by `SiwaServer.Siwa.verify_session/1`
+      (signature, expiry, and audience binding),
+    * the HTTP message signature over the covered components, within the
+      configured timestamp tolerance,
+    * the content-digest binding when a body is present, and
+    * single use of the signature via `SiwaServer.Siwa.ReplayStore`.
+
+  Library error reasons are mapped to stable client-facing status/code
+  tuples by `map_shared_error/1`.
+  """
 
   alias SiwaServer.RuntimeConfig
   alias SiwaServer.Siwa.ReplayStore
+  alias SiwaServer.Text
 
   @spec verify(map(), keyword()) :: {:ok, map()} | {:error, {integer(), String.t(), String.t()}}
   def verify(params, opts \\ []) when is_map(params) do
@@ -46,7 +64,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   end
 
   defp required_string(params, key) do
-    case normalize_optional_text(Map.get(params, key)) do
+    case Text.normalize_optional_text(Map.get(params, key)) do
       nil -> {:error, {"missing_#{key}", "#{key} is required"}}
       value -> {:ok, value}
     end
@@ -103,15 +121,6 @@ defmodule SiwaServer.Siwa.HttpVerifier do
       {:error, reason} -> {:halt, {:error, reason}}
     end
   end
-
-  defp normalize_optional_text(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      normalized -> normalized
-    end
-  end
-
-  defp normalize_optional_text(_value), do: nil
 
   defp receipt_secret, do: RuntimeConfig.siwa_receipt_secret()
 

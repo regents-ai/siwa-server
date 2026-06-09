@@ -46,10 +46,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   end
 
   defp configured_limit(name) do
-    configured =
-      :siwa_server
-      |> Application.get_env(:rate_limits, [])
-      |> Keyword.get(name, [])
+    configured = SiwaServer.Config.rate_limits() |> Keyword.get(name, [])
 
     Keyword.merge(Map.fetch!(@defaults, name), configured)
   end

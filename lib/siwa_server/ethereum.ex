@@ -1,7 +1,7 @@
 defmodule SiwaServer.Ethereum do
   @moduledoc false
 
-  @default_rpc_timeout_ms 5_000
+  alias SiwaServer.Config
 
   @spec normalize_address(term()) :: String.t() | nil
   def normalize_address(value) do
@@ -87,9 +87,7 @@ defmodule SiwaServer.Ethereum do
 
   def hex_to_integer(_value), do: 0
 
-  defp rpc_timeout_ms do
-    Application.get_env(:siwa_server, :ethereum_rpc_timeout_ms, @default_rpc_timeout_ms)
-  end
+  defp rpc_timeout_ms, do: Config.ethereum_rpc_timeout_ms()
 
   defp telemetry_span(operation, metadata, fun) do
     :telemetry.span(

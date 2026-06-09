@@ -93,14 +93,22 @@ defmodule SiwaServerWeb.AgentSiwaRequest do
     if extras == [], do: :ok, else: invalid_request()
   end
 
-  defp cast_fields(params, allowed_fields, required_fields) do
-    Enum.reduce_while(allowed_fields, {:ok, %{}}, fn field, {:ok, acc} ->
-      case cast_field(params, field, field in required_fields) do
-        {:ok, :skip} -> {:cont, {:ok, acc}}
-        {:ok, value} -> {:cont, {:ok, Map.put(acc, String.to_atom(field), value)}}
-        {:error, _reason} = error -> {:halt, error}
-      end
-    end)
+  defp cast_fields(params, allowed_fields, required_fields),
+    do: cast_fields(params, allowed_fields, required_fields, %{})
+
+  defp cast_fields(_params, [], _required_fields, values), do: {:ok, values}
+
+  defp cast_fields(params, [field | rest], required_fields, values) do
+    case cast_field(params, field, field in required_fields) do
+      {:ok, :skip} ->
+        cast_fields(params, rest, required_fields, values)
+
+      {:ok, value} ->
+        cast_fields(params, rest, required_fields, Map.put(values, String.to_atom(field), value))
+
+      {:error, _reason} = error ->
+        error
+    end
   end
 
   defp cast_field(params, "chain_id", true) do
