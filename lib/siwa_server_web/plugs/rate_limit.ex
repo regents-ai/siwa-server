@@ -71,7 +71,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   end
 
   defp client_key(conn, _name) do
-    body = conn.body_params || %{}
+    body = fetched_body_params(conn)
 
     [
       Map.get(body, "wallet_address"),
@@ -86,13 +86,18 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   end
 
   defp agent_header(conn, name) do
-    conn.body_params
+    conn
+    |> fetched_body_params()
     |> case do
       %{"headers" => headers} when is_map(headers) -> Map.get(headers, name)
       _body -> nil
     end
     |> normalize_part()
   end
+
+  defp fetched_body_params(%Plug.Conn{body_params: %Plug.Conn.Unfetched{}}), do: %{}
+  defp fetched_body_params(%Plug.Conn{body_params: body}) when is_map(body), do: body
+  defp fetched_body_params(%Plug.Conn{}), do: %{}
 
   defp normalize_part(value) when is_binary(value),
     do: value |> String.trim() |> String.downcase()
