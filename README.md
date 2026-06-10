@@ -8,6 +8,7 @@ It owns:
 - protected request verification
 - internal keyring routes for signer operations
 - health, metrics, and the served shared services contract
+- strict receipt, request-expiry, and replay checks for shared agent sign-in
 
 It does not own product-specific app logic. Platform now calls this service over HTTP instead of serving shared SIWA locally. Platform owns Regent staking routes and client generation.
 
@@ -41,6 +42,9 @@ registry address, token ID, audience, nonce, and the request body when a protect
 request has one. Protected request verification also expects the signed path to
 include the query string when a query string is present, and callers must send
 the app audience that owns the request.
+
+Malformed expiry values, expired requests, receipt-binding mismatches, and replayed
+requests must fail closed. The SIWA library and service tests cover these cases.
 
 Internal signer routes:
 
