@@ -41,7 +41,6 @@ defmodule SiwaServer.Siwa.HttpVerifier do
 
       {:ok,
        %{
-         "ok" => true,
          "code" => "http_envelope_valid",
          "data" => %{
            "verified" => true,

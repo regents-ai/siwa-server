@@ -50,7 +50,6 @@ defmodule SiwaServer.Siwa do
 
       {:ok,
        %{
-         "ok" => true,
          "code" => "nonce_issued",
          "data" => %{
            "nonce" => nonce_result.nonce,
@@ -107,7 +106,6 @@ defmodule SiwaServer.Siwa do
 
       {:ok,
        %{
-         "ok" => true,
          "code" => "siwa_verified",
          "data" => %{
            "verified" => true,

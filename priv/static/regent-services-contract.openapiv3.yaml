@@ -671,11 +671,8 @@ components:
       additionalProperties: false
     SiwaNonceResponse:
       type: object
-      required: [ok, code, data]
+      required: [code, data]
       properties:
-        ok:
-          type: boolean
-          enum: [true]
         code:
           type: string
           enum: [nonce_issued]
@@ -725,11 +722,8 @@ components:
       additionalProperties: false
     SiwaVerifyResponse:
       type: object
-      required: [ok, code, data]
+      required: [code, data]
       properties:
-        ok:
-          type: boolean
-          enum: [true]
         code:
           type: string
           enum: [siwa_verified]
@@ -785,11 +779,8 @@ components:
       additionalProperties: false
     SiwaHttpVerifyResponse:
       type: object
-      required: [ok, code, data]
+      required: [code, data]
       properties:
-        ok:
-          type: boolean
-          enum: [true]
         code:
           type: string
           enum: [http_envelope_valid]
@@ -1035,11 +1026,8 @@ components:
           type: string
     ErrorEnvelope:
       type: object
-      required: [ok, error]
+      required: [error]
       properties:
-        ok:
-          type: boolean
-          enum: [false]
         error:
           $ref: "#/components/schemas/ServiceError"
       additionalProperties: true

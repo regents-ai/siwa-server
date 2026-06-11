@@ -18,7 +18,6 @@ defmodule SiwaServerWeb.ErrorJSON do
 
   def error(code, message) when is_binary(code) and is_binary(message) do
     %{
-      "ok" => false,
       "error" => %{
         "code" => code,
         "message" => message
@@ -28,7 +27,6 @@ defmodule SiwaServerWeb.ErrorJSON do
 
   def error(code, message, meta) when is_binary(code) and is_binary(message) and is_map(meta) do
     %{
-      "ok" => false,
       "error" =>
         Map.merge(
           %{

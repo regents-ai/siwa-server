@@ -43,7 +43,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       "audience" => "platform"
     }
 
-    assert %{"ok" => true} =
+    assert %{"code" => "nonce_issued"} =
              conn
              |> recycle()
              |> json_post("/v1/agent/siwa/nonce", body)
@@ -216,7 +216,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
              end)
 
     assert %{
-             "ok" => false,
              "error" => %{
                "code" => "request_body_too_large",
                "message" => "Request Entity Too Large"
@@ -233,7 +232,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
              end)
 
     assert %{
-             "ok" => false,
              "error" => %{
                "code" => "unsupported_media_type",
                "message" => "Unsupported Media Type"
@@ -252,7 +250,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       })
 
     assert %{
-             "ok" => false,
              "error" => %{
                "code" => "invalid_request",
                "message" => "request body does not match the SIWA contract"
@@ -271,7 +268,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       })
 
     assert %{
-             "ok" => false,
              "error" => %{
                "code" => "invalid_request",
                "message" => "request body does not match the SIWA contract"
@@ -295,7 +291,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       })
 
     assert %{
-             "ok" => false,
              "error" => %{
                "code" => "nonce_not_found",
                "message" => "nonce not found"
@@ -327,7 +322,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       })
 
     assert %{
-             "ok" => false,
              "error" => %{
                "code" => "siwa_not_configured",
                "message" => "SIWA receipt secret is not configured"
@@ -354,7 +348,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       })
 
     assert %{
-             "ok" => false,
              "error" => %{
                "code" => "agent_identity_lookup_failed",
                "message" => message
@@ -388,7 +381,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       })
 
     assert %{
-             "ok" => false,
              "error" => %{
                "code" => "siwa_not_configured",
                "message" => "SIWA receipt secret is not configured"
