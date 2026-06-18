@@ -28,12 +28,12 @@ defmodule SiwaServerWeb.Plugs.RateLimitTest do
   defp unfetched_conn(ip) do
     # Plug.Test.conn/2 without params leaves body_params as %Plug.Conn.Unfetched{},
     # matching a request whose body was never parsed upstream.
-    %{conn(:post, "/v1/agent/siwa/nonce") | remote_ip: ip}
+    %{conn(:post, "/api/shared/siwa/nonce") | remote_ip: ip}
   end
 
   defp parsed_conn(ip, wallet_address) do
     conn =
-      conn(:post, "/v1/agent/siwa/nonce", %{
+      conn(:post, "/api/shared/siwa/nonce", %{
         "wallet_address" => wallet_address,
         "chain_id" => 8453,
         "registry_address" => "0x3333333333333333333333333333333333333333",
@@ -76,7 +76,7 @@ defmodule SiwaServerWeb.Plugs.RateLimitTest do
   end
 
   test "keyring requests with unparsed bodies are rate limited per method, path, and IP" do
-    build = fn -> %{conn(:post, "/internal/keyring/sign-message") | remote_ip: {9, 9, 9, 9}} end
+    build = fn -> %{conn(:post, "/api/shared/keyring/sign-message") | remote_ip: {9, 9, 9, 9}} end
 
     assert %Plug.Conn{halted: false} = call(build.(), :keyring_internal)
     assert %Plug.Conn{halted: false} = call(build.(), :keyring_internal)

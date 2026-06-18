@@ -3,7 +3,7 @@ defmodule SiwaServerWeb.JsonParser do
 
   def init(opts), do: Plug.Parsers.init(opts)
 
-  def call(%Plug.Conn{path_info: ["internal", "keyring" | _]} = conn, _opts), do: conn
+  def call(%Plug.Conn{path_info: ["api", "shared", "keyring" | _]} = conn, _opts), do: conn
 
   def call(conn, opts), do: Plug.Parsers.call(conn, opts)
 end

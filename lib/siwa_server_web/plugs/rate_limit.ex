@@ -10,6 +10,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   alias SiwaServerWeb.ErrorJSON
 
   @defaults %{
+    identity: [limit: 120, window_ms: 60_000],
     siwa_nonce: [limit: 60, window_ms: 60_000],
     siwa_verify: [limit: 60, window_ms: 60_000],
     siwa_http_verify: [limit: 600, window_ms: 60_000],

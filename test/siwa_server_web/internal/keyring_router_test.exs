@@ -55,11 +55,11 @@ defmodule SiwaServerWeb.KeyringRouterTest do
       Enum.each(old_env, fn {key, value} -> Application.put_env(:siwa_keyring, key, value) end)
     end)
 
-    create_conn = signed_conn("POST", "/internal/keyring/create-wallet", "{}", "router-secret")
+    create_conn = signed_conn("POST", "/api/shared/keyring/create-wallet", "{}", "router-secret")
     create_response = call_endpoint(create_conn)
     assert create_response.status == 200
 
-    address_conn = signed_conn("POST", "/internal/keyring/get-address", "{}", "router-secret")
+    address_conn = signed_conn("POST", "/api/shared/keyring/get-address", "{}", "router-secret")
     address_response = call_endpoint(address_conn)
     assert address_response.status == 200
     %{"address" => address} = Jason.decode!(address_response.resp_body)
@@ -68,7 +68,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     message_body = Jason.encode!(%{"message" => "hello from keyring"})
 
     sign_conn =
-      signed_conn("POST", "/internal/keyring/sign-message", message_body, "router-secret")
+      signed_conn("POST", "/api/shared/keyring/sign-message", message_body, "router-secret")
 
     sign_response = call_endpoint(sign_conn)
     assert sign_response.status == 200
@@ -84,7 +84,12 @@ defmodule SiwaServerWeb.KeyringRouterTest do
       })
 
     transaction_response =
-      signed_conn("POST", "/internal/keyring/sign-transaction", transaction_body, "router-secret")
+      signed_conn(
+        "POST",
+        "/api/shared/keyring/sign-transaction",
+        transaction_body,
+        "router-secret"
+      )
       |> call_endpoint()
 
     assert transaction_response.status == 200
@@ -109,7 +114,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
 
   test "internal keyring routes reject requests with a bad signature" do
     conn =
-      conn("POST", "/internal/keyring/has-wallet", "{}")
+      conn("POST", "/api/shared/keyring/has-wallet", "{}")
       |> put_req_header("content-type", "application/json")
       |> put_req_header("x-keyring-timestamp", "123")
       |> put_req_header("x-keyring-signature", "bad")
@@ -125,7 +130,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     )
 
     conn =
-      conn("POST", "/internal/keyring/has-wallet", "{}")
+      conn("POST", "/api/shared/keyring/has-wallet", "{}")
       |> put_req_header("content-type", "application/json")
       |> put_req_header("x-keyring-timestamp", "123")
       |> put_req_header("x-keyring-signature", "bad")
@@ -153,7 +158,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
 
   test "internal keyring routes reject unsupported media types before signing work" do
     response =
-      conn("POST", "/internal/keyring/sign-message", "hello")
+      conn("POST", "/api/shared/keyring/sign-message", "hello")
       |> put_req_header("content-type", "text/plain")
       |> call_endpoint()
 
@@ -176,13 +181,13 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     end)
 
     first_response =
-      signed_conn("POST", "/internal/keyring/has-wallet", "{}", "router-secret",
+      signed_conn("POST", "/api/shared/keyring/has-wallet", "{}", "router-secret",
         request_id: request_id
       )
       |> call_endpoint()
 
     second_response =
-      signed_conn("POST", "/internal/keyring/has-wallet", "{}", "router-secret",
+      signed_conn("POST", "/api/shared/keyring/has-wallet", "{}", "router-secret",
         request_id: request_id
       )
       |> call_endpoint()
@@ -211,10 +216,10 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     end)
 
     headers =
-      SiwaKeyring.Auth.compute_hmac("router-secret", "POST", "/internal/keyring/has-wallet", "")
+      SiwaKeyring.Auth.compute_hmac("router-secret", "POST", "/api/shared/keyring/has-wallet", "")
 
     response =
-      conn("POST", "/internal/keyring/has-wallet")
+      conn("POST", "/api/shared/keyring/has-wallet")
       |> put_req_header("x-keyring-timestamp", headers["x-keyring-timestamp"])
       |> put_req_header("x-keyring-request-id", headers["x-keyring-request-id"])
       |> put_req_header("x-keyring-signature", headers["x-keyring-signature"])
@@ -238,14 +243,14 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     end)
 
     message_response =
-      signed_conn("POST", "/internal/keyring/sign-message", "{}", "router-secret")
+      signed_conn("POST", "/api/shared/keyring/sign-message", "{}", "router-secret")
       |> call_endpoint()
 
     assert message_response.status == 400
     assert Jason.decode!(message_response.resp_body) == %{"error" => "message_required"}
 
     raw_message_response =
-      signed_conn("POST", "/internal/keyring/sign-raw-message", "{}", "router-secret")
+      signed_conn("POST", "/api/shared/keyring/sign-raw-message", "{}", "router-secret")
       |> call_endpoint()
 
     assert raw_message_response.status == 400
@@ -254,7 +259,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     transaction_response =
       signed_conn(
         "POST",
-        "/internal/keyring/sign-transaction",
+        "/api/shared/keyring/sign-transaction",
         ~s({"transaction":{}}),
         "router-secret"
       )
@@ -266,7 +271,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     authorization_response =
       signed_conn(
         "POST",
-        "/internal/keyring/sign-authorization",
+        "/api/shared/keyring/sign-authorization",
         ~s({"authorization":{}}),
         "router-secret"
       )
@@ -282,7 +287,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
   test "internal keyring sign-authorization returns the signed wallet-action envelope" do
     with_keyring_env(fn ->
       create_response =
-        signed_conn("POST", "/internal/keyring/create-wallet", "{}", "router-secret")
+        signed_conn("POST", "/api/shared/keyring/create-wallet", "{}", "router-secret")
         |> call_endpoint()
 
       assert create_response.status == 200
@@ -292,7 +297,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
       body = Jason.encode!(%{"authorization" => authorization})
 
       response =
-        signed_conn("POST", "/internal/keyring/sign-authorization", body, "router-secret")
+        signed_conn("POST", "/api/shared/keyring/sign-authorization", body, "router-secret")
         |> call_endpoint()
 
       assert response.status == 200
@@ -319,7 +324,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
   test "internal keyring signer requests reject an unexpected signer" do
     with_keyring_env(fn ->
       create_response =
-        signed_conn("POST", "/internal/keyring/create-wallet", "{}", "router-secret")
+        signed_conn("POST", "/api/shared/keyring/create-wallet", "{}", "router-secret")
         |> call_endpoint()
 
       assert create_response.status == 200
@@ -333,7 +338,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
       transaction_response =
         signed_conn(
           "POST",
-          "/internal/keyring/sign-transaction",
+          "/api/shared/keyring/sign-transaction",
           Jason.encode!(%{"transaction" => transaction}),
           "router-secret"
         )
@@ -351,7 +356,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
       response =
         signed_conn(
           "POST",
-          "/internal/keyring/sign-authorization",
+          "/api/shared/keyring/sign-authorization",
           Jason.encode!(%{"authorization" => authorization}),
           "router-secret"
         )
@@ -376,7 +381,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     end)
 
     address_response =
-      signed_conn("POST", "/internal/keyring/get-address", "{}", "router-secret")
+      signed_conn("POST", "/api/shared/keyring/get-address", "{}", "router-secret")
       |> call_endpoint()
 
     assert address_response.status == 404
@@ -385,7 +390,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     sign_response =
       signed_conn(
         "POST",
-        "/internal/keyring/sign-message",
+        "/api/shared/keyring/sign-message",
         Jason.encode!(%{"message" => "hello from keyring"}),
         "router-secret"
       )
@@ -406,7 +411,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     end)
 
     response =
-      signed_conn("POST", "/internal/keyring/has-wallet", "{}", "router-secret")
+      signed_conn("POST", "/api/shared/keyring/has-wallet", "{}", "router-secret")
       |> call_endpoint()
 
     assert response.status == 200
@@ -415,7 +420,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
 
   test "internal keyring body reader preserves the full raw body across multiple reads" do
     raw_body = String.duplicate("a", 20)
-    conn = conn("POST", "/internal/keyring/sign-message", raw_body)
+    conn = conn("POST", "/api/shared/keyring/sign-message", raw_body)
 
     assert {:more, "aaaaa", conn} =
              SiwaKeyring.Router.read_body(conn, length: 5)
@@ -441,7 +446,7 @@ defmodule SiwaServerWeb.KeyringRouterTest do
       Jason.encode!(%{"message" => String.duplicate("a", SiwaKeyring.Router.max_body_bytes())})
 
     response =
-      signed_conn("POST", "/internal/keyring/sign-message", body, "router-secret")
+      signed_conn("POST", "/api/shared/keyring/sign-message", body, "router-secret")
       |> call_endpoint()
 
     assert response.status == 413
@@ -484,14 +489,14 @@ defmodule SiwaServerWeb.KeyringRouterTest do
     address = "0x1111111111111111111111111111111111111111"
 
     [
-      {"POST", "/internal/keyring/create-wallet", "{}"},
-      {"POST", "/internal/keyring/has-wallet", "{}"},
-      {"POST", "/internal/keyring/get-address", "{}"},
-      {"POST", "/internal/keyring/sign-message", Jason.encode!(%{"message" => "hello"})},
-      {"POST", "/internal/keyring/sign-raw-message", Jason.encode!(%{"payload" => "hello"})},
-      {"POST", "/internal/keyring/sign-transaction",
+      {"POST", "/api/shared/keyring/create-wallet", "{}"},
+      {"POST", "/api/shared/keyring/has-wallet", "{}"},
+      {"POST", "/api/shared/keyring/get-address", "{}"},
+      {"POST", "/api/shared/keyring/sign-message", Jason.encode!(%{"message" => "hello"})},
+      {"POST", "/api/shared/keyring/sign-raw-message", Jason.encode!(%{"payload" => "hello"})},
+      {"POST", "/api/shared/keyring/sign-transaction",
        Jason.encode!(%{"transaction" => wallet_action(address, "keyring-auth-transaction")})},
-      {"POST", "/internal/keyring/sign-authorization",
+      {"POST", "/api/shared/keyring/sign-authorization",
        Jason.encode!(%{"authorization" => wallet_action(address, "keyring-auth-authorization")})}
     ]
   end

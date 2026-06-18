@@ -4,7 +4,7 @@ defmodule SiwaServer.Siwa.Message do
   alias SiwaServer.Siwa.Error
 
   @domain "regent.cx"
-  @verify_uri "https://regent.cx/v1/agent/siwa/verify"
+  @verify_uri "https://regent.cx/api/shared/siwa/verify"
 
   @spec validate(
           String.t(),

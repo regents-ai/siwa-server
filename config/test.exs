@@ -3,6 +3,7 @@ import Config
 pg_username = System.get_env("PGUSER") || System.get_env("USER") || "postgres"
 pg_password = System.get_env("PGPASSWORD")
 pg_hostname = System.get_env("PGHOST") || "localhost"
+pg_port = String.to_integer(System.get_env("PGPORT") || "5432")
 
 # Configure your database
 #
@@ -13,6 +14,7 @@ config :siwa_server, SiwaServer.Repo,
   username: pg_username,
   password: pg_password,
   hostname: pg_hostname,
+  port: pg_port,
   database: "siwa_server_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2

@@ -4,13 +4,13 @@
 
 It owns:
 
-- public SIWA sign-in routes
+- public SIWA sign-in routes under `/api/shared/siwa`
 - protected request verification
-- internal keyring routes for signer operations
+- internal keyring routes under `/api/shared/keyring` for signer operations
 - health, metrics, and the served shared services contract
 - strict receipt, request-expiry, and replay checks for shared agent sign-in
 
-It does not own product-specific app logic. Platform now calls this service over HTTP instead of serving shared SIWA locally. Platform owns Regent staking routes and client generation.
+It does not own product-specific app logic or Regent account registration. Platform now calls this service over HTTP instead of serving shared SIWA locally. Platform owns Regent staking routes and client generation.
 
 Techtree proof and Fold policy stay in Techtree. SIWA only proves request identity and audience when a product route needs a signed agent request.
 
@@ -29,9 +29,9 @@ For the repo-local mirror, use:
 Public routes:
 
 - `GET /`
-- `POST /v1/agent/siwa/nonce`
-- `POST /v1/agent/siwa/verify`
-- `POST /v1/agent/siwa/http-verify`
+- `POST /api/shared/siwa/nonce`
+- `POST /api/shared/siwa/verify`
+- `POST /api/shared/siwa/http-verify`
 - `GET /healthz`
 - `GET /readyz`
 - `GET /metrics`
@@ -48,14 +48,14 @@ requests must fail closed. The SIWA library and service tests cover these cases.
 
 Internal signer routes:
 
-- `GET /internal/keyring/health`
-- `POST /internal/keyring/create-wallet`
-- `POST /internal/keyring/has-wallet`
-- `POST /internal/keyring/get-address`
-- `POST /internal/keyring/sign-message`
-- `POST /internal/keyring/sign-raw-message`
-- `POST /internal/keyring/sign-transaction`
-- `POST /internal/keyring/sign-authorization`
+- `GET /api/shared/keyring/health`
+- `POST /api/shared/keyring/create-wallet`
+- `POST /api/shared/keyring/has-wallet`
+- `POST /api/shared/keyring/get-address`
+- `POST /api/shared/keyring/sign-message`
+- `POST /api/shared/keyring/sign-raw-message`
+- `POST /api/shared/keyring/sign-transaction`
+- `POST /api/shared/keyring/sign-authorization`
 
 ## Local Setup
 

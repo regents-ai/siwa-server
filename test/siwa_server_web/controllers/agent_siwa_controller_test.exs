@@ -28,6 +28,143 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     :ok
   end
 
+  test "shared identity routes register and verify a Regent account session", %{conn: conn} do
+    status =
+      conn
+      |> recycle()
+      |> json_post("/api/shared/identity/status", identity_request())
+      |> json_response(200)
+
+    assert %{
+             "ok" => true,
+             "code" => "identity_status_resolved",
+             "data" => %{
+               "registered" => false,
+               "verified" => "unregistered"
+             }
+           } = status
+
+    intent =
+      conn
+      |> recycle()
+      |> json_post("/api/shared/identity/registration-intents", identity_request())
+      |> json_response(200)
+
+    assert %{
+             "ok" => true,
+             "code" => "identity_registration_intent_created",
+             "data" => %{
+               "intent_id" => intent_id,
+               "signing_payload" => %{"message" => registration_message}
+             }
+           } = intent
+
+    completion =
+      conn
+      |> recycle()
+      |> json_post("/api/shared/identity/registration-completions", %{
+        "intent_id" => intent_id,
+        "address" => @wallet_address,
+        "message" => registration_message,
+        "signature" => TestWallet.sign_message(registration_message)
+      })
+      |> json_response(200)
+
+    assert %{
+             "ok" => true,
+             "code" => "identity_registration_completed",
+             "data" => %{
+               "registered" => true,
+               "agent_id" => agent_id,
+               "agent_registry" => agent_registry
+             }
+           } = completion
+
+    assert is_integer(agent_id)
+    assert agent_id > 0
+    assert agent_registry =~ ~r/0x[a-fA-F0-9]{40}$/
+
+    registered_status =
+      conn
+      |> recycle()
+      |> json_post("/api/shared/identity/status", identity_request())
+      |> json_response(200)
+
+    assert %{
+             "data" => %{
+               "registered" => true,
+               "verified" => "onchain",
+               "agent_id" => ^agent_id,
+               "agent_registry" => ^agent_registry
+             }
+           } = registered_status
+
+    nonce_response =
+      conn
+      |> recycle()
+      |> json_post("/api/shared/identity/siwa/nonce", %{
+        "network" => "base",
+        "address" => @wallet_address,
+        "agent_id" => agent_id,
+        "agent_registry" => agent_registry
+      })
+      |> json_response(200)
+
+    assert %{
+             "ok" => true,
+             "code" => "identity_siwa_nonce_issued",
+             "data" => %{
+               "nonce_token" => nonce_token,
+               "message" => identity_siwa_message,
+               "expires_at" => expires_at
+             }
+           } = nonce_response
+
+    assert DateTime.from_iso8601(expires_at)
+
+    verify_body = %{
+      "network" => "base",
+      "address" => @wallet_address,
+      "agent_id" => agent_id,
+      "agent_registry" => agent_registry,
+      "nonce_token" => nonce_token,
+      "message" => identity_siwa_message,
+      "signature" => TestWallet.sign_message(identity_siwa_message)
+    }
+
+    verified =
+      conn
+      |> recycle()
+      |> json_post("/api/shared/identity/siwa/verify", verify_body)
+      |> json_response(200)
+
+    assert %{
+             "ok" => true,
+             "code" => "identity_siwa_verified",
+             "data" => %{
+               "verified" => "onchain",
+               "address" => @wallet_address,
+               "agent_id" => ^agent_id,
+               "agent_registry" => ^agent_registry,
+               "signer_type" => "evm_personal_sign",
+               "receipt" => receipt,
+               "receipt_issued_at" => issued_at,
+               "receipt_expires_at" => receipt_expires_at
+             }
+           } = verified
+
+    assert is_binary(receipt)
+    assert DateTime.from_iso8601(issued_at)
+    assert DateTime.from_iso8601(receipt_expires_at)
+
+    replay_conn =
+      conn
+      |> recycle()
+      |> json_post("/api/shared/identity/siwa/verify", verify_body)
+
+    assert %{"error" => %{"code" => "siwa_verify_failed"}} = json_response(replay_conn, 401)
+  end
+
   test "nonce requests are rate limited by claimed identity and caller", %{conn: conn} do
     Application.put_env(:siwa_server, :rate_limits,
       siwa_nonce: [limit: 1, window_ms: 60_000],
@@ -46,13 +183,13 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     assert %{"code" => "nonce_issued"} =
              conn
              |> recycle()
-             |> json_post("/v1/agent/siwa/nonce", body)
+             |> json_post("/api/shared/siwa/nonce", body)
              |> json_response(200)
 
     conn =
       conn
       |> recycle()
-      |> json_post("/v1/agent/siwa/nonce", body)
+      |> json_post("/api/shared/siwa/nonce", body)
 
     assert_retry_after(conn)
 
@@ -84,7 +221,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       conn
       |> recycle()
       |> put_req_header("x-siwa-audience", "platform")
-      |> json_post("/v1/agent/siwa/http-verify", payload)
+      |> json_post("/api/shared/siwa/http-verify", payload)
 
     assert first_conn.status in [400, 401]
 
@@ -92,7 +229,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       conn
       |> recycle()
       |> put_req_header("x-siwa-audience", "platform")
-      |> json_post("/v1/agent/siwa/http-verify", payload)
+      |> json_post("/api/shared/siwa/http-verify", payload)
 
     assert_retry_after(conn)
     assert %{"error" => %{"code" => "rate_limited"}} = json_response(conn, 429)
@@ -100,7 +237,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
   test "public SIWA endpoints complete the shared auth flow", %{conn: conn} do
     nonce_conn =
-      json_post(conn, "/v1/agent/siwa/nonce", %{
+      json_post(conn, "/api/shared/siwa/nonce", %{
         "wallet_address" => @wallet_address,
         "chain_id" => @chain_id,
         "registry_address" => @registry_address,
@@ -113,7 +250,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     message = siwa_message(nonce)
 
     verify_conn =
-      json_post(conn, "/v1/agent/siwa/verify", %{
+      json_post(conn, "/api/shared/siwa/verify", %{
         "wallet_address" => @wallet_address,
         "chain_id" => @chain_id,
         "registry_address" => @registry_address,
@@ -133,7 +270,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     http_verify_conn =
       conn
       |> put_req_header("x-siwa-audience", "platform")
-      |> json_post("/v1/agent/siwa/http-verify", %{
+      |> json_post("/api/shared/siwa/http-verify", %{
         "method" => "POST",
         "path" => "/v1/agent/bug-report",
         "headers" => signed_headers(receipt, body, created, expires),
@@ -148,7 +285,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
   test "http verify enforces the requested app audience", %{conn: conn} do
     nonce_conn =
-      json_post(conn, "/v1/agent/siwa/nonce", %{
+      json_post(conn, "/api/shared/siwa/nonce", %{
         "wallet_address" => @wallet_address,
         "chain_id" => @chain_id,
         "registry_address" => @registry_address,
@@ -160,7 +297,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     message = siwa_message(nonce)
 
     verify_conn =
-      json_post(conn, "/v1/agent/siwa/verify", %{
+      json_post(conn, "/api/shared/siwa/verify", %{
         "wallet_address" => @wallet_address,
         "chain_id" => @chain_id,
         "registry_address" => @registry_address,
@@ -180,7 +317,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     conn =
       conn
       |> put_req_header("x-siwa-audience", "techtree")
-      |> json_post("/v1/agent/siwa/http-verify", %{
+      |> json_post("/api/shared/siwa/http-verify", %{
         "method" => "POST",
         "path" => "/v1/agent/bug-report",
         "headers" => signed_headers(receipt, body, created, expires),
@@ -193,7 +330,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
   test "public SIWA endpoints accept JSON requests", %{conn: conn} do
     conn =
-      json_post(conn, "/v1/agent/siwa/nonce", %{
+      json_post(conn, "/api/shared/siwa/nonce", %{
         "wallet_address" => @wallet_address,
         "chain_id" => @chain_id,
         "registry_address" => @registry_address,
@@ -212,7 +349,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
              assert_error_sent(413, fn ->
                conn
                |> put_req_header("content-type", "application/json")
-               |> post("/v1/agent/siwa/nonce", body)
+               |> post("/api/shared/siwa/nonce", body)
              end)
 
     assert %{
@@ -228,7 +365,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
              assert_error_sent(415, fn ->
                conn
                |> put_req_header("content-type", "text/plain")
-               |> post("/v1/agent/siwa/nonce", "not-json")
+               |> post("/api/shared/siwa/nonce", "not-json")
              end)
 
     assert %{
@@ -241,7 +378,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
   test "public SIWA endpoints cast requests before verification", %{conn: conn} do
     conn =
-      json_post(conn, "/v1/agent/siwa/nonce", %{
+      json_post(conn, "/api/shared/siwa/nonce", %{
         "wallet_address" => @wallet_address,
         "chain_id" => Integer.to_string(@chain_id),
         "registry_address" => @registry_address,
@@ -259,7 +396,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
   test "public SIWA endpoints reject unsupported chain IDs before verification", %{conn: conn} do
     conn =
-      json_post(conn, "/v1/agent/siwa/nonce", %{
+      json_post(conn, "/api/shared/siwa/nonce", %{
         "wallet_address" => @wallet_address,
         "chain_id" => 1,
         "registry_address" => @registry_address,
@@ -279,7 +416,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     message = siwa_message("missing-nonce")
 
     conn =
-      json_post(conn, "/v1/agent/siwa/verify", %{
+      json_post(conn, "/api/shared/siwa/verify", %{
         "wallet_address" => @wallet_address,
         "chain_id" => @chain_id,
         "registry_address" => @registry_address,
@@ -310,7 +447,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     end)
 
     conn =
-      json_post(conn, "/v1/agent/siwa/verify", %{
+      json_post(conn, "/api/shared/siwa/verify", %{
         "wallet_address" => @wallet_address,
         "chain_id" => @chain_id,
         "registry_address" => @registry_address,
@@ -336,7 +473,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     message = siwa_message(nonce)
 
     conn =
-      json_post(conn, "/v1/agent/siwa/verify", %{
+      json_post(conn, "/api/shared/siwa/verify", %{
         "wallet_address" => @wallet_address,
         "chain_id" => @chain_id,
         "registry_address" => @registry_address,
@@ -373,7 +510,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     conn =
       conn
       |> put_req_header("x-siwa-audience", "platform")
-      |> json_post("/v1/agent/siwa/http-verify", %{
+      |> json_post("/api/shared/siwa/http-verify", %{
         "method" => "POST",
         "path" => "/v1/agent/bug-report",
         "headers" => signed_headers(receipt, body, created, expires),
@@ -409,7 +546,8 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
     contract = response(get(conn, "/regent-services-contract.openapiv3.yaml"), 200)
     assert contract =~ "Regent Shared Services Contract"
-    assert contract =~ "/v1/agent/siwa/nonce"
+    assert contract =~ "/api/shared/identity/status"
+    assert contract =~ "/api/shared/siwa/nonce"
     assert contract =~ "BaseChainId"
     assert contract =~ "SIWA nonce was not found"
     assert contract =~ "KeyringHmacSignature"
@@ -430,29 +568,34 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/readyz",
                "/metrics",
                "/regent-services-contract.openapiv3.yaml",
-               "/v1/agent/siwa/nonce",
-               "/v1/agent/siwa/verify",
-               "/v1/agent/siwa/http-verify",
-               "/internal/keyring/health",
-               "/internal/keyring/create-wallet",
-               "/internal/keyring/has-wallet",
-               "/internal/keyring/get-address",
-               "/internal/keyring/sign-message",
-               "/internal/keyring/sign-raw-message",
-               "/internal/keyring/sign-transaction",
-               "/internal/keyring/sign-authorization"
+               "/api/shared/identity/status",
+               "/api/shared/identity/registration-intents",
+               "/api/shared/identity/registration-completions",
+               "/api/shared/identity/siwa/nonce",
+               "/api/shared/identity/siwa/verify",
+               "/api/shared/siwa/nonce",
+               "/api/shared/siwa/verify",
+               "/api/shared/siwa/http-verify",
+               "/api/shared/keyring/health",
+               "/api/shared/keyring/create-wallet",
+               "/api/shared/keyring/has-wallet",
+               "/api/shared/keyring/get-address",
+               "/api/shared/keyring/sign-message",
+               "/api/shared/keyring/sign-raw-message",
+               "/api/shared/keyring/sign-transaction",
+               "/api/shared/keyring/sign-authorization"
              ])
 
-    assert operation_response_codes(contract, "/v1/agent/siwa/nonce", "post") ==
+    assert operation_response_codes(contract, "/api/shared/siwa/nonce", "post") ==
              MapSet.new(~w(200 400 413 415 429))
 
-    assert operation_response_codes(contract, "/v1/agent/siwa/verify", "post") ==
+    assert operation_response_codes(contract, "/api/shared/siwa/verify", "post") ==
              MapSet.new(~w(200 400 401 404 413 415 429 500 502))
 
-    assert operation_response_codes(contract, "/v1/agent/siwa/http-verify", "post") ==
+    assert operation_response_codes(contract, "/api/shared/siwa/http-verify", "post") ==
              MapSet.new(~w(200 400 401 409 413 415 429 500))
 
-    assert operation_response_codes(contract, "/internal/keyring/sign-authorization", "post") ==
+    assert operation_response_codes(contract, "/api/shared/keyring/sign-authorization", "post") ==
              MapSet.new(~w(200 400 401 413 415 422 429))
   end
 
@@ -509,7 +652,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
     Sign in to platform.
 
-    URI: https://regent.cx/v1/agent/siwa/verify
+    URI: https://regent.cx/api/shared/siwa/verify
     Version: 1
     Agent ID: #{@token_id}
     Agent Registry: eip155:#{@chain_id}:#{@registry_address}
@@ -526,9 +669,17 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     |> post(path, Jason.encode!(params))
   end
 
+  defp identity_request do
+    %{
+      "network" => "base",
+      "address" => @wallet_address,
+      "provider" => "coinbase-cdp"
+    }
+  end
+
   defp issue_nonce(conn) do
     conn =
-      json_post(conn, "/v1/agent/siwa/nonce", %{
+      json_post(conn, "/api/shared/siwa/nonce", %{
         "wallet_address" => @wallet_address,
         "chain_id" => @chain_id,
         "registry_address" => @registry_address,
@@ -545,7 +696,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     message = siwa_message(nonce)
 
     conn =
-      json_post(conn, "/v1/agent/siwa/verify", %{
+      json_post(conn, "/api/shared/siwa/verify", %{
         "wallet_address" => @wallet_address,
         "chain_id" => @chain_id,
         "registry_address" => @registry_address,

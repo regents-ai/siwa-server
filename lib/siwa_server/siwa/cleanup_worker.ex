@@ -5,6 +5,7 @@ defmodule SiwaServer.Siwa.CleanupWorker do
 
   require Logger
 
+  alias SiwaServer.SharedIdentity
   alias SiwaServer.Siwa.{NonceStore, ReplayStore}
 
   @default_interval_ms 60_000
@@ -28,8 +29,9 @@ defmodule SiwaServer.Siwa.CleanupWorker do
 
     result =
       with {:ok, nonce_count} <- NonceStore.cleanup_expired(now, limit),
-           {:ok, replay_count} <- ReplayStore.cleanup_expired(now, limit) do
-        {:ok, %{nonce_count: nonce_count, replay_count: replay_count}}
+           {:ok, replay_count} <- ReplayStore.cleanup_expired(now, limit),
+           {:ok, identity_counts} <- SharedIdentity.cleanup_expired(now, limit) do
+        {:ok, Map.merge(%{nonce_count: nonce_count, replay_count: replay_count}, identity_counts)}
       end
 
     emit_cleanup_telemetry(result, started_at)
@@ -74,8 +76,8 @@ defmodule SiwaServer.Siwa.CleanupWorker do
 
     measurements =
       case result do
-        {:ok, %{nonce_count: nonce_count, replay_count: replay_count}} ->
-          %{duration: duration, nonce_count: nonce_count, replay_count: replay_count}
+        {:ok, counts} ->
+          Map.merge(%{duration: duration}, counts)
 
         {:error, _reason} ->
           %{duration: duration, nonce_count: 0, replay_count: 0}

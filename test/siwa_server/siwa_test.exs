@@ -271,7 +271,7 @@ defmodule SiwaServer.SiwaTest do
       regent.cx wants you to sign in with your Agent account:
       #{@wallet_address}
 
-      URI: https://wrong.example.com/v1/agent/siwa/verify
+      URI: https://wrong.example.com/api/shared/siwa/verify
       Version: 1
       Agent ID: #{@token_id}
       Agent Registry: eip155:#{@chain_id}:#{@registry_address}
@@ -376,7 +376,7 @@ defmodule SiwaServer.SiwaTest do
       regent.cx wants you to sign in with your Agent account:
       #{@wallet_address}
 
-      URI: https://regent.cx/v1/agent/siwa/verify
+      URI: https://regent.cx/api/shared/siwa/verify
       Version: 1
       Agent ID: #{@token_id}
       Agent Registry: eip155:#{@chain_id}:#{@registry_address}
@@ -417,7 +417,7 @@ defmodule SiwaServer.SiwaTest do
       regent.cx wants you to sign in with your Agent account:
       #{@wallet_address}
 
-      URI: https://regent.cx/v1/agent/siwa/verify
+      URI: https://regent.cx/api/shared/siwa/verify
       Version: 1
       Agent ID: #{@token_id}
       Agent Registry: eip155:#{@chain_id}:#{@registry_address}
@@ -966,7 +966,7 @@ defmodule SiwaServer.SiwaTest do
 
     Sign in to #{audience}.
 
-    URI: https://regent.cx/v1/agent/siwa/verify
+    URI: https://regent.cx/api/shared/siwa/verify
     Version: 1
     Agent ID: #{@token_id}
     Agent Registry: eip155:#{@chain_id}:#{@registry_address}
