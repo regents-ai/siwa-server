@@ -7,6 +7,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
   @chain_id 8453
   @registry_address "0x3333333333333333333333333333333333333333"
   @token_id "77"
+  @agent_id "eip155:8453:0x3333333333333333333333333333333333333333:77"
 
   setup do
     previous_base_rpc_url = System.get_env("BASE_RPC_URL")
@@ -76,12 +77,13 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
              "data" => %{
                "registered" => true,
                "agent_id" => agent_id,
+               "token_id" => token_id,
                "agent_registry" => agent_registry
              }
            } = completion
 
-    assert is_integer(agent_id)
-    assert agent_id > 0
+    assert String.to_integer(token_id) > 0
+    assert agent_id == "#{agent_registry}:#{token_id}"
     assert agent_registry =~ ~r/0x[a-fA-F0-9]{40}$/
 
     registered_status =
@@ -95,6 +97,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "registered" => true,
                "verified" => "onchain",
                "agent_id" => ^agent_id,
+               "token_id" => ^token_id,
                "agent_registry" => ^agent_registry
              }
            } = registered_status
@@ -105,7 +108,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       |> json_post("/api/shared/identity/siwa/nonce", %{
         "network" => "base",
         "address" => @wallet_address,
-        "agent_id" => agent_id,
+        "token_id" => token_id,
         "agent_registry" => agent_registry
       })
       |> json_response(200)
@@ -116,6 +119,8 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
              "data" => %{
                "nonce_token" => nonce_token,
                "message" => identity_siwa_message,
+               "agent_id" => ^agent_id,
+               "token_id" => ^token_id,
                "expires_at" => expires_at
              }
            } = nonce_response
@@ -125,7 +130,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     verify_body = %{
       "network" => "base",
       "address" => @wallet_address,
-      "agent_id" => agent_id,
+      "token_id" => token_id,
       "agent_registry" => agent_registry,
       "nonce_token" => nonce_token,
       "message" => identity_siwa_message,
@@ -145,6 +150,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "verified" => "onchain",
                "address" => @wallet_address,
                "agent_id" => ^agent_id,
+               "token_id" => ^token_id,
                "agent_registry" => ^agent_registry,
                "signer_type" => "evm_personal_sign",
                "receipt" => receipt,
@@ -163,6 +169,25 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       |> json_post("/api/shared/identity/siwa/verify", verify_body)
 
     assert %{"error" => %{"code" => "siwa_verify_failed"}} = json_response(replay_conn, 401)
+  end
+
+  test "shared identity nonce rejects oversized token IDs before lookup", %{conn: conn} do
+    conn =
+      conn
+      |> recycle()
+      |> json_post("/api/shared/identity/siwa/nonce", %{
+        "network" => "base",
+        "address" => @wallet_address,
+        "token_id" => String.duplicate("9", 5_000),
+        "agent_registry" => "eip155:8453:0x3333333333333333333333333333333333333333"
+      })
+
+    assert %{
+             "error" => %{
+               "code" => "invalid_request",
+               "message" => "request body does not match the identity contract"
+             }
+           } = json_response(conn, 400)
   end
 
   test "nonce requests are rate limited by claimed identity and caller", %{conn: conn} do
@@ -261,7 +286,9 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
         "signature" => TestWallet.sign_message(message)
       })
 
-    %{"data" => %{"receipt" => receipt}} = json_response(verify_conn, 200)
+    verify_payload = json_response(verify_conn, 200)
+    assert get_in(verify_payload, ["data", "agentId"]) == @agent_id
+    %{"data" => %{"receipt" => receipt}} = verify_payload
 
     body = Jason.encode!(%{"summary" => "Signed request", "details" => "accepted"})
     created = System.os_time(:second)
@@ -278,6 +305,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       })
 
     %{"data" => %{"agent_claims" => claims}} = json_response(http_verify_conn, 200)
+    assert claims["agent_id"] == @agent_id
     assert claims["wallet_address"] == @wallet_address
     assert claims["registry_address"] == @registry_address
     assert claims["token_id"] == @token_id

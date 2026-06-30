@@ -873,6 +873,10 @@ components:
     AgentRegistry:
       type: string
       minLength: 1
+    IdentityTokenId:
+      type: string
+      pattern: "^(0|[1-9][0-9]{0,18})$"
+      maxLength: 19
     IdentityStatusRequest:
       type: object
       required: [network, address, provider]
@@ -912,8 +916,9 @@ components:
               type: string
               enum: [unregistered, onchain]
             agent_id:
-              type: integer
-              minimum: 0
+              type: string
+            token_id:
+              type: string
             agent_registry:
               $ref: "#/components/schemas/AgentRegistry"
             receipt_expires_at:
@@ -990,14 +995,15 @@ components:
           enum: [identity_registration_completed]
         data:
           type: object
-          required: [registered, agent_id, agent_registry]
+          required: [registered, agent_id, token_id, agent_registry]
           properties:
             registered:
               type: boolean
               enum: [true]
             agent_id:
-              type: integer
-              minimum: 0
+              type: string
+            token_id:
+              type: string
             agent_registry:
               $ref: "#/components/schemas/AgentRegistry"
           additionalProperties: false
@@ -1006,15 +1012,14 @@ components:
       additionalProperties: false
     IdentitySiwaNonceRequest:
       type: object
-      required: [network, address, agent_id, agent_registry]
+      required: [network, address, token_id, agent_registry]
       properties:
         network:
           $ref: "#/components/schemas/IdentityNetwork"
         address:
           $ref: "#/components/schemas/Address"
-        agent_id:
-          type: integer
-          minimum: 0
+        token_id:
+          $ref: "#/components/schemas/IdentityTokenId"
         agent_registry:
           $ref: "#/components/schemas/AgentRegistry"
       additionalProperties: false
@@ -1030,7 +1035,7 @@ components:
           enum: [identity_siwa_nonce_issued]
         data:
           type: object
-          required: [nonce_token, message, address, agent_id, agent_registry, expires_at]
+          required: [nonce_token, message, address, agent_id, token_id, agent_registry, expires_at]
           properties:
             nonce_token:
               type: string
@@ -1039,8 +1044,9 @@ components:
             address:
               $ref: "#/components/schemas/Address"
             agent_id:
-              type: integer
-              minimum: 0
+              type: string
+            token_id:
+              type: string
             agent_registry:
               $ref: "#/components/schemas/AgentRegistry"
             expires_at:
@@ -1064,9 +1070,8 @@ components:
           type: string
         address:
           $ref: "#/components/schemas/Address"
-        agent_id:
-          type: integer
-          minimum: 0
+        token_id:
+          $ref: "#/components/schemas/IdentityTokenId"
         agent_registry:
           $ref: "#/components/schemas/AgentRegistry"
       additionalProperties: false
@@ -1082,7 +1087,7 @@ components:
           enum: [identity_siwa_verified]
         data:
           type: object
-          required: [verified, network, address, agent_id, agent_registry, signer_type, receipt, receipt_issued_at, receipt_expires_at]
+          required: [verified, network, address, agent_id, token_id, agent_registry, signer_type, receipt, receipt_issued_at, receipt_expires_at]
           properties:
             verified:
               type: string
@@ -1092,8 +1097,9 @@ components:
             address:
               $ref: "#/components/schemas/Address"
             agent_id:
-              type: integer
-              minimum: 0
+              type: string
+            token_id:
+              type: string
             agent_registry:
               $ref: "#/components/schemas/AgentRegistry"
             signer_type:
@@ -1185,7 +1191,7 @@ components:
           enum: [siwa_verified]
         data:
           type: object
-          required: [verified, walletAddress, chainId, registryAddress, tokenId, audience, nonce, keyId, signatureScheme, receipt, receiptIssuedAt, receiptExpiresAt]
+          required: [verified, walletAddress, chainId, registryAddress, tokenId, agentId, audience, nonce, keyId, signatureScheme, receipt, receiptIssuedAt, receiptExpiresAt]
           properties:
             verified:
               type: boolean
@@ -1197,6 +1203,8 @@ components:
             registryAddress:
               $ref: "#/components/schemas/Address"
             tokenId:
+              type: string
+            agentId:
               type: string
             audience:
               type: string
@@ -1276,8 +1284,10 @@ components:
       additionalProperties: false
     AgentClaims:
       type: object
-      required: [wallet_address, chain_id, registry_address, token_id]
+      required: [agent_id, wallet_address, chain_id, registry_address, token_id]
       properties:
+        agent_id:
+          type: string
         wallet_address:
           $ref: "#/components/schemas/Address"
         chain_id:

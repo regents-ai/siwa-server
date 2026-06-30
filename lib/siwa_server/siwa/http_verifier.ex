@@ -188,6 +188,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
 
   defp verified_agent_claims(receipt_claims) do
     %{
+      "agent_id" => receipt_claims["agent_id"],
       "wallet_address" => receipt_claims["sub"],
       "chain_id" => receipt_claims["chain_id"],
       "registry_address" => receipt_claims["registry_address"],

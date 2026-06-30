@@ -7,6 +7,7 @@ defmodule SiwaServer.SiwaTest do
   @chain_id 8453
   @registry_address "0x3333333333333333333333333333333333333333"
   @token_id "77"
+  @agent_id "eip155:8453:0x3333333333333333333333333333333333333333:77"
 
   setup do
     original_base_rpc_url = System.get_env("BASE_RPC_URL")
@@ -485,6 +486,33 @@ defmodule SiwaServer.SiwaTest do
     assert claims["chain_id"] == @chain_id
     assert claims["registry_address"] == @registry_address
     assert claims["token_id"] == @token_id
+    assert claims["agent_id"] == @agent_id
+  end
+
+  test "signed requests bind query values in the path component" do
+    receipt = verified_receipt()
+    body = Jason.encode!(%{"summary" => "Query-bound request", "details" => "accepted"})
+    created = System.os_time(:second)
+    expires = created + 120
+    signed_path = "/v1/agent/bug-report?status=open&limit=25"
+
+    headers = signed_headers(receipt, body, created, expires, %{}, nil, signed_path)
+
+    assert {:error, {401, "signature_invalid", _message}} =
+             verify_http_request(%{
+               "method" => "POST",
+               "path" => "/v1/agent/bug-report?status=closed&limit=25",
+               "headers" => headers,
+               "body" => body
+             })
+
+    assert {:ok, _payload} =
+             verify_http_request(%{
+               "method" => "POST",
+               "path" => signed_path,
+               "headers" => headers,
+               "body" => body
+             })
   end
 
   test "signed requests keep replay protection for the full signature window" do
@@ -944,6 +972,7 @@ defmodule SiwaServer.SiwaTest do
                  "typ" => "siwa_receipt",
                  "jti" => Ecto.UUID.generate(),
                  "sub" => @wallet_address,
+                 "agent_id" => @agent_id,
                  "aud" => audience,
                  "chain_id" => @chain_id,
                  "nonce" => "receipt-#{System.unique_integer([:positive])}",
@@ -983,7 +1012,8 @@ defmodule SiwaServer.SiwaTest do
          created,
          expires,
          extra_headers \\ %{},
-         components_override \\ nil
+         components_override \\ nil,
+         path \\ "/v1/agent/bug-report"
        ) do
     base_headers = %{
       "x-siwa-receipt" => receipt,
@@ -1026,7 +1056,7 @@ defmodule SiwaServer.SiwaTest do
         value =
           case component do
             "@method" -> "post"
-            "@path" -> "/v1/agent/bug-report"
+            "@path" -> path
             header_name -> Map.fetch!(headers, header_name)
           end
 

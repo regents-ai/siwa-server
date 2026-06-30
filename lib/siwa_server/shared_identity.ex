@@ -17,6 +17,7 @@ defmodule SiwaServer.SharedIdentity do
   @intent_ttl_seconds 300
   @nonce_ttl_seconds 300
   @cleanup_default_limit 1_000
+  @max_token_id 9_223_372_036_854_775_807
 
   def status(params) when is_map(params) do
     with {:ok, request} <- cast_identity_request(params),
@@ -33,13 +34,16 @@ defmodule SiwaServer.SharedIdentity do
             }
 
           %IdentityRecord{} = record ->
+            token_id = token_id(record)
+
             %{
               "network" => record.network,
               "address" => record.address,
               "provider" => record.provider,
               "registered" => true,
               "verified" => record.verified,
-              "agent_id" => record.id,
+              "agent_id" => agent_id(record.agent_registry, token_id),
+              "token_id" => token_id,
               "agent_registry" => record.agent_registry
             }
         end
@@ -87,7 +91,8 @@ defmodule SiwaServer.SharedIdentity do
       {:ok,
        ok("identity_registration_completed", %{
          "registered" => true,
-         "agent_id" => record.id,
+         "agent_id" => agent_id(record.agent_registry, token_id(record)),
+         "token_id" => token_id(record),
          "agent_registry" => record.agent_registry
        })}
     end
@@ -119,7 +124,8 @@ defmodule SiwaServer.SharedIdentity do
          "nonce_token" => nonce.nonce_token,
          "message" => nonce.message,
          "address" => nonce.address,
-         "agent_id" => nonce.agent_id,
+         "agent_id" => agent_id(nonce.agent_registry, token_id(nonce)),
+         "token_id" => token_id(nonce),
          "agent_registry" => nonce.agent_registry,
          "expires_at" => DateTime.to_iso8601(nonce.expires_at)
        })}
@@ -143,7 +149,8 @@ defmodule SiwaServer.SharedIdentity do
          "verified" => "onchain",
          "network" => nonce.network,
          "address" => nonce.address,
-         "agent_id" => nonce.agent_id,
+         "agent_id" => agent_id(nonce.agent_registry, token_id(nonce)),
+         "token_id" => token_id(nonce),
          "agent_registry" => nonce.agent_registry,
          "signer_type" => "evm_personal_sign",
          "receipt" => receipt,
@@ -184,16 +191,16 @@ defmodule SiwaServer.SharedIdentity do
   end
 
   defp cast_siwa_nonce_request(params) do
-    with :ok <- no_extra_fields(params, ~w(network address agent_id agent_registry)),
+    with :ok <- no_extra_fields(params, ~w(network address token_id agent_registry)),
          {:ok, network} <- required_network(params),
          {:ok, address} <- required_address(params, "address"),
-         {:ok, agent_id} <- required_non_negative_integer(params, "agent_id"),
+         {:ok, token_id} <- required_token_id(params, "token_id"),
          {:ok, agent_registry} <- required_agent_registry(params, "agent_registry") do
       {:ok,
        %{
          network: network,
          address: address,
-         agent_id: agent_id,
+         agent_id: token_id,
          agent_registry: agent_registry
        }}
     end
@@ -203,14 +210,14 @@ defmodule SiwaServer.SharedIdentity do
     with :ok <-
            no_extra_fields(
              params,
-             ~w(network message signature nonce_token address agent_id agent_registry)
+             ~w(network message signature nonce_token address token_id agent_registry)
            ),
          {:ok, network} <- required_network(params),
          {:ok, message} <- required_string(params, "message"),
          {:ok, signature} <- required_signature(params, "signature"),
          {:ok, nonce_token} <- required_string(params, "nonce_token"),
          {:ok, address} <- optional_address(params, "address"),
-         {:ok, agent_id} <- optional_non_negative_integer(params, "agent_id"),
+         {:ok, token_id} <- optional_token_id(params, "token_id"),
          {:ok, agent_registry} <- optional_agent_registry(params, "agent_registry") do
       {:ok,
        %{
@@ -219,7 +226,7 @@ defmodule SiwaServer.SharedIdentity do
          signature: signature,
          nonce_token: nonce_token,
          address: address,
-         agent_id: agent_id,
+         agent_id: token_id,
          agent_registry: agent_registry
        }}
     end
@@ -347,8 +354,9 @@ defmodule SiwaServer.SharedIdentity do
                "chain_id" => Map.fetch!(@networks, nonce.network),
                "nonce" => nonce.nonce_token,
                "key_id" => nonce.address,
+               "agent_id" => agent_id(nonce.agent_registry, token_id(nonce)),
                "registry_address" => registry_address(nonce.agent_registry),
-               "token_id" => Integer.to_string(nonce.agent_id)
+               "token_id" => token_id(nonce)
              },
              receipt_secret: secret,
              now: issued_at,
@@ -416,7 +424,7 @@ defmodule SiwaServer.SharedIdentity do
     Sign in with Regent
     Address: #{request.address}
     Network: #{request.network}
-    Agent ID: #{request.agent_id}
+    Token ID: #{request.agent_id}
     Agent Registry: #{request.agent_registry}
     Nonce: #{nonce_token}
     """
@@ -487,17 +495,26 @@ defmodule SiwaServer.SharedIdentity do
     end
   end
 
-  defp required_non_negative_integer(params, key) do
-    case Map.get(params, key) do
-      value when is_integer(value) and value >= 0 -> {:ok, value}
-      _value -> invalid_request()
+  defp required_token_id(params, key) do
+    case Text.normalize_optional_text(Map.get(params, key)) do
+      value when is_binary(value) ->
+        with true <- Regex.match?(~r/^(0|[1-9][0-9]{0,18})$/u, value),
+             {token_id, ""} <- Integer.parse(value),
+             true <- token_id <= @max_token_id do
+          {:ok, token_id}
+        else
+          _value -> invalid_request()
+        end
+
+      _value ->
+        invalid_request()
     end
   end
 
-  defp optional_non_negative_integer(params, key) do
+  defp optional_token_id(params, key) do
     case Map.get(params, key) do
       nil -> {:ok, nil}
-      _value -> required_non_negative_integer(params, key)
+      _value -> required_token_id(params, key)
     end
   end
 
@@ -539,6 +556,11 @@ defmodule SiwaServer.SharedIdentity do
 
   defp agent_registry(network),
     do: "eip155:#{Map.fetch!(@networks, network)}:#{Map.fetch!(@registry_addresses, network)}"
+
+  defp agent_id(agent_registry, token_id), do: "#{agent_registry}:#{token_id}"
+
+  defp token_id(%IdentityRecord{id: id}), do: Integer.to_string(id)
+  defp token_id(%SiwaNonce{agent_id: agent_id}), do: Integer.to_string(agent_id)
 
   defp registry_address(agent_registry) do
     case Regex.run(~r/0x[a-fA-F0-9]{40}$/u, agent_registry) do

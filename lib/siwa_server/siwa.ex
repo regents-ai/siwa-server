@@ -95,6 +95,8 @@ defmodule SiwaServer.Siwa do
              "typ" => "siwa_receipt",
              "jti" => Ecto.UUID.generate(),
              "sub" => wallet_address,
+             "agent_id" =>
+               agent_id(chain_id, nonce_record.registry_address, nonce_record.token_id),
              "aud" => nonce_record.audience,
              "chain_id" => chain_id,
              "nonce" => nonce,
@@ -113,6 +115,7 @@ defmodule SiwaServer.Siwa do
            "chainId" => chain_id,
            "registryAddress" => nonce_record.registry_address,
            "tokenId" => nonce_record.token_id,
+           "agentId" => agent_id(chain_id, nonce_record.registry_address, nonce_record.token_id),
            "audience" => nonce_record.audience,
            "nonce" => nonce,
            "keyId" => wallet_address,
@@ -329,4 +332,7 @@ defmodule SiwaServer.Siwa do
 
   defp agent_registry_string(chain_id, registry_address),
     do: "eip155:#{chain_id}:#{registry_address}"
+
+  defp agent_id(chain_id, registry_address, token_id),
+    do: "#{agent_registry_string(chain_id, registry_address)}:#{token_id}"
 end
