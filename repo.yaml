@@ -1,0 +1,25 @@
+version: 1
+repo: siwa-server
+owner: siwa-server
+path: siwa-server
+release_group: public_beta
+stack_contract: ../meta/stack.yaml
+owns:
+  - shared_siwa_http
+  - nonce_state
+  - replay_state
+  - internal_keyring_surface
+source_of_truth:
+  repo_contract: repo.yaml
+  http_contracts: []
+  cli_contracts: []
+  shared_contracts:
+    - priv/static/regent-services-contract.openapiv3.yaml
+  runtime_contracts: []
+  chain_contracts: []
+code_map: []
+local_path_dependencies:
+  - ../elixir-utils/siwa/siwa-elixir
+acceptance_commands:
+  - cwd: siwa-server
+    command: mix precommit
