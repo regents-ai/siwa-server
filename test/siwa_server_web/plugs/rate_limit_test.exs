@@ -1,12 +1,14 @@
 defmodule SiwaServerWeb.Plugs.RateLimitTest do
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureLog
   import Plug.Test
 
   alias SiwaServer.RateLimiter
   alias SiwaServerWeb.Plugs.RateLimit
 
   setup do
+    ensure_rate_limiter_started()
     RateLimiter.reset()
     original = Application.get_env(:siwa_server, :rate_limits, [])
 
@@ -84,5 +86,119 @@ defmodule SiwaServerWeb.Plugs.RateLimitTest do
     conn = call(build.(), :keyring_internal)
     assert conn.halted
     assert conn.status == 429
+  end
+
+  test "missing limiter table allows requests, emits telemetry, and does not create a caller-owned table" do
+    attach_fail_open_handler()
+
+    owner = Process.whereis(RateLimiter)
+    assert is_pid(owner)
+
+    stop_rate_limiter_owner(owner)
+
+    assert Process.whereis(RateLimiter) == nil
+    assert :ets.whereis(RateLimiter) == :undefined
+
+    capture_log(fn ->
+      assert :ok =
+               RateLimiter.check(
+                 :siwa_nonce,
+                 "wallet:0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                 1,
+                 60_000
+               )
+    end)
+
+    assert :ets.whereis(RateLimiter) == :undefined
+
+    assert_receive {:rate_limiter_fail_open, [:siwa_server, :rate_limiter, :fail_open],
+                    %{count: 1}, metadata}
+
+    assert metadata == %{key_class: :siwa_nonce}
+    refute inspect(metadata) =~ "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  end
+
+  test "missing limiter table warning is throttled across rapid allowed requests" do
+    owner = Process.whereis(RateLimiter)
+    assert is_pid(owner)
+
+    stop_rate_limiter_owner(owner)
+
+    log =
+      capture_log(fn ->
+        assert :ok = RateLimiter.check(:siwa_nonce, "first", 1, 60_000)
+        assert :ok = RateLimiter.check(:siwa_nonce, "second", 1, 60_000)
+      end)
+
+    assert length(Regex.scan(~r/SIWA rate limiter table is unavailable/, log)) == 1
+  end
+
+  defp ensure_rate_limiter_started do
+    case Process.whereis(RateLimiter) do
+      nil -> start_supervised!(RateLimiter)
+      pid -> pid
+    end
+  end
+
+  defp stop_rate_limiter_owner(owner) do
+    case Process.whereis(SiwaServer.Supervisor) do
+      nil ->
+        stop_standalone_rate_limiter(owner)
+
+      _supervisor ->
+        assert :ok = Supervisor.terminate_child(SiwaServer.Supervisor, RateLimiter)
+
+        on_exit(fn ->
+          _result = Supervisor.restart_child(SiwaServer.Supervisor, RateLimiter)
+          wait_for_rate_limiter_table()
+          RateLimiter.reset()
+        end)
+    end
+  end
+
+  defp stop_standalone_rate_limiter(owner) do
+    case stop_supervised(RateLimiter) do
+      :ok ->
+        :ok
+
+      {:error, :not_found} ->
+        ref = Process.monitor(owner)
+        :ok = GenServer.stop(owner)
+
+        receive do
+          {:DOWN, ^ref, :process, ^owner, _reason} -> :ok
+        after
+          1_000 -> flunk("rate limiter did not stop")
+        end
+    end
+  end
+
+  defp wait_for_rate_limiter_table(attempts \\ 50)
+  defp wait_for_rate_limiter_table(0), do: flunk("rate limiter table was not recreated")
+
+  defp wait_for_rate_limiter_table(attempts) do
+    if Process.whereis(RateLimiter) && :ets.whereis(RateLimiter) != :undefined do
+      :ok
+    else
+      Process.sleep(10)
+      wait_for_rate_limiter_table(attempts - 1)
+    end
+  end
+
+  defp attach_fail_open_handler do
+    handler_id = {__MODULE__, self(), :rate_limiter_fail_open}
+
+    :telemetry.attach(
+      handler_id,
+      [:siwa_server, :rate_limiter, :fail_open],
+      &__MODULE__.handle_fail_open_event/4,
+      self()
+    )
+
+    on_exit(fn -> :telemetry.detach(handler_id) end)
+  end
+
+  def handle_fail_open_event(event, measurements, metadata, test_pid) do
+    send(test_pid, {:rate_limiter_fail_open, event, measurements, metadata})
   end
 end
