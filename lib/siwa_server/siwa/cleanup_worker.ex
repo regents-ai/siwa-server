@@ -10,6 +10,7 @@ defmodule SiwaServer.Siwa.CleanupWorker do
 
   @default_interval_ms 60_000
   @default_batch_size 1_000
+  @default_task_supervisor SiwaServer.Siwa.CleanupTaskSupervisor
 
   def start_link(opts) do
     opts = Keyword.merge(config(), opts)
@@ -42,25 +43,63 @@ defmodule SiwaServer.Siwa.CleanupWorker do
   def init(opts) do
     state = %{
       interval_ms: Keyword.get(opts, :interval_ms, @default_interval_ms),
-      batch_size: Keyword.get(opts, :batch_size, @default_batch_size)
+      batch_size: Keyword.get(opts, :batch_size, @default_batch_size),
+      cleanup_fun: Keyword.get(opts, :cleanup_fun, &cleanup_once/2),
+      task_ref: nil,
+      task_supervisor: Keyword.get(opts, :task_supervisor, @default_task_supervisor),
+      timer_ref: nil
     }
 
-    send(self(), :cleanup)
-
-    {:ok, state}
+    {:ok, schedule_cleanup(state, 0)}
   end
 
   @impl true
   def handle_info(:cleanup, state) do
-    case cleanup_once(DateTime.utc_now(), state.batch_size) do
-      {:ok, _counts} -> :ok
-      {:error, reason} -> Logger.warning("SIWA cleanup failed: #{inspect(reason)}")
-    end
+    state =
+      state
+      |> Map.put(:timer_ref, nil)
+      |> schedule_cleanup(state.interval_ms)
 
-    Process.send_after(self(), :cleanup, state.interval_ms)
-
-    {:noreply, state}
+    {:noreply, maybe_start_cleanup(state)}
   end
+
+  def handle_info({ref, result}, %{task_ref: ref} = state) do
+    Process.demonitor(ref, [:flush])
+    log_cleanup_result(result)
+
+    {:noreply, %{state | task_ref: nil}}
+  end
+
+  def handle_info({:DOWN, ref, :process, _pid, reason}, %{task_ref: ref} = state) do
+    Logger.warning("SIWA cleanup task failed: #{inspect(reason)}")
+
+    {:noreply, %{state | task_ref: nil}}
+  end
+
+  def handle_info({_ref, _result}, state), do: {:noreply, state}
+  def handle_info({:DOWN, _ref, :process, _pid, _reason}, state), do: {:noreply, state}
+
+  defp maybe_start_cleanup(%{task_ref: nil} = state) do
+    task =
+      Task.Supervisor.async_nolink(state.task_supervisor, fn ->
+        state.cleanup_fun.(DateTime.utc_now(), state.batch_size)
+      end)
+
+    %{state | task_ref: task.ref}
+  end
+
+  defp maybe_start_cleanup(state), do: state
+
+  defp schedule_cleanup(state, delay_ms) do
+    %{state | timer_ref: Process.send_after(self(), :cleanup, delay_ms)}
+  end
+
+  defp log_cleanup_result({:ok, _counts}), do: :ok
+
+  defp log_cleanup_result({:error, reason}),
+    do: Logger.warning("SIWA cleanup failed: #{inspect(reason)}")
+
+  defp log_cleanup_result(_result), do: :ok
 
   defp config do
     SiwaServer.Config.siwa_cleanup()

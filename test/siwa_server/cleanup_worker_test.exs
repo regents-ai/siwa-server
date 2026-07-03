@@ -5,18 +5,28 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
 
   test "periodically removes expired nonce and replay rows" do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
+    _handler_id = attach_cleanup_handler()
 
     insert_nonce!("expired-nonce", DateTime.add(now, -60, :second))
     insert_nonce!("active-nonce", DateTime.add(now, 60, :second))
     insert_replay!("expired-replay", DateTime.add(now, -60, :second))
     insert_replay!("active-replay", DateTime.add(now, 60, :second))
+    task_supervisor = start_task_supervisor!()
 
     pid =
       start_supervised!(
-        {CleanupWorker, enabled: true, interval_ms: 10, batch_size: 10, name: nil}
+        {CleanupWorker,
+         enabled: true,
+         interval_ms: 10,
+         batch_size: 10,
+         name: nil,
+         task_supervisor: task_supervisor}
       )
 
-    _ = :sys.get_state(pid)
+    assert is_pid(pid)
+
+    assert_receive {:cleanup_telemetry, %{nonce_count: 1, replay_count: 1}, %{result: :ok}},
+                   1_000
 
     assert nonce_count("expired-nonce") == 0
     assert replay_count("expired-replay") == 0
@@ -40,10 +50,21 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
 
   test "emits cleanup telemetry counts" do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
+    _handler_id = attach_cleanup_handler(:cleanup_once)
+
     insert_nonce!("expired-nonce", DateTime.add(now, -60, :second))
     insert_replay!("expired-replay", DateTime.add(now, -60, :second))
 
-    handler_id = {__MODULE__, self(), :cleanup_telemetry}
+    assert {:ok, %{nonce_count: 1, replay_count: 1}} = CleanupWorker.cleanup_once(now, 10)
+
+    assert_receive {:cleanup_telemetry, %{duration: duration, nonce_count: 1, replay_count: 1},
+                    %{result: :ok}}
+
+    assert is_integer(duration)
+  end
+
+  defp attach_cleanup_handler(label \\ :cleanup_telemetry) do
+    handler_id = {__MODULE__, self(), label}
 
     :telemetry.attach(
       handler_id,
@@ -56,12 +77,7 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
 
     on_exit(fn -> :telemetry.detach(handler_id) end)
 
-    assert {:ok, %{nonce_count: 1, replay_count: 1}} = CleanupWorker.cleanup_once(now, 10)
-
-    assert_receive {:cleanup_telemetry, %{duration: duration, nonce_count: 1, replay_count: 1},
-                    %{result: :ok}}
-
-    assert is_integer(duration)
+    handler_id
   end
 
   defp insert_nonce!(nonce, expiration_time) do
@@ -100,5 +116,11 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
       Repo.query!("SELECT COUNT(*) FROM siwa_request_replays WHERE replay_key = $1", [replay_key])
 
     count
+  end
+
+  defp start_task_supervisor! do
+    name = :"#{__MODULE__}.TaskSupervisor.#{System.unique_integer([:positive])}"
+    start_supervised!({Task.Supervisor, name: name})
+    name
   end
 end

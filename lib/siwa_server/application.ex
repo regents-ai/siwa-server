@@ -10,7 +10,8 @@ defmodule SiwaServer.Application do
       SiwaServer.Repo,
       SiwaServer.RateLimiter,
       {Finch, name: SiwaServer.Finch},
-      {SiwaServer.Siwa.CleanupWorker, []},
+      {Task.Supervisor, name: SiwaServer.Siwa.CleanupTaskSupervisor},
+      {SiwaServer.Siwa.CleanupWorker, [task_supervisor: SiwaServer.Siwa.CleanupTaskSupervisor]},
       {DNSCluster, query: SiwaServer.Config.dns_cluster_query() || :ignore},
       {Phoenix.PubSub, name: SiwaServer.PubSub},
       SiwaServerWeb.Endpoint
