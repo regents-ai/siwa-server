@@ -11,20 +11,6 @@ defmodule SiwaServer.Ethereum do
     end
   end
 
-  @spec valid_address?(term()) :: boolean()
-  def valid_address?(value), do: Siwa.Ethereum.valid_address?(value)
-
-  @spec valid_tx_hash?(term()) :: boolean()
-  def valid_tx_hash?(value), do: Siwa.Ethereum.valid_tx_hash?(value)
-
-  @spec namehash(String.t()) :: {:ok, String.t()} | {:error, String.t()}
-  def namehash(name) do
-    case Siwa.Ethereum.namehash(name) do
-      {:ok, hash} -> {:ok, hash}
-      {:error, :invalid_ens_name} -> {:error, "invalid ENS name"}
-    end
-  end
-
   @spec verify_signature(String.t(), String.t(), String.t()) :: :ok | {:error, String.t()}
   def verify_signature(address, message, signature) do
     case normalize_address(address) do
@@ -41,14 +27,6 @@ defmodule SiwaServer.Ethereum do
           {:error, _reason} -> {:error, "Invalid signature"}
         end
     end
-  end
-
-  @spec synthetic_tx_hash([String.t()] | String.t()) :: {:ok, String.t()} | {:error, String.t()}
-  def synthetic_tx_hash(parts) when is_list(parts),
-    do: parts |> Enum.join(":") |> synthetic_tx_hash()
-
-  def synthetic_tx_hash(payload) when is_binary(payload) do
-    Siwa.Ethereum.keccak_hex(payload)
   end
 
   @spec owner_of(String.t(), String.t(), keyword()) :: {:ok, String.t()} | {:error, String.t()}
@@ -78,14 +56,6 @@ defmodule SiwaServer.Ethereum do
       {map_ethereum_result(result), %{result: telemetry_result(result)}}
     end)
   end
-
-  @spec hex_to_integer(term()) :: integer()
-  def hex_to_integer("0x"), do: 0
-
-  def hex_to_integer(value) when is_binary(value),
-    do: String.to_integer(String.replace_prefix(value, "0x", ""), 16)
-
-  def hex_to_integer(_value), do: 0
 
   defp rpc_timeout_ms, do: Config.ethereum_rpc_timeout_ms()
 

@@ -825,22 +825,6 @@ defmodule SiwaServer.SiwaTest do
     end
   end
 
-  test "ethereum deterministic hashes do not shell out" do
-    assert {:ok, "0x0000000000000000000000000000000000000000000000000000000000000000"} =
-             Ethereum.namehash("")
-
-    assert {:ok, "0x93cdeb708b7545dc668eb9280176169d1c33cfd8ed6f04690a0bcc88a93fc4ae"} =
-             Ethereum.namehash("eth")
-
-    assert {:ok, "0xde9b09fd7c5f901e23a3f19fecc54828e9c848539801e86591bd9801b019f84f"} =
-             Ethereum.namehash("foo.eth")
-
-    assert {:ok, "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8"} =
-             Ethereum.synthetic_tx_hash("hello")
-
-    assert {:error, "invalid ENS name"} = Ethereum.namehash("foo..eth")
-  end
-
   test "ethereum signatures are verified without shelling out" do
     message = "hello"
     signature = TestWallet.sign_message(message)

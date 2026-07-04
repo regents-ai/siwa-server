@@ -21,14 +21,8 @@ defmodule SiwaServer.Siwa.Error do
   @spec not_found(String.t(), String.t()) :: t()
   def not_found(code, message), do: new(404, code, message)
 
-  @spec conflict(String.t(), String.t()) :: t()
-  def conflict(code, message), do: new(409, code, message)
-
   @spec upstream(String.t(), String.t()) :: t()
   def upstream(code, message), do: new(502, code, message)
-
-  @spec internal(String.t(), String.t()) :: t()
-  def internal(code, message), do: new(500, code, message)
 
   @spec tuple(t()) :: {pos_integer(), String.t(), String.t()}
   def tuple(%__MODULE__{status: status, code: code, message: message}) do
