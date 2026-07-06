@@ -68,6 +68,24 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
     "keyring:#{conn.method}:#{conn.request_path}:#{client_ip(conn)}"
   end
 
+  # The /api/shared/identity/* endpoints carry network/address/provider (and the
+  # completion step at least address), not the SIWA-flow fields the default
+  # clause reads — without this clause every identity request keyed to one
+  # shared "unknown:...:IP" bucket instead of per identity.
+  defp client_key(conn, :identity) do
+    body = fetched_body_params(conn)
+
+    [
+      "identity",
+      Map.get(body, "provider"),
+      Map.get(body, "network"),
+      Map.get(body, "address"),
+      client_ip(conn)
+    ]
+    |> Enum.map(&normalize_part/1)
+    |> Enum.join(":")
+  end
+
   defp client_key(conn, _name) do
     body = fetched_body_params(conn)
 
