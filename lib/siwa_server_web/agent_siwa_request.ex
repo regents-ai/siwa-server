@@ -104,7 +104,12 @@ defmodule SiwaServerWeb.AgentSiwaRequest do
         cast_fields(params, rest, required_fields, values)
 
       {:ok, value} ->
-        cast_fields(params, rest, required_fields, Map.put(values, String.to_atom(field), value))
+        cast_fields(
+          params,
+          rest,
+          required_fields,
+          Map.put(values, String.to_existing_atom(field), value)
+        )
 
       {:error, _reason} = error ->
         error
@@ -124,9 +129,7 @@ defmodule SiwaServerWeb.AgentSiwaRequest do
   defp cast_field(params, "headers", true) do
     case Map.get(params, "headers") do
       headers when is_map(headers) ->
-        if Enum.all?(headers, fn {key, value} -> is_binary(key) and is_binary(value) end),
-          do: {:ok, headers},
-          else: invalid_request()
+        cast_headers(headers)
 
       _value ->
         invalid_request()
@@ -149,6 +152,12 @@ defmodule SiwaServerWeb.AgentSiwaRequest do
       value when is_binary(value) -> {:ok, value}
       _value -> invalid_request()
     end
+  end
+
+  defp cast_headers(headers) do
+    if Enum.all?(headers, fn {key, value} -> is_binary(key) and is_binary(value) end),
+      do: {:ok, headers},
+      else: invalid_request()
   end
 
   defp invalid_request,

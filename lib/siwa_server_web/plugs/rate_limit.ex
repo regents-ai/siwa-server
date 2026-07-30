@@ -82,8 +82,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
       Map.get(body, "address"),
       client_ip(conn)
     ]
-    |> Enum.map(&normalize_part/1)
-    |> Enum.join(":")
+    |> Enum.map_join(":", &normalize_part/1)
   end
 
   defp client_key(conn, _name) do
@@ -97,8 +96,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
       Map.get(body, "audience"),
       client_ip(conn)
     ]
-    |> Enum.map(&normalize_part/1)
-    |> Enum.join(":")
+    |> Enum.map_join(":", &normalize_part/1)
   end
 
   defp agent_header(conn, name) do

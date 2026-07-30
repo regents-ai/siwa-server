@@ -13,7 +13,7 @@ config :siwa_server,
 
 config :siwa,
   nonce_store: :unused,
-  nonce_secret: "siwa-server-unused-nonce-secret"
+  nonce_secret: nil
 
 config :siwa_server, :siwa,
   nonce_ttl_seconds: 300,
@@ -39,9 +39,9 @@ config :siwa_server, SiwaServerWeb.Telemetry, prometheus_reporter: :siwa_server_
 
 config :siwa_keyring,
   backend: "encrypted_file",
-  password: "change-me",
+  password: nil,
   path: "/tmp/siwa-server-keystore.bin",
-  secret: "siwa-dev-keyring-secret",
+  secret: nil,
   start_server: false,
   port: 3100,
   host: "127.0.0.1",

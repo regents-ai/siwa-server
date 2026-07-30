@@ -3,6 +3,8 @@ defmodule SiwaServerWeb.KeyringForwarder do
 
   @behaviour Plug
 
+  alias SiwaServerWeb.Plugs.RateLimit
+
   @router_opts SiwaKeyring.Router.init([])
 
   @impl Plug
@@ -10,7 +12,7 @@ defmodule SiwaServerWeb.KeyringForwarder do
 
   @impl Plug
   def call(conn, _opts) do
-    conn = SiwaServerWeb.Plugs.RateLimit.call(conn, name: :keyring_internal)
+    conn = RateLimit.call(conn, name: :keyring_internal)
 
     if conn.halted do
       conn

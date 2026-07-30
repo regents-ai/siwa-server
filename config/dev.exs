@@ -87,6 +87,10 @@ config :siwa_server, SiwaServerWeb.Endpoint,
 # Enable dev routes for dashboard and mailbox
 config :siwa_server, dev_routes: true
 
+config :siwa_keyring,
+  password: "change-me",
+  secret: "siwa-dev-keyring-secret"
+
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"
 

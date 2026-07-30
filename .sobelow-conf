@@ -1,0 +1,9 @@
+[
+  private: true,
+  ignore: [
+    # Traversal.FileModule: reported paths are fixed application assets or operator-owned configuration.
+    "Traversal.FileModule",
+    # SQL.Query: reported queries use fixed SQL and internally fixed table and column identifiers.
+    "SQL.Query"
+  ]
+]

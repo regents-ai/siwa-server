@@ -55,7 +55,8 @@ defmodule SiwaServer.MixProject do
       {:bandit, "~> 1.5"},
       {:siwa, path: "../elixir-utils/siwa/siwa-elixir/apps/siwa", override: true},
       {:siwa_keyring, path: "../elixir-utils/siwa/siwa-elixir/apps/siwa_keyring"},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false}
     ]
   end
 
@@ -79,11 +80,13 @@ defmodule SiwaServer.MixProject do
       ],
       precommit: [
         "compile --warnings-as-errors",
-        "deps.unlock --unused",
-        "format",
+        "deps.unlock --check-unused",
+        "format --check-formatted",
+        "sobelow --exit",
         "check.services_contract",
         "check.release_packaging",
-        "test"
+        "xref graph --label compile-connected --fail-above 0",
+        "test --warnings-as-errors"
       ]
     ]
   end
