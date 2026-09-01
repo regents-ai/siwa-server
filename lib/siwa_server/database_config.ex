@@ -43,13 +43,13 @@ defmodule SiwaServer.DatabaseConfig do
            URI.new(database_url),
          true <- scheme in ["postgres", "postgresql"],
          true <- present?(host),
-         true <- String.downcase(host) != "flympg.net",
+         false <- fly_mpg_root?(host),
          true <- present?(database),
-         true <- valid_userinfo?(userinfo),
+         true <- valid_credentials?(uri, userinfo),
          true <- safe_fly_mpg_query?(uri),
          true <- safe_fly_mpg_port?(uri),
          true <- valid_ecto_url?(database_url) do
-      {database_url, %{uri | host: String.downcase(host)}}
+      canonical_fly_mpg_url(database_url, %{uri | host: String.downcase(host)})
     else
       _ -> raise "DATABASE_URL must be a valid PostgreSQL URL"
     end
@@ -93,11 +93,31 @@ defmodule SiwaServer.DatabaseConfig do
   end
 
   defp fly_mpg_host?(host) when is_binary(host) do
-    host = String.downcase(host)
+    host = normalize_host(host)
     host != "flympg.net" and String.ends_with?(host, @fly_mpg_suffix)
   end
 
   defp fly_mpg_host?(_host), do: false
+
+  defp fly_mpg_root?(host) when is_binary(host), do: normalize_host(host) == "flympg.net"
+  defp fly_mpg_root?(_host), do: false
+
+  defp canonical_fly_mpg_url(database_url, %URI{host: host} = uri) do
+    if fly_mpg_host?(host) do
+      canonical_uri = %{uri | host: normalize_host(host)}
+      {URI.to_string(canonical_uri), canonical_uri}
+    else
+      {database_url, uri}
+    end
+  end
+
+  defp normalize_host(host) do
+    host |> String.downcase() |> String.trim_trailing(".")
+  end
+
+  defp valid_credentials?(%URI{host: host}, userinfo) do
+    not fly_mpg_host?(host) or valid_userinfo?(userinfo)
+  end
 
   defp valid_userinfo?(userinfo) when is_binary(userinfo) do
     case String.split(userinfo, ":", parts: 2) do

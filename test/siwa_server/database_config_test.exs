@@ -53,6 +53,25 @@ defmodule SiwaServer.DatabaseConfigTest do
     end
   end
 
+  test "canonicalizes a trailing-dot Fly MPG host before applying every safeguard" do
+    trailing_url =
+      "postgres://siwa_server:secret@pgbouncer.cluster.flympg.net./siwa_server"
+
+    runtime = DatabaseConfig.runtime_config!(trailing_url, [])
+    release = DatabaseConfig.release_config!(trailing_url, [])
+
+    assert runtime[:url] == @pooled_url
+    assert runtime[:prepare] == :unnamed
+    assert runtime[:ssl][:verify] == :verify_peer
+
+    assert release[:url] ==
+             "postgres://siwa_server:secret@direct.cluster.flympg.net/siwa_server"
+
+    assert_raise RuntimeError, ~r/valid PostgreSQL URL/, fn ->
+      DatabaseConfig.runtime_config!(trailing_url <> "?ssl=false", [])
+    end
+  end
+
   test "rejects malformed and unsupported database URLs" do
     for url <- [
           "",
@@ -68,6 +87,13 @@ defmodule SiwaServer.DatabaseConfigTest do
 
   test "preserves the existing behavior for a non-Fly PostgreSQL URL" do
     url = "postgres://postgres:postgres@database.internal/siwa_server"
+
+    assert DatabaseConfig.runtime_config!(url, []) == [url: url, socket_options: []]
+    assert DatabaseConfig.release_config!(url, [:inet6]) == [url: url, socket_options: [:inet6]]
+  end
+
+  test "preserves a passwordless non-Fly PostgreSQL URL" do
+    url = "postgres://postgres@database.internal/siwa_server"
 
     assert DatabaseConfig.runtime_config!(url, []) == [url: url, socket_options: []]
     assert DatabaseConfig.release_config!(url, [:inet6]) == [url: url, socket_options: [:inet6]]
