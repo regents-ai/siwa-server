@@ -7,7 +7,7 @@ kill_timeout = "5s"
   dockerfile = "Dockerfile"
 
 [deploy]
-  release_command = "/app/bin/siwa_server eval SiwaServer.Release.migrate"
+  release_command = "/bin/sh -lc 'SIWA_RELEASE_COMMAND=migrate /app/bin/siwa_server eval SiwaServer.Release.migrate'"
 
 [env]
   ECTO_IPV6 = "true"

@@ -151,13 +151,21 @@ if prod? do
 
   maybe_ipv6 = if env_boolean.("ECTO_IPV6", false), do: [:inet6], else: []
 
-  config :siwa_server, SiwaServer.Repo,
-    # ssl: true,
-    url: database_url,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
-    # For machines with several cores, consider starting multiple pools of `pool_size`
-    # pool_count: 4,
-    socket_options: maybe_ipv6
+  database_config =
+    if System.get_env("SIWA_RELEASE_COMMAND") == "migrate" do
+      SiwaServer.DatabaseConfig.release_config!(database_url, maybe_ipv6)
+    else
+      SiwaServer.DatabaseConfig.runtime_config!(database_url, maybe_ipv6)
+    end
+
+  config :siwa_server,
+         SiwaServer.Repo,
+         database_config ++
+           [
+             pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
+             # For machines with several cores, consider starting multiple pools of `pool_size`
+             # pool_count: 4,
+           ]
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
