@@ -49,12 +49,16 @@ defmodule SiwaServer.Siwa.NonceStore do
 
   def consume_wallet(record) do
     query = """
-    DELETE FROM siwa_nonces
-    WHERE principal_kind = 'wallet' AND nonce_key = $1 AND nonce = $2
-      AND address = $3 AND chain_id = $4 AND audience = $5 AND canonical_message = $6
-      AND issued_at = $7 AND expiration_time = $8
-      AND expiration_time > (clock_timestamp() AT TIME ZONE 'UTC')
-    RETURNING id
+    WITH consumed AS (
+      DELETE FROM siwa_nonces
+      WHERE principal_kind = 'wallet' AND nonce_key = $1 AND nonce = $2
+        AND address = $3 AND chain_id = $4 AND audience = $5 AND canonical_message = $6
+        AND issued_at = $7 AND expiration_time = $8
+        AND expiration_time > (clock_timestamp() AT TIME ZONE 'UTC')
+      RETURNING id, expiration_time
+    )
+    SELECT id FROM consumed
+    WHERE expiration_time > (clock_timestamp() AT TIME ZONE 'UTC')
     """
 
     case Repo.query(
