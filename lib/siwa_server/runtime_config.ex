@@ -16,6 +16,8 @@ defmodule SiwaServer.RuntimeConfig do
     end
   end
 
+  def siwa_wallet_origins, do: Keyword.get(Config.siwa(), :wallet_origins, %{})
+
   def siwa_nonce_ttl_seconds, do: fetch_siwa_integer(:nonce_ttl_seconds, 300)
 
   def siwa_receipt_ttl_seconds, do: fetch_siwa_integer(:receipt_ttl_seconds, 3_600)

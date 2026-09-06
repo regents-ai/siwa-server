@@ -110,7 +110,29 @@ end
 
 config :siwa_server, SiwaServerWeb.Endpoint, http: [port: port]
 
+wallet_origins =
+  case System.get_env("SIWA_WALLET_PATCHBAY_ORIGIN") do
+    value when value in [nil, ""] ->
+      %{}
+
+    origin ->
+      uri =
+        case URI.new(origin) do
+          {:ok, uri} -> uri
+          _ -> raise "SIWA_WALLET_PATCHBAY_ORIGIN must be a valid HTTPS origin"
+        end
+
+      unless uri.scheme == "https" and is_binary(uri.host) and uri.host != "" and
+               uri.path in [nil, "/"] and is_nil(uri.userinfo) and is_nil(uri.query) and
+               is_nil(uri.fragment) and uri.port == 443 do
+        raise "SIWA_WALLET_PATCHBAY_ORIGIN must be an HTTPS origin without credentials, path or query"
+      end
+
+      %{"patchbay" => String.trim_trailing(origin, "/")}
+  end
+
 config :siwa_server, :siwa,
+  wallet_origins: wallet_origins,
   nonce_ttl_seconds:
     env_integer.("SIWA_NONCE_TTL_SECONDS", Keyword.get(current_siwa, :nonce_ttl_seconds, 300)),
   receipt_ttl_seconds:

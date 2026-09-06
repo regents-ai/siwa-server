@@ -22,6 +22,10 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     {"POST", "/api/shared/siwa/nonce"} => MapSet.new(~w(200 400 413 415 429)),
     {"POST", "/api/shared/siwa/verify"} => MapSet.new(~w(200 400 401 404 413 415 429 500 502)),
     {"POST", "/api/shared/siwa/http-verify"} => MapSet.new(~w(200 400 401 409 413 415 429 500)),
+    {"POST", "/api/shared/siwa/wallet/nonce"} =>
+      MapSet.new(~w(200 400 401 403 404 413 415 429 500)),
+    {"POST", "/api/shared/siwa/wallet/verify"} =>
+      MapSet.new(~w(200 400 401 403 404 413 415 429 500)),
     @keyring_health_route => MapSet.new(~w(200 429)),
     {"POST", "/api/shared/keyring/create-wallet"} => MapSet.new(~w(200 401 413 415 422 429)),
     {"POST", "/api/shared/keyring/has-wallet"} => MapSet.new(~w(200 401 413 415 422 429)),

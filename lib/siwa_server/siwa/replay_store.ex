@@ -20,10 +20,15 @@ defmodule SiwaServer.Siwa.ReplayStore do
 
     case Repo.query(
            """
-           INSERT INTO siwa_request_replays (id, replay_key, expires_at, inserted_at, updated_at)
-           VALUES ($1, $2, $3, $4, $4)
-           ON CONFLICT (replay_key) DO NOTHING
-           RETURNING id
+           WITH consumed AS (
+             INSERT INTO siwa_request_replays (id, replay_key, expires_at, inserted_at, updated_at)
+             SELECT $1, $2, $3, $4, $4
+             WHERE $3::timestamp > (clock_timestamp() AT TIME ZONE 'UTC')
+             ON CONFLICT (replay_key) DO NOTHING
+             RETURNING id, expires_at
+           )
+           SELECT id FROM consumed
+           WHERE expires_at > (clock_timestamp() AT TIME ZONE 'UTC')
            """,
            [Ecto.UUID.generate() |> Ecto.UUID.dump!(), replay_key, expires_at, now]
          ) do

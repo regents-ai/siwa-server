@@ -8,7 +8,7 @@ defmodule Mix.Tasks.SiwaServer.ReleasePackagingCheck do
   def run(_args) do
     dockerfile = File.read!(@dockerfile)
     repo_root = File.cwd!()
-    build_context = Path.dirname(repo_root)
+    build_context = System.get_env("REGENT_RELEASE_CONTEXT") || Path.dirname(repo_root)
     local_path_deps = local_production_path_deps(repo_root)
 
     missing =

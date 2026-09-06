@@ -193,3 +193,32 @@ The launch and maintenance checklist is in `docs/regent-local-and-fly-launch-tes
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Wallet authors
+
+The optional EOA flow uses `POST /api/shared/siwa/wallet/nonce` and
+`POST /api/shared/siwa/wallet/verify`. Sign the exact ERC-4361 message returned by
+the nonce endpoint. Base (`8453`) is the only supported chain. Contract-wallet
+ERC-1271/6492 signatures are not supported. No private key is sent to this service.
+
+`SIWA_WALLET_PATCHBAY_ORIGIN=https://patchbay.help` enables the `patchbay` audience;
+leaving it empty disables this flow. Set the actual approved HTTPS origin at release.
+The server binds the origin, audience, address, chain and expiry in the challenge.
+An origin change invalidates outstanding challenges. Rate limits use the existing
+nonce/verification buckets. This option does not grant product permissions.
+
+Wallet receipts have type `siwa_wallet_receipt` and proof `wallet_signature`.
+HTTP verification returns an explicit `principal` of kind `wallet`, with no
+`agent_claims`. Product consumers must explicitly support this principal and check
+product ownership. Payment, human identity and registered-agent ownership remain
+separate. Existing registered-agent routes do not accept omitted registry fields.
+
+The nonce migration preserves existing agent rows and enforces disjoint wallet/agent
+constraints. Its rollback refuses to discard remaining wallet challenges. Both nonce
+consumption and request replay use database-clock expiration checks; invalid proof
+cannot consume a valid challenge.
+
+For an isolated checkout, set `REGENT_SIWA_ROOT` to a frozen `siwa/siwa-elixir`
+export. `REGENT_RELEASE_CONTEXT` identifies the matching Docker input directory
+containing `elixir-utils/`; the packaging check validates actual dependency paths
+against that context. A passing packaging check is not a built or deployed image.

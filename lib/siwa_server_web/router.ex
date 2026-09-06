@@ -35,11 +35,13 @@ defmodule SiwaServerWeb.Router do
   scope "/api/shared/siwa", SiwaServerWeb do
     pipe_through :siwa_nonce
     post "/nonce", AgentSiwaController, :nonce
+    post "/wallet/nonce", WalletSiwaController, :nonce
   end
 
   scope "/api/shared/siwa", SiwaServerWeb do
     pipe_through :siwa_verify
     post "/verify", AgentSiwaController, :verify
+    post "/wallet/verify", WalletSiwaController, :verify
   end
 
   scope "/api/shared/siwa", SiwaServerWeb do

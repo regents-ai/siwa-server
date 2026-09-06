@@ -603,6 +603,8 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/api/shared/identity/siwa/verify",
                "/api/shared/siwa/nonce",
                "/api/shared/siwa/verify",
+               "/api/shared/siwa/wallet/nonce",
+               "/api/shared/siwa/wallet/verify",
                "/api/shared/siwa/http-verify",
                "/api/shared/keyring/health",
                "/api/shared/keyring/create-wallet",

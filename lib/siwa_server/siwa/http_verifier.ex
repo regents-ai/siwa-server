@@ -34,26 +34,29 @@ defmodule SiwaServer.Siwa.HttpVerifier do
              %{method: method, path: path, headers: headers, body: body},
              receipt_secret: secret,
              audience: Keyword.get(opts, :audience),
+             wallet_audiences: Map.keys(RuntimeConfig.siwa_wallet_origins()),
              signature_tolerance_seconds: RuntimeConfig.siwa_http_signature_tolerance_seconds(),
              replay_store: &ReplayStore.consume/2
            ) do
       claims = verified.claims
+      kind = if claims["typ"] == "siwa_wallet_receipt", do: :wallet, else: :agent
 
       {:ok,
        %{
          "code" => "http_envelope_valid",
-         "data" => %{
-           "verified" => true,
-           "walletAddress" => claims["sub"],
-           "chainId" => claims["chain_id"],
-           "keyId" => claims["key_id"],
-           "agent_claims" => verified_agent_claims(claims),
-           "receiptExpiresAt" => unix_ms_to_iso8601(claims["exp"]),
-           "requiredHeaders" => Siwa.required_authenticated_request_headers(body),
-           "requiredCoveredComponents" =>
-             Siwa.required_authenticated_request_components(headers, body),
-           "coveredComponents" => verified.covered_components
-         }
+         "data" =>
+           %{
+             "verified" => true,
+             "walletAddress" => claims["sub"],
+             "chainId" => claims["chain_id"],
+             "keyId" => claims["key_id"],
+             "receiptExpiresAt" => unix_ms_to_iso8601(claims["exp"]),
+             "requiredHeaders" => Siwa.required_authenticated_request_headers(body, kind),
+             "requiredCoveredComponents" =>
+               Siwa.required_authenticated_request_components(headers, body, kind),
+             "coveredComponents" => verified.covered_components
+           }
+           |> Map.merge(principal_data(claims, kind))
        }}
     else
       {:error, {code, message}} -> {:error, {400, code, message}}
@@ -183,8 +186,24 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   defp map_shared_error(:replayed_request),
     do: {409, "request_replayed", "request replay detected"}
 
+  defp map_shared_error(:wallet_principal_not_allowed),
+    do: {401, "wallet_audience_disabled", "wallet principal is not enabled for this audience"}
+
   defp map_shared_error(_reason),
     do: {500, "request_replay_failed", "could not verify replay state"}
+
+  defp principal_data(claims, :agent), do: %{"agent_claims" => verified_agent_claims(claims)}
+
+  defp principal_data(claims, :wallet) do
+    %{
+      "principal" => %{
+        "kind" => "wallet",
+        "wallet_address" => claims["sub"],
+        "chain_id" => claims["chain_id"],
+        "audience" => claims["aud"]
+      }
+    }
+  end
 
   defp verified_agent_claims(receipt_claims) do
     %{

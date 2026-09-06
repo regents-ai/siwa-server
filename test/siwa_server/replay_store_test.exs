@@ -4,7 +4,7 @@ defmodule SiwaServer.Siwa.ReplayStoreTest do
   alias SiwaServer.Siwa.ReplayStore
 
   test "consume no longer cleans expired replay rows on the hot path" do
-    now = ~U[2026-04-22 12:00:00Z]
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
     insert_replay!("expired-replay", DateTime.add(now, -60, :second))
 
     assert :ok =

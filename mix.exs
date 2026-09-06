@@ -53,11 +53,15 @@ defmodule SiwaServer.MixProject do
       {:ex_secp256k1, "~> 0.8.0"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
-      {:siwa, path: "../elixir-utils/siwa/siwa-elixir/apps/siwa", override: true},
-      {:siwa_keyring, path: "../elixir-utils/siwa/siwa-elixir/apps/siwa_keyring"},
+      {:siwa, path: Path.join(siwa_root(), "apps/siwa"), override: true},
+      {:siwa_keyring, path: Path.join(siwa_root(), "apps/siwa_keyring")},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false}
     ]
+  end
+
+  defp siwa_root do
+    System.get_env("REGENT_SIWA_ROOT") || "../elixir-utils/siwa/siwa-elixir"
   end
 
   # Aliases are shortcuts or tasks specific to the current project.

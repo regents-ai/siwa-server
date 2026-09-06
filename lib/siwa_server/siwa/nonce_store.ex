@@ -2,6 +2,8 @@ defmodule SiwaServer.Siwa.NonceStore do
   @moduledoc false
   @behaviour Siwa.NonceStore
 
+  import Ecto.Query
+
   alias SiwaServer.Repo
   alias SiwaServer.Siwa.NonceRecord
   @default_cleanup_limit 1_000
@@ -24,6 +26,53 @@ defmodule SiwaServer.Siwa.NonceStore do
     |> Repo.insert()
     |> case do
       {:ok, _record} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def put_wallet(attrs) do
+    %NonceRecord{}
+    |> NonceRecord.changeset(Map.put(attrs, :principal_kind, "wallet"))
+    |> Repo.insert(log: false)
+  end
+
+  def get_wallet(key, nonce) do
+    query =
+      from n in NonceRecord,
+        where: n.principal_kind == "wallet" and n.nonce_key == ^key and n.nonce == ^nonce
+
+    case Repo.one(query, log: false) do
+      nil -> {:error, :unknown_nonce}
+      record -> {:ok, record}
+    end
+  end
+
+  def consume_wallet(record) do
+    query = """
+    DELETE FROM siwa_nonces
+    WHERE principal_kind = 'wallet' AND nonce_key = $1 AND nonce = $2
+      AND address = $3 AND chain_id = $4 AND audience = $5 AND canonical_message = $6
+      AND issued_at = $7 AND expiration_time = $8
+      AND expiration_time > (clock_timestamp() AT TIME ZONE 'UTC')
+    RETURNING id
+    """
+
+    case Repo.query(
+           query,
+           [
+             record.nonce_key,
+             record.nonce,
+             record.address,
+             record.chain_id,
+             record.audience,
+             record.canonical_message,
+             record.issued_at,
+             record.expiration_time
+           ],
+           log: false
+         ) do
+      {:ok, %{rows: [[_id]]}} -> :ok
+      {:ok, %{rows: []}} -> {:error, :unknown_nonce}
       {:error, reason} -> {:error, reason}
     end
   end
@@ -52,7 +101,7 @@ defmodule SiwaServer.Siwa.NonceStore do
   def consume(key, nonce) do
     query = """
     DELETE FROM siwa_nonces
-    WHERE nonce_key = $1 AND nonce = $2
+    WHERE principal_kind = 'agent' AND nonce_key = $1 AND nonce = $2
     RETURNING address, agent_id, agent_registry, audience, issued_at, expiration_time
     """
 
