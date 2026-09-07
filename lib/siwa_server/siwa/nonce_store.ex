@@ -47,6 +47,9 @@ defmodule SiwaServer.Siwa.NonceStore do
     end
   end
 
+  # Fixed SQL text; every value, including both expiry checks around the row-lock
+  # wait, is a bound parameter.
+  # sobelow_skip ["SQL.Query"]
   def consume_wallet(record) do
     query = """
     WITH consumed AS (
@@ -102,6 +105,8 @@ defmodule SiwaServer.Siwa.NonceStore do
   end
 
   @impl Siwa.NonceStore
+  # Fixed SQL text; the key and nonce are bound parameters.
+  # sobelow_skip ["SQL.Query"]
   def consume(key, nonce) do
     query = """
     DELETE FROM siwa_nonces

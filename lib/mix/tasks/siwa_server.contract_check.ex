@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.SiwaServer.ContractCheck do
+  @moduledoc "Checks that the shared-services contract describes the SIWA routes this server serves."
+
   use Mix.Task
 
   @shortdoc "Checks SIWA routes and responses in the shared-services contract"
@@ -149,24 +151,17 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
         {path, method, true, response_codes}
 
       in_responses? ->
-        response_codes =
-          case response_code_from_line(line) do
-            nil ->
-              response_codes
-
-            code ->
-              Map.update(
-                response_codes,
-                {method, path},
-                MapSet.new([code]),
-                &MapSet.put(&1, code)
-              )
-          end
-
-        {path, method, true, response_codes}
+        {path, method, true, add_response_code(response_codes, {method, path}, line)}
 
       true ->
         {path, method, in_responses?, response_codes}
+    end
+  end
+
+  defp add_response_code(response_codes, route, line) do
+    case response_code_from_line(line) do
+      nil -> response_codes
+      code -> Map.update(response_codes, route, MapSet.new([code]), &MapSet.put(&1, code))
     end
   end
 

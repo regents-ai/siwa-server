@@ -3,8 +3,8 @@ defmodule SiwaServer.SharedIdentity do
 
   import Ecto.Query
 
-  alias SiwaServer.SharedIdentity.{IdentityRecord, RegistrationIntent, SiwaNonce}
   alias SiwaServer.{Ethereum, Repo, RuntimeConfig, Text}
+  alias SiwaServer.SharedIdentity.{IdentityRecord, RegistrationIntent, SiwaNonce}
 
   @provider "coinbase-cdp"
   @networks %{"base" => 8453, "base-sepolia" => 84_532}
@@ -569,6 +569,9 @@ defmodule SiwaServer.SharedIdentity do
     end
   end
 
+  # The table and column names are atoms fixed by the two internal callers above
+  # (`cleanup_expired/2`); the timestamp and limit stay bound parameters.
+  # sobelow_skip ["SQL.Query"]
   defp cleanup_table(table, column, now, limit) do
     table = Atom.to_string(table)
     column = Atom.to_string(column)

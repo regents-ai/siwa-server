@@ -1,10 +1,10 @@
 defmodule SiwaServer.Readiness do
   @moduledoc false
 
+  alias Siwa.Ethereum
   alias SiwaServer.Config
   alias SiwaServer.Repo
   alias SiwaServer.RuntimeConfig
-  alias Siwa.Ethereum
 
   @base_chain_id_hex "0x2105"
   @supported_keyring_backend "encrypted_file"
@@ -87,6 +87,9 @@ defmodule SiwaServer.Readiness do
     end
   end
 
+  # The parent is the operator-configured keystore directory and the probe name is
+  # generated here; no caller-supplied path reaches File.write or File.rm.
+  # sobelow_skip ["Traversal.FileModule"]
   defp keystore_write_check(parent) do
     probe = Path.join(parent, ".siwa-readyz-#{System.unique_integer([:positive])}")
 
@@ -120,28 +123,32 @@ defmodule SiwaServer.Readiness do
         {:error, "BASE_RPC_URL is not configured"}
 
       url ->
-        case Ethereum.json_rpc(url, "eth_chainId", [],
-               timeout_ms: Config.readiness_rpc_timeout_ms(),
-               finch: SiwaServer.Finch
-             ) do
-          {:ok, chain_id} when is_binary(chain_id) ->
-            if String.downcase(chain_id) == @base_chain_id_hex do
-              :ok
-            else
-              {:error, "base rpc returned chain id #{chain_id}, expected #{@base_chain_id_hex}"}
-            end
-
-          {:ok, other} ->
-            {:error, "base rpc returned an invalid chain id: #{inspect(other)}"}
-
-          {:error, reason} ->
-            {:error, "base rpc chain id probe failed: #{inspect(reason)}"}
-        end
+        base_chain_id_probe(url)
     end
   rescue
     # Finch raises when the SiwaServer.Finch pool is not running.
     error in ArgumentError ->
       {:error, "base rpc chain id probe failed: #{Exception.message(error)}"}
+  end
+
+  defp base_chain_id_probe(url) do
+    case Ethereum.json_rpc(url, "eth_chainId", [],
+           timeout_ms: Config.readiness_rpc_timeout_ms(),
+           finch: SiwaServer.Finch
+         ) do
+      {:ok, chain_id} when is_binary(chain_id) ->
+        if String.downcase(chain_id) == @base_chain_id_hex do
+          :ok
+        else
+          {:error, "base rpc returned chain id #{chain_id}, expected #{@base_chain_id_hex}"}
+        end
+
+      {:ok, other} ->
+        {:error, "base rpc returned an invalid chain id: #{inspect(other)}"}
+
+      {:error, reason} ->
+        {:error, "base rpc chain id probe failed: #{inspect(reason)}"}
+    end
   end
 
   defp secret_check(value, missing_reason) do

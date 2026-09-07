@@ -29,6 +29,8 @@ defmodule SiwaServerWeb.DiscoveryController do
     )
   end
 
+  # The path is a fixed application asset; nothing from the request reaches File.read!.
+  # sobelow_skip ["Traversal.FileModule"]
   def services_contract(conn, _params) do
     path =
       Application.app_dir(:siwa_server, "priv/static/regent-services-contract.openapiv3.yaml")

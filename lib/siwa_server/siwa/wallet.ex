@@ -26,23 +26,25 @@ defmodule SiwaServer.Siwa.Wallet do
         canonical_message: message
       }
 
-      with {:ok, _record} <- NonceStore.put_wallet(attrs) do
-        {:ok,
-         %{
-           "code" => "nonce_issued",
-           "data" => %{
-             "principalType" => "wallet",
-             "walletAddress" => fields["wallet_address"],
-             "chainId" => fields["chain_id"],
-             "audience" => fields["audience"],
-             "nonce" => nonce,
-             "message" => message,
-             "issuedAt" => DateTime.to_iso8601(now),
-             "expiresAt" => DateTime.to_iso8601(expires)
-           }
-         }}
-      else
-        _ -> unavailable()
+      case NonceStore.put_wallet(attrs) do
+        {:ok, _record} ->
+          {:ok,
+           %{
+             "code" => "nonce_issued",
+             "data" => %{
+               "principalType" => "wallet",
+               "walletAddress" => fields["wallet_address"],
+               "chainId" => fields["chain_id"],
+               "audience" => fields["audience"],
+               "nonce" => nonce,
+               "message" => message,
+               "issuedAt" => DateTime.to_iso8601(now),
+               "expiresAt" => DateTime.to_iso8601(expires)
+             }
+           }}
+
+        _ ->
+          unavailable()
       end
     end
   rescue

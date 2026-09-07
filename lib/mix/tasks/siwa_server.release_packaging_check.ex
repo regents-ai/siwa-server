@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.SiwaServer.ReleasePackagingCheck do
+  @moduledoc "Checks that the release Dockerfile copies every local production path dependency."
+
   use Mix.Task
 
   @shortdoc "Checks release packaging covers local production dependencies"
