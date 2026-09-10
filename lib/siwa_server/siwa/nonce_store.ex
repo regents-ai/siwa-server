@@ -51,6 +51,10 @@ defmodule SiwaServer.Siwa.NonceStore do
   # wait, is a bound parameter.
   # sobelow_skip ["SQL.Query"]
   def consume_wallet(record) do
+    # The outer SELECT re-checks `expiration_time` after the DELETE has waited
+    # on any row lock: a nonce that expires while a contender is blocked on the
+    # lock is never consumed successfully. The DELETE's own WHERE alone is not
+    # re-evaluated after the wait when the row was locked but not modified.
     query = """
     WITH consumed AS (
       DELETE FROM siwa_nonces

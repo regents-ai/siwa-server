@@ -132,6 +132,12 @@ wallet_origins =
   end
 
 config :siwa_server, :siwa,
+  domain: env_value.("SIWA_DOMAIN", Keyword.get(current_siwa, :domain, "regent.cx")),
+  verify_uri:
+    env_value.(
+      "SIWA_VERIFY_URI",
+      Keyword.get(current_siwa, :verify_uri, "https://regent.cx/api/shared/siwa/verify")
+    ),
   wallet_origins: wallet_origins,
   nonce_ttl_seconds:
     env_integer.("SIWA_NONCE_TTL_SECONDS", Keyword.get(current_siwa, :nonce_ttl_seconds, 300)),

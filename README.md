@@ -136,6 +136,8 @@ must fail closed. The SIWA library and the service tests cover these cases.
 | `POOL_SIZE` | `10` | Database connection pool size. |
 | `ECTO_IPV6` | unset | `true` connects to PostgreSQL over IPv6. |
 | `DNS_CLUSTER_QUERY` | unset | DNS query used for clustering. |
+| `SIWA_DOMAIN` | `regent.cx` | Domain expected in the canonical SIWA sign-in message. |
+| `SIWA_VERIFY_URI` | `https://regent.cx/api/shared/siwa/verify` | URI expected in the canonical SIWA sign-in message. |
 | `SIWA_NONCE_TTL_SECONDS` | `300` | How long an issued nonce stays valid. |
 | `SIWA_RECEIPT_TTL_SECONDS` | `3600` | How long a receipt stays valid. |
 | `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS` | `300` | Clock skew allowed on a signed HTTP request. |

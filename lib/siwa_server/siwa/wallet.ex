@@ -56,7 +56,7 @@ defmodule SiwaServer.Siwa.Wallet do
          {:ok, secret} <- RuntimeConfig.siwa_receipt_secret(),
          {:ok, record} <- NonceStore.get_wallet(nonce_key(fields), fields["nonce"]),
          :ok <- validate_challenge(fields, origin, record),
-         :ok <- Ethereum.verify_signature(record.address, fields["message"], fields["signature"]),
+         :ok <- verify_signature(record, fields),
          :ok <- NonceStore.consume_wallet(record),
          {:ok, receipt} <-
            Siwa.create_receipt(
@@ -96,14 +96,18 @@ defmodule SiwaServer.Siwa.Wallet do
       {:error, :unknown_nonce} ->
         {:error, {404, "nonce_not_found", "challenge absent, expired or consumed"}}
 
-      {:error, reason} when is_binary(reason) ->
-        {:error, {401, "signature_invalid", "signature does not match wallet"}}
-
       _ ->
         unavailable()
     end
   rescue
     _error in [Postgrex.Error, DBConnection.ConnectionError] -> unavailable()
+  end
+
+  defp verify_signature(record, fields) do
+    case Ethereum.verify_signature(record.address, fields["message"], fields["signature"]) do
+      :ok -> :ok
+      {:error, _reason} -> {:error, {401, "signature_invalid", "signature does not match wallet"}}
+    end
   end
 
   defp validate(params, allowed) when is_map(params) do

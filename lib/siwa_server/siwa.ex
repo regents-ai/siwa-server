@@ -29,6 +29,13 @@ defmodule SiwaServer.Siwa do
   @positive_int_regex ~r/^[1-9][0-9]*$/
   @base_chain_id 8453
 
+  @doc """
+  Issues a single-use SIWA nonce bound to the given agent claims.
+
+  Returns `{:ok, payload}` with the `nonce_issued` response body, or
+  `{:error, {status, code, message}}` for the canonical error envelope.
+  """
+  @spec issue_nonce(map()) :: {:ok, map()} | {:error, {pos_integer(), String.t(), String.t()}}
   def issue_nonce(params) when is_map(params) do
     with {:ok, wallet_address} <- required_address(params, "wallet_address"),
          {:ok, chain_id} <- required_base_chain_id(params, "chain_id"),
@@ -67,6 +74,14 @@ defmodule SiwaServer.Siwa do
     end
   end
 
+  @doc """
+  Verifies a signed SIWA challenge and issues a signed receipt.
+
+  Validates the canonical message and wallet signature, consumes the nonce
+  (single use), confirms on-chain ownership of the claimed agent identity,
+  and returns `{:ok, payload}` with the `siwa_verified` response body.
+  """
+  @spec verify_session(map()) :: {:ok, map()} | {:error, {pos_integer(), String.t(), String.t()}}
   def verify_session(params) when is_map(params) do
     with {:ok, wallet_address} <- required_address(params, "wallet_address"),
          {:ok, chain_id} <- required_base_chain_id(params, "chain_id"),
@@ -76,33 +91,32 @@ defmodule SiwaServer.Siwa do
          {:ok, nonce} <- required_string(params, "nonce"),
          {:ok, message} <- required_string(params, "message"),
          {:ok, signature} <- required_string(params, "signature"),
+         agent_registry = agent_registry_string(chain_id, registry_address),
          :ok <-
            Message.validate(
              message,
              wallet_address,
              chain_id,
-             registry_address,
+             agent_registry,
              token_id,
              audience,
              nonce
            ),
          :ok <- verify_wallet_signature(wallet_address, message, signature),
-         {:ok, nonce_record} <-
-           consume_nonce(wallet_address, chain_id, registry_address, token_id, audience, nonce),
+         :ok <- consume_nonce(wallet_address, agent_registry, token_id, audience, nonce),
          :ok <- ensure_wallet_owns_agent(wallet_address, chain_id, registry_address, token_id),
          {:ok, receipt, receipt_expires_at} <-
            issue_receipt(%{
              "typ" => "siwa_receipt",
              "jti" => Ecto.UUID.generate(),
              "sub" => wallet_address,
-             "agent_id" =>
-               agent_id(chain_id, nonce_record.registry_address, nonce_record.token_id),
-             "aud" => nonce_record.audience,
+             "agent_id" => agent_id(chain_id, registry_address, token_id),
+             "aud" => audience,
              "chain_id" => chain_id,
              "nonce" => nonce,
              "key_id" => wallet_address,
-             "registry_address" => nonce_record.registry_address,
-             "token_id" => nonce_record.token_id
+             "registry_address" => registry_address,
+             "token_id" => token_id
            }) do
       issued_at = DateTime.utc_now() |> DateTime.truncate(:second)
 
@@ -113,10 +127,10 @@ defmodule SiwaServer.Siwa do
            "verified" => true,
            "walletAddress" => wallet_address,
            "chainId" => chain_id,
-           "registryAddress" => nonce_record.registry_address,
-           "tokenId" => nonce_record.token_id,
-           "agentId" => agent_id(chain_id, nonce_record.registry_address, nonce_record.token_id),
-           "audience" => nonce_record.audience,
+           "registryAddress" => registry_address,
+           "tokenId" => token_id,
+           "agentId" => agent_id(chain_id, registry_address, token_id),
+           "audience" => audience,
            "nonce" => nonce,
            "keyId" => wallet_address,
            "signatureScheme" => "evm_personal_sign",
@@ -131,8 +145,14 @@ defmodule SiwaServer.Siwa do
     end
   end
 
+  @doc """
+  Verifies a signed HTTP request envelope against a previously issued receipt.
+
+  See `SiwaServer.Siwa.HttpVerifier` for the checks performed.
+  """
   defdelegate verify_http_request(params, opts \\ []), to: HttpVerifier, as: :verify
 
+  @doc "Returns the `content-digest` header value for a request body."
   defdelegate content_digest_for_body(body), to: Siwa.RequestAuth
 
   defp verify_wallet_signature(wallet_address, message, signature) do
@@ -145,28 +165,20 @@ defmodule SiwaServer.Siwa do
     end
   end
 
-  defp consume_nonce(wallet_address, chain_id, registry_address, token_id, audience, nonce) do
+  defp consume_nonce(wallet_address, agent_registry, token_id, audience, nonce) do
     case Siwa.verify_nonce(
            %{
              address: wallet_address,
              agent_id: token_id,
-             agent_registry: agent_registry_string(chain_id, registry_address),
+             agent_registry: agent_registry,
              audience: audience,
              nonce: nonce
            },
            store: NonceStore,
            now: DateTime.utc_now()
          ) do
-      {:ok, record} ->
-        {:ok,
-         %{
-           audience: record.audience,
-           registry_address: registry_address,
-           token_id: token_id
-         }}
-
-      {:error, reason} ->
-        {:error, map_nonce_error(reason)}
+      {:ok, _record} -> :ok
+      {:error, reason} -> {:error, map_nonce_error(reason)}
     end
   end
 

@@ -1,10 +1,8 @@
 defmodule SiwaServer.Siwa.Message do
   @moduledoc false
 
+  alias SiwaServer.RuntimeConfig
   alias SiwaServer.Siwa.Error
-
-  @domain "regent.cx"
-  @verify_uri "https://regent.cx/api/shared/siwa/verify"
 
   @spec validate(
           String.t(),
@@ -16,13 +14,13 @@ defmodule SiwaServer.Siwa.Message do
           String.t()
         ) ::
           :ok | {:error, {401, String.t(), String.t()}}
-  def validate(message, wallet_address, chain_id, registry_address, token_id, audience, nonce) do
+  def validate(message, wallet_address, chain_id, agent_registry, token_id, audience, nonce) do
     expected = %{
-      domain: @domain,
+      domain: RuntimeConfig.siwa_domain(),
       address: wallet_address,
-      uri: @verify_uri,
+      uri: RuntimeConfig.siwa_verify_uri(),
       agent_id: String.to_integer(token_id),
-      agent_registry: agent_registry_string(chain_id, registry_address),
+      agent_registry: agent_registry,
       chain_id: chain_id,
       nonce: nonce,
       statement: audience_statement(audience)
@@ -48,7 +46,4 @@ defmodule SiwaServer.Siwa.Message do
   end
 
   defp audience_statement(audience), do: "Sign in to #{audience}."
-
-  defp agent_registry_string(chain_id, registry_address),
-    do: "eip155:#{chain_id}:#{registry_address}"
 end

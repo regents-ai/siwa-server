@@ -14,6 +14,7 @@ defmodule SiwaServer.Readiness do
       database: database_check(),
       endpoint_secret: endpoint_secret_check(),
       receipt_secret: receipt_secret_check(),
+      siwa_ttls: siwa_ttl_check(),
       keyring_backend: keyring_backend_check(),
       keyring_password: keyring_secret_check(:password),
       keyring_secret: keyring_secret_check(:secret),
@@ -48,6 +49,17 @@ defmodule SiwaServer.Readiness do
     Config.siwa()
     |> Keyword.get(:receipt_secret)
     |> secret_check("SIWA receipt secret is not configured")
+  end
+
+  # TTL and tolerance readers raise ArgumentError on misconfiguration; surfacing
+  # it here keeps a bad value from becoming a per-request 500 after deploy.
+  defp siwa_ttl_check do
+    _nonce_ttl = RuntimeConfig.siwa_nonce_ttl_seconds()
+    _receipt_ttl = RuntimeConfig.siwa_receipt_ttl_seconds()
+    _tolerance = RuntimeConfig.siwa_http_signature_tolerance_seconds()
+    :ok
+  rescue
+    error in ArgumentError -> {:error, Exception.message(error)}
   end
 
   defp keyring_backend_check do

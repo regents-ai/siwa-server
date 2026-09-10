@@ -1,163 +1,71 @@
 defmodule SiwaServerWeb.AgentSiwaRequest do
   @moduledoc false
 
-  defmodule Nonce do
-    use Ecto.Schema
+  import Ecto.Changeset
 
-    @primary_key false
-    embedded_schema do
-      field :wallet_address, :string
-      field :chain_id, :integer
-      field :registry_address, :string
-      field :token_id, :string
-      field :audience, :string
-    end
-  end
+  alias SiwaServerWeb.AgentSiwaRequest.{HttpVerify, Nonce, Verify}
 
-  defmodule Verify do
-    use Ecto.Schema
+  @type error :: {:error, {400, String.t(), String.t()}}
 
-    @primary_key false
-    embedded_schema do
-      field :wallet_address, :string
-      field :chain_id, :integer
-      field :registry_address, :string
-      field :token_id, :string
-      field :audience, :string
-      field :nonce, :string
-      field :message, :string
-      field :signature, :string
-    end
-  end
+  @spec cast_nonce(map()) :: {:ok, Nonce.t()} | error()
+  def cast_nonce(params), do: cast(params, Nonce)
 
-  defmodule HttpVerify do
-    use Ecto.Schema
+  @spec cast_verify(map()) :: {:ok, Verify.t()} | error()
+  def cast_verify(params), do: cast(params, Verify)
 
-    @primary_key false
-    embedded_schema do
-      field :method, :string
-      field :path, :string
-      field :headers, :map
-      field :body, :string
-    end
-  end
+  @spec cast_http_verify(map()) :: {:ok, HttpVerify.t()} | error()
+  def cast_http_verify(params), do: cast(params, HttpVerify)
 
-  @nonce_fields ~w(wallet_address chain_id registry_address token_id audience)
-  @verify_fields ~w(wallet_address chain_id registry_address token_id audience nonce message signature)
-  @http_verify_fields ~w(method path headers body)
-  @base_chain_id 8453
-
-  def cast_nonce(params), do: cast(params, Nonce, @nonce_fields, @nonce_fields)
-  def cast_verify(params), do: cast(params, Verify, @verify_fields, @verify_fields)
-
-  def cast_http_verify(params),
-    do: cast(params, HttpVerify, @http_verify_fields, @http_verify_fields -- ["body"])
-
-  def to_params(%Nonce{} = request) do
-    %{
-      "wallet_address" => request.wallet_address,
-      "chain_id" => request.chain_id,
-      "registry_address" => request.registry_address,
-      "token_id" => request.token_id,
-      "audience" => request.audience
-    }
-  end
-
-  def to_params(%Verify{} = request) do
+  @spec to_params(Nonce.t() | Verify.t() | HttpVerify.t()) :: %{String.t() => term()}
+  def to_params(%_{} = request) do
     request
     |> Map.from_struct()
     |> Map.new(fn {key, value} -> {Atom.to_string(key), value} end)
   end
 
-  def to_params(%HttpVerify{} = request) do
-    %{
-      "method" => request.method,
-      "path" => request.path,
-      "headers" => request.headers,
-      "body" => request.body
-    }
+  # Request schemas use this to reject blank-but-present strings exactly as the
+  # contract requires; `cast/3` only guarantees the field is a binary.
+  def validate_nonblank(changeset, fields) do
+    Enum.reduce(fields, changeset, &apply_nonblank(&2, &1))
   end
 
-  defp cast(params, module, allowed_fields, required_fields) when is_map(params) do
-    with :ok <- ensure_no_extra_fields(params, allowed_fields),
-         {:ok, values} <- cast_fields(params, allowed_fields, required_fields) do
-      {:ok, struct(module, values)}
+  defp apply_nonblank(changeset, field) do
+    validate_change(changeset, field, fn _field, value -> nonblank_error(field, value) end)
+  end
+
+  defp nonblank_error(field, value) do
+    if is_binary(value) and String.trim(value) != "",
+      do: [],
+      else: [{field, "can't be blank"}]
+  end
+
+  # `:integer` fields accept numeric strings through `cast/3`; the contract
+  # requires a JSON integer, so check the raw params before coercion.
+  def ensure_integer_param(changeset, params, field) do
+    case Map.get(params, Atom.to_string(field)) do
+      nil -> changeset
+      value when is_integer(value) -> changeset
+      _value -> add_error(changeset, field, "must be an integer")
     end
   end
 
-  defp cast(_params, _module, _allowed_fields, _required_fields), do: invalid_request()
+  defp cast(params, module) when is_map(params) do
+    allowed = module.__schema__(:fields) |> Enum.map(&Atom.to_string/1)
+
+    with :ok <- ensure_no_extra_fields(params, allowed),
+         %Ecto.Changeset{valid?: true} = changeset <- module.changeset(params) do
+      {:ok, apply_changes(changeset)}
+    else
+      _ -> invalid_request()
+    end
+  end
+
+  defp cast(_params, _module), do: invalid_request()
 
   defp ensure_no_extra_fields(params, allowed_fields) do
     extras = params |> Map.keys() |> Enum.reject(&(&1 in allowed_fields))
 
     if extras == [], do: :ok, else: invalid_request()
-  end
-
-  defp cast_fields(params, allowed_fields, required_fields),
-    do: cast_fields(params, allowed_fields, required_fields, %{})
-
-  defp cast_fields(_params, [], _required_fields, values), do: {:ok, values}
-
-  defp cast_fields(params, [field | rest], required_fields, values) do
-    case cast_field(params, field, field in required_fields) do
-      {:ok, :skip} ->
-        cast_fields(params, rest, required_fields, values)
-
-      {:ok, value} ->
-        cast_fields(
-          params,
-          rest,
-          required_fields,
-          Map.put(values, String.to_existing_atom(field), value)
-        )
-
-      {:error, _reason} = error ->
-        error
-    end
-  end
-
-  defp cast_field(params, "chain_id", true) do
-    case Map.get(params, "chain_id") do
-      value when is_integer(value) ->
-        if value == @base_chain_id, do: {:ok, value}, else: invalid_request()
-
-      _value ->
-        invalid_request()
-    end
-  end
-
-  defp cast_field(params, "headers", true) do
-    case Map.get(params, "headers") do
-      headers when is_map(headers) ->
-        cast_headers(headers)
-
-      _value ->
-        invalid_request()
-    end
-  end
-
-  defp cast_field(params, field, true) do
-    case Map.get(params, field) do
-      value when is_binary(value) ->
-        if String.trim(value) == "", do: invalid_request(), else: {:ok, value}
-
-      _value ->
-        invalid_request()
-    end
-  end
-
-  defp cast_field(params, field, false) do
-    case Map.get(params, field) do
-      nil -> {:ok, :skip}
-      value when is_binary(value) -> {:ok, value}
-      _value -> invalid_request()
-    end
-  end
-
-  defp cast_headers(headers) do
-    if Enum.all?(headers, fn {key, value} -> is_binary(key) and is_binary(value) end),
-      do: {:ok, headers},
-      else: invalid_request()
   end
 
   defp invalid_request,

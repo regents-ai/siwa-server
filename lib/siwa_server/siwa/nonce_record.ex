@@ -1,4 +1,6 @@
 defmodule SiwaServer.Siwa.NonceRecord do
+  @moduledoc false
+
   use Ecto.Schema
   import Ecto.Changeset
 
