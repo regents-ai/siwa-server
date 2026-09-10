@@ -17,8 +17,7 @@ defmodule SiwaServerWeb do
   those modules here.
   """
 
-  def static_paths,
-    do: ~w(assets fonts images favicon.ico robots.txt regent-services-contract.openapiv3.yaml)
+  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
 
   def router do
     quote do
