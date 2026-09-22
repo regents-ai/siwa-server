@@ -141,6 +141,7 @@ must fail closed. The SIWA library and the service tests cover these cases.
 | `SIWA_NONCE_TTL_SECONDS` | `300` | How long an issued nonce stays valid. |
 | `SIWA_RECEIPT_TTL_SECONDS` | `3600` | How long a receipt stays valid. |
 | `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS` | `300` | Clock skew allowed on a signed HTTP request. |
+| `SIWA_WALLET_ORIGINS` | unset | Approved `audience=origin` pairs for EOA wallet sign-in, comma separated. Unset disables it. |
 | `SIWA_CLEANUP_ENABLED` | `true` | Whether expired nonce and replay rows are swept. |
 | `SIWA_CLEANUP_INTERVAL_MS` | `60000` | How often that sweep runs. |
 | `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Rows removed per sweep. |
@@ -203,11 +204,18 @@ The optional EOA flow uses `POST /api/shared/siwa/wallet/nonce` and
 the nonce endpoint. Base (`8453`) is the only supported chain. Contract-wallet
 ERC-1271/6492 signatures are not supported. No private key is sent to this service.
 
-`SIWA_WALLET_PATCHBAY_ORIGIN=https://patchbay.help` enables the `patchbay` audience;
-leaving it empty disables this flow. Set the actual approved HTTPS origin at release.
-The server binds the origin, audience, address, chain and expiry in the challenge.
-An origin change invalidates outstanding challenges. Rate limits use the existing
-nonce/verification buckets. This option does not grant product permissions.
+`SIWA_WALLET_ORIGINS` lists the approved audiences and the HTTPS origin each one signs
+in from, as comma-separated `audience=origin` pairs, for example
+`patchbay=https://patchbay.help,keyfleet=https://keyfleet.example`. Leaving it empty
+disables this flow for every audience. Callers never choose an origin; only this table
+does. The server binds the origin, audience, address, chain and expiry in the
+challenge. An origin change invalidates outstanding challenges. Rate limits use the
+existing nonce/verification buckets. This option does not grant product permissions.
+
+The wallet is any secp256k1 key the agent controls. A key generated locally on the
+agent's own machine, holding no funds and registered nowhere, is enough to sign in;
+the address is the agent's identity for the audience. Tested reference clients for
+Python and Node live in the SIWA library repository under `siwa/siwa-elixir/agent/`.
 
 Wallet receipts have type `siwa_wallet_receipt` and proof `wallet_signature`.
 HTTP verification returns an explicit `principal` of kind `wallet`, with no
