@@ -11,7 +11,7 @@ defmodule SiwaServer.TestWallet do
   def address do
     {:ok, <<4, raw::binary-size(64)>>} = ExSecp256k1.create_public_key(@private_key)
 
-    hash = KeccakEx.hash_256(raw)
+    hash = ExKeccak.hash_256(raw)
     "0x" <> Base.encode16(binary_part(hash, byte_size(hash) - 20, 20), case: :lower)
   end
 
@@ -25,6 +25,6 @@ defmodule SiwaServer.TestWallet do
 
   defp personal_hash(message) do
     ("#{@eth_prefix}#{byte_size(message)}" <> message)
-    |> KeccakEx.hash_256()
+    |> ExKeccak.hash_256()
   end
 end

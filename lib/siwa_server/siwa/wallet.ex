@@ -206,7 +206,7 @@ defmodule SiwaServer.Siwa.Wallet do
   end
 
   defp checksum_address("0x" <> hex) do
-    hash = hex |> KeccakEx.hash_256() |> Base.encode16(case: :lower)
+    hash = hex |> ExKeccak.hash_256() |> Base.encode16(case: :lower)
 
     checksum =
       Enum.zip(String.graphemes(hex), String.graphemes(hash))
