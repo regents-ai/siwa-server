@@ -13,7 +13,7 @@ defmodule SiwaServer.Config do
   @default_ethereum_rpc_timeout_ms 5_000
   @default_readiness_rpc_timeout_ms 1_000
 
-  @doc "SIWA settings (`:nonce_ttl_seconds`, `:receipt_ttl_seconds`, `:receipt_secret`)."
+  @doc "SIWA settings (`:nonce_ttl_seconds`, `:receipt_ttl_seconds`, `:receipt_secret`, `:activity_read_token`)."
   def siwa, do: Application.get_env(@app, :siwa, [])
 
   @doc "Nonce/replay cleanup worker settings (`:enabled`, `:interval_ms`, `:batch_size`)."

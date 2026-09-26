@@ -29,7 +29,8 @@ config :siwa_server, SiwaServerWeb.Endpoint,
 config :siwa_server, :siwa,
   nonce_ttl_seconds: 300,
   receipt_ttl_seconds: 3_600,
-  receipt_secret: "siwa-server-test-receipt-secret"
+  receipt_secret: "siwa-server-test-receipt-secret",
+  activity_read_token: "siwa-server-test-activity-read-token"
 
 config :siwa_server, :siwa_cleanup, enabled: false, interval_ms: 60_000, batch_size: 1_000
 

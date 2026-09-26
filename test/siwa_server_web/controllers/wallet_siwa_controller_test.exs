@@ -2,7 +2,7 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
   use SiwaServerWeb.ConnCase, async: false
 
   alias SiwaServer.{Repo, TestWallet}
-  alias SiwaServer.Siwa.{NonceRecord, NonceStore, ReplayStore, Wallet}
+  alias SiwaServer.Siwa.{ActivityStore, NonceRecord, NonceStore, ReplayStore, Wallet}
   import Ecto.Query
 
   setup do
@@ -185,6 +185,15 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     refute Map.has_key?(response["data"], "agent_claims")
     refute "x-agent-token-id" in response["data"]["requiredHeaders"]
     assert http_verify(request, "patchbay") |> json_response(409)
+
+    assert [
+             %{
+               audience: "patchbay",
+               method: "POST",
+               path: "/api/agent/payment-intents",
+               occurred_at: %DateTime{}
+             }
+           ] = ActivityStore.recent(signer.address, DateTime.add(DateTime.utc_now(), -60))
   end
 
   test "nonce database keeps agent and wallet shapes disjoint" do

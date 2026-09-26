@@ -99,6 +99,11 @@ keyring_proxy_secret =
         Keyword.get(current_keyring, :secret, "siwa-dev-keyring-secret")
       )
 
+activity_read_token =
+  if prod?,
+    do: required_env.("SIWA_ACTIVITY_READ_TOKEN"),
+    else: env_value.("SIWA_ACTIVITY_READ_TOKEN", Keyword.get(current_siwa, :activity_read_token))
+
 if prod?, do: required_env.("BASE_RPC_URL")
 
 keystore_backend =
@@ -127,7 +132,8 @@ config :siwa_server, :siwa,
       "SIWA_RECEIPT_TTL_SECONDS",
       Keyword.get(current_siwa, :receipt_ttl_seconds, 3_600)
     ),
-  receipt_secret: receipt_secret
+  receipt_secret: receipt_secret,
+  activity_read_token: activity_read_token
 
 config :siwa_server, :siwa_cleanup,
   enabled:

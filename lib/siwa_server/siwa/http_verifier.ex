@@ -14,12 +14,14 @@ defmodule SiwaServer.Siwa.HttpVerifier do
     * the content-digest binding when a body is present, and
     * single use of the signature via `SiwaServer.Siwa.ReplayStore`.
 
+  Each verified request is then recorded by `SiwaServer.Siwa.ActivityStore`.
+
   Library error reasons are mapped to stable client-facing status/code
   tuples by `map_shared_error/1`.
   """
 
   alias SiwaServer.RuntimeConfig
-  alias SiwaServer.Siwa.ReplayStore
+  alias SiwaServer.Siwa.{ActivityStore, ReplayStore}
   alias SiwaServer.Text
 
   @spec verify(map(), keyword()) :: {:ok, map()} | {:error, {integer(), String.t(), String.t()}}
@@ -37,7 +39,8 @@ defmodule SiwaServer.Siwa.HttpVerifier do
              wallet_audiences: Map.keys(RuntimeConfig.siwa_wallet_origins()),
              signature_tolerance_seconds: RuntimeConfig.siwa_http_signature_tolerance_seconds(),
              replay_store: &ReplayStore.consume/2
-           ) do
+           ),
+         :ok <- record_activity(verified.claims, Keyword.get(opts, :audience), method, path) do
       claims = verified.claims
       kind = if claims["typ"] == "siwa_wallet_receipt", do: :wallet, else: :agent
 
@@ -125,6 +128,13 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   end
 
   defp receipt_secret, do: RuntimeConfig.siwa_receipt_secret()
+
+  defp record_activity(claims, audience, method, path) do
+    case ActivityStore.record(claims["sub"], audience, method, path) do
+      :ok -> :ok
+      {:error, _reason} -> {:error, {500, "activity_record_failed", "could not record request"}}
+    end
+  end
 
   defp map_shared_error(:missing_signed_headers),
     do: {401, "http_headers_missing", "missing required signed agent headers"}

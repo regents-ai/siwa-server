@@ -14,6 +14,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
     siwa_nonce: [limit: 60, window_ms: 60_000],
     siwa_verify: [limit: 60, window_ms: 60_000],
     siwa_http_verify: [limit: 600, window_ms: 60_000],
+    siwa_activity: [limit: 600, window_ms: 60_000],
     keyring_internal: [limit: 600, window_ms: 60_000]
   }
 
@@ -63,6 +64,8 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
     ]
     |> Enum.join(":")
   end
+
+  defp client_key(conn, :siwa_activity), do: "activity:#{client_ip(conn)}"
 
   defp client_key(conn, :keyring_internal) do
     "keyring:#{conn.method}:#{conn.request_path}:#{client_ip(conn)}"

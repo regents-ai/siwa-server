@@ -20,7 +20,8 @@ config :siwa_server, :siwa,
   verify_uri: "https://regent.cx/api/shared/siwa/verify",
   nonce_ttl_seconds: 300,
   receipt_ttl_seconds: 3_600,
-  receipt_secret: nil
+  receipt_secret: nil,
+  activity_read_token: nil
 
 config :siwa_server, :siwa_cleanup,
   enabled: true,

@@ -606,6 +606,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/api/shared/siwa/wallet/nonce",
                "/api/shared/siwa/wallet/verify",
                "/api/shared/siwa/http-verify",
+               "/api/shared/siwa/activity",
                "/api/shared/keyring/health",
                "/api/shared/keyring/create-wallet",
                "/api/shared/keyring/has-wallet",
@@ -624,6 +625,9 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
     assert operation_response_codes(contract, "/api/shared/siwa/http-verify", "post") ==
              MapSet.new(~w(200 400 401 409 413 415 429 500))
+
+    assert operation_response_codes(contract, "/api/shared/siwa/activity", "post") ==
+             MapSet.new(~w(200 400 401 413 415 429))
 
     assert operation_response_codes(contract, "/api/shared/keyring/sign-authorization", "post") ==
              MapSet.new(~w(200 400 401 413 415 422 429))
