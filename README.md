@@ -221,8 +221,9 @@ existing nonce/verification buckets. This option does not grant product permissi
 
 The wallet is any secp256k1 key the agent controls. A key generated locally on the
 agent's own machine, holding no funds and registered nowhere, is enough to sign in;
-the address is the agent's identity for the audience. Tested reference clients for
-Python and Node live in the SIWA library repository under `siwa/siwa-elixir/agent/`.
+the address is the agent's identity for the audience. The agent guide is served at
+https://siwa.regents.sh/skill.md and the Python client at
+https://siwa.regents.sh/agent/siwa_agent.py (Node: `/agent/siwa-agent.mjs`).
 
 Wallet receipts have type `siwa_wallet_receipt` and proof `wallet_signature`.
 HTTP verification returns an explicit `principal` of kind `wallet`, with no
