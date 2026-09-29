@@ -161,8 +161,16 @@ defmodule SiwaServer.Siwa do
       :ok ->
         :ok
 
-      {:error, _reason} ->
+      {:error, :signature_invalid} ->
         Error.error(Error.unauthorized("signature_invalid", "signature does not match wallet"))
+
+      {:error, {:lookup_failed, reason}} ->
+        Error.error(
+          Error.upstream(
+            "signature_lookup_failed",
+            "could not check the wallet signature on Base: #{reason}"
+          )
+        )
     end
   end
 

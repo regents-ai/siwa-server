@@ -1,7 +1,7 @@
 defmodule SiwaServerWeb.WalletSiwaControllerTest do
   use SiwaServerWeb.ConnCase, async: false
 
-  alias SiwaServer.{Repo, TestWallet}
+  alias SiwaServer.{Repo, TestRpcServer, TestWallet}
   alias SiwaServer.Siwa.{ActivityStore, NonceRecord, NonceStore, ReplayStore, Wallet}
   import Ecto.Query
 
@@ -14,11 +14,19 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
       Keyword.put(previous, :wallet_origins, %{"patchbay" => "https://patchbay.help"})
     )
 
-    on_exit(fn -> Application.put_env(:siwa_server, :siwa, previous) end)
-    :ok
+    previous_base_rpc_url = System.get_env("BASE_RPC_URL")
+    System.put_env("BASE_RPC_URL", TestRpcServer.wallet_answers({true, <<>>}))
+
+    on_exit(fn ->
+      Application.put_env(:siwa_server, :siwa, previous)
+
+      if previous_base_rpc_url,
+        do: System.put_env("BASE_RPC_URL", previous_base_rpc_url),
+        else: System.delete_env("BASE_RPC_URL")
+    end)
   end
 
-  test "canonical EOA challenge yields wallet proof without registry or human identity" do
+  test "canonical ordinary-wallet challenge yields wallet proof without registry or human identity" do
     nonce = issue()
     assert nonce["principalType"] == "wallet"
     assert nonce["nonce"] =~ ~r/^[a-f0-9]{32}$/
@@ -75,7 +83,8 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
           Map.put(proof(nonce), "unexpected", true),
           Map.put(proof(nonce), "message", nil),
           Map.put(proof(nonce), "nonce", "bad_nonce"),
-          Map.put(proof(nonce), "signature", "0x1234")
+          Map.put(proof(nonce), "signature", "0x123"),
+          Map.put(proof(nonce), "signature", "0x" <> String.duplicate("ab", 4097))
         ] do
       assert json_post("/api/shared/siwa/wallet/verify", bad) |> json_response(400)
     end
@@ -105,6 +114,47 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
 
     bad = Map.put(proof(nonce), "signature", TestWallet.sign_message("different proof"))
     assert json_post("/api/shared/siwa/wallet/verify", bad) |> json_response(401)
+    assert json_post("/api/shared/siwa/wallet/verify", proof(nonce)) |> json_response(200)
+  end
+
+  test "a smart wallet signs in once Base approves its signature" do
+    smart_wallet = "0x452f678f6e588069d1aef38d3d519567aa1014a4"
+
+    System.put_env(
+      "BASE_RPC_URL",
+      TestRpcServer.wallet_answers({true, TestRpcServer.erc1271_approval()})
+    )
+
+    smart_params = %{params() | "wallet_address" => smart_wallet}
+
+    nonce =
+      json_post("/api/shared/siwa/wallet/nonce", smart_params)
+      |> json_response(200)
+      |> Map.fetch!("data")
+
+    proof =
+      Map.merge(smart_params, %{
+        "nonce" => nonce["nonce"],
+        "message" => nonce["message"],
+        "signature" => "0x" <> String.duplicate("ab", 640)
+      })
+
+    data =
+      json_post("/api/shared/siwa/wallet/verify", proof)
+      |> json_response(200)
+      |> Map.fetch!("data")
+
+    assert data["walletAddress"] == smart_wallet
+  end
+
+  test "a failed signature lookup on Base is a 502 and leaves the challenge usable" do
+    nonce = issue()
+    System.put_env("BASE_RPC_URL", TestRpcServer.rpc_error())
+    smart_signature = Map.put(proof(nonce), "signature", "0x" <> String.duplicate("ab", 224))
+
+    assert %{"error" => %{"code" => "signature_lookup_failed"}} =
+             json_post("/api/shared/siwa/wallet/verify", smart_signature) |> json_response(502)
+
     assert json_post("/api/shared/siwa/wallet/verify", proof(nonce)) |> json_response(200)
   end
 

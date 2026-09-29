@@ -1,14 +1,31 @@
 defmodule SiwaServer.TestRpcServer do
   @moduledoc false
 
+  @multicall3 "0xca11bde05977b3631167028862be2a173976ca11"
+
+  # Base where `owner_address` owns the agent and no smart wallet answers a
+  # signature check.
   def owner_of(owner_address) do
     start(fn request ->
       result =
-        if request =~ "eth_chainId" do
-          chain_id_hex(8453)
-        else
-          "0x000000000000000000000000" <> String.trim_leading(owner_address, "0x")
+        cond do
+          request =~ "eth_chainId" -> chain_id_hex(8453)
+          request =~ @multicall3 -> aggregate3_result({true, <<>>})
+          true -> "0x000000000000000000000000" <> String.trim_leading(owner_address, "0x")
         end
+
+      %{"id" => 1, "jsonrpc" => "2.0", "result" => result}
+    end)
+  end
+
+  # Base where the smart wallet `owner_address` owns the agent and approves
+  # every signature check.
+  def smart_wallet_owner_of(owner_address) do
+    start(fn request ->
+      result =
+        if request =~ @multicall3,
+          do: aggregate3_result({true, erc1271_approval()}),
+          else: "0x000000000000000000000000" <> String.trim_leading(owner_address, "0x")
 
       %{"id" => 1, "jsonrpc" => "2.0", "result" => result}
     end)
@@ -23,6 +40,35 @@ defmodule SiwaServer.TestRpcServer do
       %{"id" => 1, "jsonrpc" => "2.0", "error" => %{"code" => -32_000, "message" => message}}
     end)
   end
+
+  @doc """
+  Base answering a smart-wallet signature check: the Multicall3 read returns
+  `answer`, a `{success, returned_bytes}` pair, as the wallet's
+  `isValidSignature` result. Each request's JSON body
+  is sent to `listener` as `{:rpc_request, body}` when one is given.
+  """
+  def wallet_answers(answer, listener \\ nil) do
+    start(fn request ->
+      [_head, body] = String.split(request, "\r\n\r\n", parts: 2)
+      if listener, do: send(listener, {:rpc_request, Jason.decode!(body)})
+
+      %{"id" => 1, "jsonrpc" => "2.0", "result" => aggregate3_result(answer)}
+    end)
+  end
+
+  # Multicall3's `(bool, bytes)[]` holding one result.
+  defp aggregate3_result({success, returned}) do
+    padding = :binary.copy(<<0>>, rem(32 - rem(byte_size(returned), 32), 32))
+
+    encoded =
+      <<32::256, 1::256, 32::256, if(success, do: 1, else: 0)::256, 64::256,
+        byte_size(returned)::256>> <> returned <> padding
+
+    "0x" <> Base.encode16(encoded, case: :lower)
+  end
+
+  @doc "The 32-byte word a wallet returns to approve a signature under ERC-1271."
+  def erc1271_approval, do: <<0x1626BA7E::32, 0::224>>
 
   def invalid_response do
     start(fn _request -> %{} end)

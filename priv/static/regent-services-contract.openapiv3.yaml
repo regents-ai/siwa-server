@@ -88,7 +88,7 @@ paths:
     post:
       operationId: createSharedWalletSiwaNonce
       tags: [auth]
-      description: Issue a single-use ERC-4361 EOA wallet challenge for an enabled audience. Contract-wallet signatures are unsupported. No private key is accepted.
+      description: Issue a single-use ERC-4361 wallet challenge for an enabled audience. Ordinary wallets and smart wallets on Base can sign it. No private key is accepted.
       requestBody:
         required: true
         content:
@@ -97,7 +97,7 @@ paths:
               $ref: "#/components/schemas/WalletSiwaNonceRequest"
       responses:
         "200":
-          description: Issue a single-use ERC-4361 EOA wallet challenge for an enabled audience
+          description: Issue a single-use ERC-4361 wallet challenge for an enabled audience
           content:
             application/json:
               schema:
@@ -150,7 +150,7 @@ paths:
     post:
       operationId: verifySharedWalletSiwaSession
       tags: [auth]
-      description: Verify wallet control without asserting human identity or agent registration. Contract-wallet signatures are unsupported. No private key is accepted.
+      description: Verify wallet control without asserting human identity or agent registration. A smart wallet's signature is checked on Base with ERC-1271, wrapped with ERC-6492 before the wallet is deployed. No private key is accepted.
       requestBody:
         required: true
         content:
@@ -202,6 +202,12 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           description: Wallet verification unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "502":
+          description: Smart wallet signature lookup on Base failed
           content:
             application/json:
               schema:
@@ -299,7 +305,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "502":
-          description: Agent identity lookup failed
+          description: Wallet signature or agent identity lookup on Base failed
           content:
             application/json:
               schema:
@@ -970,8 +976,9 @@ components:
           description: Exact server-issued ERC-4361 message; do not reconstruct it from caller fields.
         signature:
           type: string
-          pattern: '^0x[a-fA-F0-9]{130}$'
-          description: ERC-191 personal signature from the EOA address; never a private key.
+          pattern: '^0x([a-fA-F0-9]{2})+$'
+          maxLength: 8194
+          description: ERC-191 personal signature from the wallet, or a smart wallet's ERC-1271 signature (ERC-6492-wrapped before deployment); never a private key.
       additionalProperties: false
     WalletSiwaNonceResponse:
       type: object

@@ -141,7 +141,7 @@ must fail closed. The SIWA library and the service tests cover these cases.
 | `SIWA_NONCE_TTL_SECONDS` | `300` | How long an issued nonce stays valid. |
 | `SIWA_RECEIPT_TTL_SECONDS` | `3600` | How long a receipt stays valid. |
 | `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS` | `300` | Clock skew allowed on a signed HTTP request. |
-| `SIWA_WALLET_ORIGINS` | unset | Approved `audience=origin` pairs for EOA wallet sign-in, comma separated. Unset disables it. |
+| `SIWA_WALLET_ORIGINS` | unset | Approved `audience=origin` pairs for wallet sign-in, comma separated. Unset disables it. |
 | `SIWA_CLEANUP_ENABLED` | `true` | Whether expired nonce and replay rows are swept. |
 | `SIWA_CLEANUP_INTERVAL_MS` | `60000` | How often that sweep runs. |
 | `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Rows removed per sweep. |
@@ -199,10 +199,17 @@ MIT — see [LICENSE](LICENSE).
 
 ## Wallet authors
 
-The optional EOA flow uses `POST /api/shared/siwa/wallet/nonce` and
+The optional wallet flow uses `POST /api/shared/siwa/wallet/nonce` and
 `POST /api/shared/siwa/wallet/verify`. Sign the exact ERC-4361 message returned by
-the nonce endpoint. Base (`8453`) is the only supported chain. Contract-wallet
-ERC-1271/6492 signatures are not supported. No private key is sent to this service.
+the nonce endpoint. Base (`8453`) is the only supported chain. No private key is sent
+to this service.
+
+Both sign-in routes, this one and agent sign-in, accept smart wallets. An ordinary
+wallet's signature is recovered locally. Any other signature is checked on Base with
+ERC-1271 `isValidSignature`, in one `eth_call` through Multicall3; a wallet not deployed
+yet sends an ERC-6492-wrapped signature, and its factory call runs first in that same
+read, so nothing is deployed. Signed HTTP requests after sign-in still need a signature
+the shared SIWA library recovers locally.
 
 `SIWA_WALLET_ORIGINS` lists the approved audiences and the HTTPS origin each one signs
 in from, as comma-separated `audience=origin` pairs, for example

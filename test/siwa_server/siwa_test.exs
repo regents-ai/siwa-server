@@ -297,6 +297,65 @@ defmodule SiwaServer.SiwaTest do
     assert message =~ "canonical SIWA format"
   end
 
+  test "a smart wallet that owns the agent signs in once Base approves its signature" do
+    smart_wallet = "0x452f678f6e588069D1Aef38D3D519567aA1014A4"
+    System.put_env("BASE_RPC_URL", TestRpcServer.smart_wallet_owner_of(smart_wallet))
+
+    params = %{
+      "wallet_address" => smart_wallet,
+      "chain_id" => @chain_id,
+      "registry_address" => @registry_address,
+      "token_id" => @token_id,
+      "audience" => "platform"
+    }
+
+    assert {:ok, %{"data" => %{"nonce" => nonce}}} = Siwa.issue_nonce(params)
+
+    assert {:ok, %{"data" => %{"verified" => true, "walletAddress" => wallet}}} =
+             Siwa.verify_session(
+               Map.merge(params, %{
+                 "nonce" => nonce,
+                 "message" => String.replace(siwa_message(nonce), @wallet_address, smart_wallet),
+                 "signature" => "0x" <> String.duplicate("ab", 224)
+               })
+             )
+
+    assert wallet == String.downcase(smart_wallet)
+  end
+
+  test "a failed signature lookup on Base leaves the nonce unused" do
+    assert {:ok, %{"data" => %{"nonce" => nonce}}} =
+             Siwa.issue_nonce(%{
+               "wallet_address" => @wallet_address,
+               "chain_id" => @chain_id,
+               "registry_address" => @registry_address,
+               "token_id" => @token_id,
+               "audience" => "platform"
+             })
+
+    proof = %{
+      "wallet_address" => @wallet_address,
+      "chain_id" => @chain_id,
+      "registry_address" => @registry_address,
+      "token_id" => @token_id,
+      "audience" => "platform",
+      "nonce" => nonce,
+      "message" => siwa_message(nonce)
+    }
+
+    System.put_env("BASE_RPC_URL", TestRpcServer.rpc_error())
+
+    assert {:error, {502, "signature_lookup_failed", _message}} =
+             Siwa.verify_session(Map.put(proof, "signature", "0x" <> String.duplicate("ab", 224)))
+
+    System.put_env("BASE_RPC_URL", TestRpcServer.owner_of(@wallet_address))
+
+    assert {:ok, %{"data" => %{"verified" => true}}} =
+             Siwa.verify_session(
+               Map.put(proof, "signature", TestWallet.sign_message(proof["message"]))
+             )
+  end
+
   test "invalid shared sign-in signatures do not consume the nonce" do
     assert {:ok, %{"data" => %{"nonce" => nonce}}} =
              Siwa.issue_nonce(%{
@@ -831,14 +890,14 @@ defmodule SiwaServer.SiwaTest do
 
     assert :ok = Ethereum.verify_signature(@wallet_address, message, signature)
 
-    assert {:error, "Invalid signature"} =
+    assert {:error, :signature_invalid} =
              Ethereum.verify_signature(
                "0x1111111111111111111111111111111111111111",
                message,
                signature
              )
 
-    assert {:error, "Invalid signature"} =
+    assert {:error, :signature_invalid} =
              Ethereum.verify_signature(@wallet_address, message, "not-a-signature")
   end
 

@@ -1,7 +1,7 @@
 defmodule SiwaServer.WalletOrigins do
   @moduledoc """
   Parses `SIWA_WALLET_ORIGINS`, the approved audience-to-origin table for
-  EOA wallet sign-in.
+  wallet sign-in.
 
   The value is a comma-separated list of `audience=origin` entries, for example
   `patchbay=https://patchbay.help,keyfleet=https://keyfleet.example`. Each

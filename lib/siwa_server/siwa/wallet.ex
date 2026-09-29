@@ -1,11 +1,14 @@
 defmodule SiwaServer.Siwa.Wallet do
-  @moduledoc "EOA wallet proof, distinct from registered-agent and human identity."
+  @moduledoc "Wallet proof, distinct from registered-agent and human identity."
 
   alias SiwaServer.{Ethereum, RuntimeConfig}
   alias SiwaServer.Siwa.NonceStore
 
   @nonce_fields ~w(wallet_address chain_id audience)
   @verify_fields @nonce_fields ++ ~w(nonce message signature)
+  # A smart wallet's signature, with an ERC-6492 deployment around it, stays
+  # well under 4 KiB.
+  @max_signature_size 2 + 2 * 4096
 
   def issue_nonce(params) do
     with {:ok, fields, origin} <- validate(params, @nonce_fields),
@@ -105,8 +108,16 @@ defmodule SiwaServer.Siwa.Wallet do
 
   defp verify_signature(record, fields) do
     case Ethereum.verify_signature(record.address, fields["message"], fields["signature"]) do
-      :ok -> :ok
-      {:error, _reason} -> {:error, {401, "signature_invalid", "signature does not match wallet"}}
+      :ok ->
+        :ok
+
+      {:error, :signature_invalid} ->
+        {:error, {401, "signature_invalid", "signature does not match wallet"}}
+
+      {:error, {:lookup_failed, reason}} ->
+        {:error,
+         {502, "signature_lookup_failed",
+          "could not check the wallet signature on Base: #{reason}"}}
     end
   end
 
@@ -133,7 +144,8 @@ defmodule SiwaServer.Siwa.Wallet do
               is_binary(signature),
        do:
          Regex.match?(~r/^[a-f0-9]{32}$/, nonce) and
-           Regex.match?(~r/^0x[0-9a-fA-F]{130}$/, signature)
+           byte_size(signature) <= @max_signature_size and
+           Regex.match?(~r/^0x(?:[0-9a-fA-F]{2})+$/, signature)
 
   defp valid_proof_fields?(params), do: not Map.has_key?(params, "message")
 
