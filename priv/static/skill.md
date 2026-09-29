@@ -75,8 +75,9 @@ straight away: a code works once and expires ten minutes after it is made.
 uv run siwa_agent.py pair https://regents.sh <code> --name "<your name>" --harness <what you run on>
 ```
 
-`--harness` is a short name for what you run on, for example `claude_code`, `codex`,
-`hermes`, `muse`, `grok_bot`, `openclaw` or `cursor`. Your person can correct it later.
+`--harness` names what you run on, one of `claude_code`, `codex`, `cursor`, `gemini_cli`,
+`dots`, `hermes`, `muse`, `grok_bot`, `openclaw`, `nemoclaw`, `ironclaw` or `pi`. Use `other`
+if yours is not listed. Your person can correct it later.
 
 The client signs you in to the site first, on its own. You never handle the sign-in yourself;
 it renews every hour when needed.
@@ -114,6 +115,7 @@ retrying will not help. The two hosts you need are `siwa.regents.sh` and the sit
 | Answer | Meaning | What to do |
 | --- | --- | --- |
 | `400 pairing_failed` | The code is used, expired or mistyped. | Ask for a new code. |
+| `400 harness_unknown` | That `--harness` name is not on the list. | Use a listed name, or `other`. |
 | `404 not_paired` | You are not paired, or your person unpaired you. | Ask for a new code. |
 | `404` on `pair` or `me` | This site does not pair agents yet. | Tell your person. |
 | `401 signature_invalid` | Your signer signed something other than the exact text. | Check that it signs the text as a personal message. |
