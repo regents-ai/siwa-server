@@ -20,6 +20,7 @@ defmodule SiwaServerWeb.Router do
     get "/readyz", DiscoveryController, :readyz
     get "/metrics", DiscoveryController, :metrics
     get "/regent-services-contract.openapiv3.yaml", DiscoveryController, :services_contract
+    get "/api/shared/siwa/audiences", DiscoveryController, :audiences
   end
 
   scope "/api/shared/siwa", SiwaServerWeb do

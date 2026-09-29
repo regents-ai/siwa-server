@@ -26,6 +26,15 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     end)
   end
 
+  test "lists the audiences open to wallet sign-in with their origins", %{conn: conn} do
+    assert %{
+             "code" => "audiences",
+             "data" => %{
+               "audiences" => [%{"audience" => "patchbay", "origin" => "https://patchbay.help"}]
+             }
+           } = json_response(get(conn, "/api/shared/siwa/audiences"), 200)
+  end
+
   test "canonical ordinary-wallet challenge yields wallet proof without registry or human identity" do
     nonce = issue()
     assert nonce["principalType"] == "wallet"

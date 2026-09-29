@@ -40,6 +40,15 @@ defmodule SiwaServerWeb.DiscoveryController do
     |> send_resp(200, File.read!(path))
   end
 
+  def audiences(conn, _params) do
+    audiences =
+      SiwaServer.RuntimeConfig.siwa_wallet_origins()
+      |> Enum.sort()
+      |> Enum.map(fn {audience, origin} -> %{"audience" => audience, "origin" => origin} end)
+
+    json(conn, %{"code" => "audiences", "data" => %{"audiences" => audiences}})
+  end
+
   defp health_response(conn) do
     conn
     |> put_resp_content_type("text/plain")

@@ -84,6 +84,18 @@ paths:
             application/yaml:
               schema:
                 type: string
+  /api/shared/siwa/audiences:
+    get:
+      operationId: listSharedWalletSiwaAudiences
+      tags: [auth]
+      description: List the sites an agent can sign in to with its own key, each with the origin that owns the audience. An agent matches the site it is calling to an origin here to learn which audience to sign in for.
+      responses:
+        "200":
+          description: Audiences open to wallet sign-in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletSiwaAudiencesResponse"
   /api/shared/siwa/wallet/nonce:
     post:
       operationId: createSharedWalletSiwaNonce
@@ -985,6 +997,31 @@ components:
           pattern: '^0x([a-fA-F0-9]{2})+$'
           maxLength: 8194
           description: ERC-191 personal signature from the wallet, or a smart wallet's ERC-1271 signature (ERC-6492-wrapped before deployment); never a private key.
+      additionalProperties: false
+    WalletSiwaAudiencesResponse:
+      type: object
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [audiences]
+        data:
+          type: object
+          required: [audiences]
+          properties:
+            audiences:
+              type: array
+              items:
+                type: object
+                required: [audience, origin]
+                properties:
+                  audience:
+                    type: string
+                  origin:
+                    type: string
+                    format: uri
+                additionalProperties: false
+          additionalProperties: false
       additionalProperties: false
     WalletSiwaNonceResponse:
       type: object

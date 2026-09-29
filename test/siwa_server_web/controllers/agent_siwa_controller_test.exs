@@ -434,6 +434,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/readyz",
                "/metrics",
                "/regent-services-contract.openapiv3.yaml",
+               "/api/shared/siwa/audiences",
                "/api/shared/siwa/nonce",
                "/api/shared/siwa/verify",
                "/api/shared/siwa/wallet/nonce",
