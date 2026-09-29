@@ -7,7 +7,7 @@ defmodule SiwaServerWeb.Router do
 
   # One pipeline per SIWA endpoint; they differ only in which rate-limit
   # bucket they apply (limits are configured per name in :rate_limits).
-  for name <- [:identity, :siwa_nonce, :siwa_verify, :siwa_http_verify, :siwa_activity] do
+  for name <- [:siwa_nonce, :siwa_verify, :siwa_http_verify, :siwa_activity, :siwa_register] do
     pipeline name do
       plug :accepts, ["json"]
       plug SiwaServerWeb.Plugs.RateLimit, name: name
@@ -20,16 +20,6 @@ defmodule SiwaServerWeb.Router do
     get "/readyz", DiscoveryController, :readyz
     get "/metrics", DiscoveryController, :metrics
     get "/regent-services-contract.openapiv3.yaml", DiscoveryController, :services_contract
-  end
-
-  scope "/api/shared/identity", SiwaServerWeb do
-    pipe_through :identity
-
-    post "/status", SharedIdentityController, :status
-    post "/registration-intents", SharedIdentityController, :registration_intent
-    post "/registration-completions", SharedIdentityController, :registration_completion
-    post "/siwa/nonce", SharedIdentityController, :siwa_nonce
-    post "/siwa/verify", SharedIdentityController, :siwa_verify
   end
 
   scope "/api/shared/siwa", SiwaServerWeb do
@@ -52,6 +42,12 @@ defmodule SiwaServerWeb.Router do
   scope "/api/shared/siwa", SiwaServerWeb do
     pipe_through :siwa_activity
     post "/activity", ActivityController, :read
+  end
+
+  scope "/api/shared/siwa/agent", SiwaServerWeb do
+    pipe_through :siwa_register
+    post "/register-step", AgentRegistrationController, :register_step
+    post "/registered", AgentRegistrationController, :registered
   end
 
   forward "/api/shared/keyring", SiwaServerWeb.KeyringForwarder

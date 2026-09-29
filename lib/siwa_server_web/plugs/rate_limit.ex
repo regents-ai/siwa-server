@@ -10,11 +10,11 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   alias SiwaServerWeb.ErrorJSON
 
   @defaults %{
-    identity: [limit: 120, window_ms: 60_000],
     siwa_nonce: [limit: 60, window_ms: 60_000],
     siwa_verify: [limit: 60, window_ms: 60_000],
     siwa_http_verify: [limit: 600, window_ms: 60_000],
     siwa_activity: [limit: 600, window_ms: 60_000],
+    siwa_register: [limit: 60, window_ms: 60_000],
     keyring_internal: [limit: 600, window_ms: 60_000]
   }
 
@@ -69,23 +69,6 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
 
   defp client_key(conn, :keyring_internal) do
     "keyring:#{conn.method}:#{conn.request_path}:#{client_ip(conn)}"
-  end
-
-  # The /api/shared/identity/* endpoints carry network/address/provider (and the
-  # completion step at least address), not the SIWA-flow fields the default
-  # clause reads — without this clause every identity request keyed to one
-  # shared "unknown:...:IP" bucket instead of per identity.
-  defp client_key(conn, :identity) do
-    body = fetched_body_params(conn)
-
-    [
-      "identity",
-      Map.get(body, "provider"),
-      Map.get(body, "network"),
-      Map.get(body, "address"),
-      client_ip(conn)
-    ]
-    |> Enum.map_join(":", &normalize_part/1)
   end
 
   defp client_key(conn, _name) do

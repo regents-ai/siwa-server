@@ -20,6 +20,7 @@ defmodule SiwaServer.Siwa do
 
   require Logger
 
+  alias SiwaServer.AgentRegistry
   alias SiwaServer.Ethereum
   alias SiwaServer.RuntimeConfig
   alias SiwaServer.Siwa.{Error, HttpVerifier, Message, NonceStore}
@@ -39,7 +40,7 @@ defmodule SiwaServer.Siwa do
   def issue_nonce(params) when is_map(params) do
     with {:ok, wallet_address} <- required_address(params, "wallet_address"),
          {:ok, chain_id} <- required_base_chain_id(params, "chain_id"),
-         {:ok, registry_address} <- required_address(params, "registry_address"),
+         {:ok, registry_address} <- required_registry_address(params),
          {:ok, token_id} <- required_positive_integer_string(params, "token_id"),
          {:ok, audience} <- required_string(params, "audience"),
          {:ok, nonce_result} <-
@@ -85,7 +86,7 @@ defmodule SiwaServer.Siwa do
   def verify_session(params) when is_map(params) do
     with {:ok, wallet_address} <- required_address(params, "wallet_address"),
          {:ok, chain_id} <- required_base_chain_id(params, "chain_id"),
-         {:ok, registry_address} <- required_address(params, "registry_address"),
+         {:ok, registry_address} <- required_registry_address(params),
          {:ok, token_id} <- required_positive_integer_string(params, "token_id"),
          {:ok, audience} <- required_string(params, "audience"),
          {:ok, nonce} <- required_string(params, "nonce"),
@@ -218,6 +219,23 @@ defmodule SiwaServer.Siwa do
 
       _value ->
         {:error, {"invalid_#{key}", "#{key} must be 8453"}}
+    end
+  end
+
+  defp required_registry_address(params) do
+    registry = AgentRegistry.address()
+
+    case required_address(params, "registry_address") do
+      {:ok, ^registry} ->
+        {:ok, registry}
+
+      {:ok, _other} ->
+        {:error,
+         {"unsupported_registry_address",
+          "registry_address must be the Base ERC-8004 agent registry #{registry}"}}
+
+      {:error, _reason} = error ->
+        error
     end
   end
 

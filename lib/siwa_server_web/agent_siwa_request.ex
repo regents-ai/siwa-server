@@ -3,7 +3,7 @@ defmodule SiwaServerWeb.AgentSiwaRequest do
 
   import Ecto.Changeset
 
-  alias SiwaServerWeb.AgentSiwaRequest.{HttpVerify, Nonce, Verify}
+  alias SiwaServerWeb.AgentSiwaRequest.{HttpVerify, Nonce, Registered, RegisterStep, Verify}
 
   @type error :: {:error, {400, String.t(), String.t()}}
 
@@ -15,6 +15,12 @@ defmodule SiwaServerWeb.AgentSiwaRequest do
 
   @spec cast_http_verify(map()) :: {:ok, HttpVerify.t()} | error()
   def cast_http_verify(params), do: cast(params, HttpVerify)
+
+  @spec cast_register_step(map()) :: {:ok, RegisterStep.t()} | error()
+  def cast_register_step(params), do: cast(params, RegisterStep)
+
+  @spec cast_registered(map()) :: {:ok, Registered.t()} | error()
+  def cast_registered(params), do: cast(params, Registered)
 
   @spec to_params(Nonce.t() | Verify.t() | HttpVerify.t()) :: %{String.t() => term()}
   def to_params(%_{} = request) do
@@ -38,6 +44,9 @@ defmodule SiwaServerWeb.AgentSiwaRequest do
       do: [],
       else: [{field, "can't be blank"}]
   end
+
+  def validate_address(changeset, field),
+    do: validate_format(changeset, field, ~r/^0x[0-9a-fA-F]{40}$/)
 
   # `:integer` fields accept numeric strings through `cast/3`; the contract
   # requires a JSON integer, so check the raw params before coercion.

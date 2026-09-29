@@ -16,6 +16,7 @@ COPY elixir-utils/siwa/siwa-elixir/apps/siwa ../elixir-utils/siwa/siwa-elixir/ap
 COPY elixir-utils/siwa/siwa-elixir/apps/siwa_keyring ../elixir-utils/siwa/siwa-elixir/apps/siwa_keyring
 COPY elixir-utils/siwa/siwa-elixir/config ../elixir-utils/siwa/siwa-elixir/config
 COPY elixir-utils/siwa/siwa-elixir/mix.exs elixir-utils/siwa/siwa-elixir/mix.lock ../elixir-utils/siwa/siwa-elixir/
+COPY elixir-utils/chain ../elixir-utils/chain
 RUN mix deps.get --only prod
 RUN mix deps.compile
 

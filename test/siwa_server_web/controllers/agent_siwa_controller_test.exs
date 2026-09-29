@@ -5,9 +5,9 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
   @wallet_address TestWallet.address()
   @chain_id 8453
-  @registry_address "0x3333333333333333333333333333333333333333"
+  @registry_address "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432"
   @token_id "77"
-  @agent_id "eip155:8453:0x3333333333333333333333333333333333333333:77"
+  @agent_id "eip155:8453:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:77"
 
   setup do
     previous_base_rpc_url = System.get_env("BASE_RPC_URL")
@@ -27,167 +27,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     end)
 
     :ok
-  end
-
-  test "shared identity routes register and verify a Regent account session", %{conn: conn} do
-    status =
-      conn
-      |> recycle()
-      |> json_post("/api/shared/identity/status", identity_request())
-      |> json_response(200)
-
-    assert %{
-             "ok" => true,
-             "code" => "identity_status_resolved",
-             "data" => %{
-               "registered" => false,
-               "verified" => "unregistered"
-             }
-           } = status
-
-    intent =
-      conn
-      |> recycle()
-      |> json_post("/api/shared/identity/registration-intents", identity_request())
-      |> json_response(200)
-
-    assert %{
-             "ok" => true,
-             "code" => "identity_registration_intent_created",
-             "data" => %{
-               "intent_id" => intent_id,
-               "signing_payload" => %{"message" => registration_message}
-             }
-           } = intent
-
-    completion =
-      conn
-      |> recycle()
-      |> json_post("/api/shared/identity/registration-completions", %{
-        "intent_id" => intent_id,
-        "address" => @wallet_address,
-        "message" => registration_message,
-        "signature" => TestWallet.sign_message(registration_message)
-      })
-      |> json_response(200)
-
-    assert %{
-             "ok" => true,
-             "code" => "identity_registration_completed",
-             "data" => %{
-               "registered" => true,
-               "agent_id" => agent_id,
-               "token_id" => token_id,
-               "agent_registry" => agent_registry
-             }
-           } = completion
-
-    assert String.to_integer(token_id) > 0
-    assert agent_id == "#{agent_registry}:#{token_id}"
-    assert agent_registry =~ ~r/0x[a-fA-F0-9]{40}$/
-
-    registered_status =
-      conn
-      |> recycle()
-      |> json_post("/api/shared/identity/status", identity_request())
-      |> json_response(200)
-
-    assert %{
-             "data" => %{
-               "registered" => true,
-               "verified" => "onchain",
-               "agent_id" => ^agent_id,
-               "token_id" => ^token_id,
-               "agent_registry" => ^agent_registry
-             }
-           } = registered_status
-
-    nonce_response =
-      conn
-      |> recycle()
-      |> json_post("/api/shared/identity/siwa/nonce", %{
-        "network" => "base",
-        "address" => @wallet_address,
-        "token_id" => token_id,
-        "agent_registry" => agent_registry
-      })
-      |> json_response(200)
-
-    assert %{
-             "ok" => true,
-             "code" => "identity_siwa_nonce_issued",
-             "data" => %{
-               "nonce_token" => nonce_token,
-               "message" => identity_siwa_message,
-               "agent_id" => ^agent_id,
-               "token_id" => ^token_id,
-               "expires_at" => expires_at
-             }
-           } = nonce_response
-
-    assert DateTime.from_iso8601(expires_at)
-
-    verify_body = %{
-      "network" => "base",
-      "address" => @wallet_address,
-      "token_id" => token_id,
-      "agent_registry" => agent_registry,
-      "nonce_token" => nonce_token,
-      "message" => identity_siwa_message,
-      "signature" => TestWallet.sign_message(identity_siwa_message)
-    }
-
-    verified =
-      conn
-      |> recycle()
-      |> json_post("/api/shared/identity/siwa/verify", verify_body)
-      |> json_response(200)
-
-    assert %{
-             "ok" => true,
-             "code" => "identity_siwa_verified",
-             "data" => %{
-               "verified" => "onchain",
-               "address" => @wallet_address,
-               "agent_id" => ^agent_id,
-               "token_id" => ^token_id,
-               "agent_registry" => ^agent_registry,
-               "signer_type" => "evm_personal_sign",
-               "receipt" => receipt,
-               "receipt_issued_at" => issued_at,
-               "receipt_expires_at" => receipt_expires_at
-             }
-           } = verified
-
-    assert is_binary(receipt)
-    assert DateTime.from_iso8601(issued_at)
-    assert DateTime.from_iso8601(receipt_expires_at)
-
-    replay_conn =
-      conn
-      |> recycle()
-      |> json_post("/api/shared/identity/siwa/verify", verify_body)
-
-    assert %{"error" => %{"code" => "siwa_verify_failed"}} = json_response(replay_conn, 401)
-  end
-
-  test "shared identity nonce rejects oversized token IDs before lookup", %{conn: conn} do
-    conn =
-      conn
-      |> recycle()
-      |> json_post("/api/shared/identity/siwa/nonce", %{
-        "network" => "base",
-        "address" => @wallet_address,
-        "token_id" => String.duplicate("9", 5_000),
-        "agent_registry" => "eip155:8453:0x3333333333333333333333333333333333333333"
-      })
-
-    assert %{
-             "error" => %{
-               "code" => "invalid_request",
-               "message" => "request body does not match the identity contract"
-             }
-           } = json_response(conn, 400)
   end
 
   test "nonce requests are rate limited by claimed identity and caller", %{conn: conn} do
@@ -574,7 +413,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
     contract = response(get(conn, "/regent-services-contract.openapiv3.yaml"), 200)
     assert contract =~ "Regent Shared Services Contract"
-    assert contract =~ "/api/shared/identity/status"
     assert contract =~ "/api/shared/siwa/nonce"
     assert contract =~ "BaseChainId"
     assert contract =~ "SIWA nonce was not found"
@@ -596,17 +434,14 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/readyz",
                "/metrics",
                "/regent-services-contract.openapiv3.yaml",
-               "/api/shared/identity/status",
-               "/api/shared/identity/registration-intents",
-               "/api/shared/identity/registration-completions",
-               "/api/shared/identity/siwa/nonce",
-               "/api/shared/identity/siwa/verify",
                "/api/shared/siwa/nonce",
                "/api/shared/siwa/verify",
                "/api/shared/siwa/wallet/nonce",
                "/api/shared/siwa/wallet/verify",
                "/api/shared/siwa/http-verify",
                "/api/shared/siwa/activity",
+               "/api/shared/siwa/agent/register-step",
+               "/api/shared/siwa/agent/registered",
                "/api/shared/keyring/health",
                "/api/shared/keyring/create-wallet",
                "/api/shared/keyring/has-wallet",
@@ -628,6 +463,12 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
     assert operation_response_codes(contract, "/api/shared/siwa/activity", "post") ==
              MapSet.new(~w(200 400 401 413 415 429))
+
+    assert operation_response_codes(contract, "/api/shared/siwa/agent/register-step", "post") ==
+             MapSet.new(~w(200 400 413 415 429))
+
+    assert operation_response_codes(contract, "/api/shared/siwa/agent/registered", "post") ==
+             MapSet.new(~w(200 400 413 415 422 429 502))
 
     assert operation_response_codes(contract, "/api/shared/keyring/sign-authorization", "post") ==
              MapSet.new(~w(200 400 401 413 415 422 429))
@@ -701,14 +542,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     conn
     |> put_req_header("content-type", "application/json")
     |> post(path, Jason.encode!(params))
-  end
-
-  defp identity_request do
-    %{
-      "network" => "base",
-      "address" => @wallet_address,
-      "provider" => "coinbase-cdp"
-    }
   end
 
   defp issue_nonce(conn) do

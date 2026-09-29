@@ -13,7 +13,6 @@ defmodule SiwaServerWeb.Plugs.RateLimitTest do
     original = Application.get_env(:siwa_server, :rate_limits, [])
 
     Application.put_env(:siwa_server, :rate_limits,
-      identity: [limit: 2, window_ms: 60_000],
       siwa_nonce: [limit: 2, window_ms: 60_000],
       keyring_internal: [limit: 2, window_ms: 60_000]
     )
@@ -39,7 +38,7 @@ defmodule SiwaServerWeb.Plugs.RateLimitTest do
       conn(:post, "/api/shared/siwa/nonce", %{
         "wallet_address" => wallet_address,
         "chain_id" => 8453,
-        "registry_address" => "0x3333333333333333333333333333333333333333",
+        "registry_address" => "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432",
         "token_id" => "77",
         "audience" => "platform"
       })
@@ -76,36 +75,6 @@ defmodule SiwaServerWeb.Plugs.RateLimitTest do
     # Unfetched-body requests from the same IP map to the stable
     # "unknown" key parts and stay independently rate limited.
     assert %Plug.Conn{halted: false} = call(unfetched_conn({1, 2, 3, 4}), :siwa_nonce)
-  end
-
-  defp identity_conn(ip, address) do
-    conn =
-      conn(:post, "/api/shared/identity/status", %{
-        "network" => "base",
-        "address" => address,
-        "provider" => "coinbase-cdp"
-      })
-
-    %{conn | remote_ip: ip}
-  end
-
-  test "identity requests are keyed per identity, not one shared unknown bucket per IP" do
-    address_a = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    address_b = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-
-    assert %Plug.Conn{halted: false} = call(identity_conn({1, 2, 3, 4}, address_a), :identity)
-    assert %Plug.Conn{halted: false} = call(identity_conn({1, 2, 3, 4}, address_a), :identity)
-
-    conn = call(identity_conn({1, 2, 3, 4}, address_a), :identity)
-    assert conn.halted
-    assert conn.status == 429
-
-    # A different identity from the SAME IP has its own bucket (the old default
-    # keying collapsed every identity request into one unknown:...:IP bucket).
-    assert %Plug.Conn{halted: false} = call(identity_conn({1, 2, 3, 4}, address_b), :identity)
-
-    # And the same identity from a different IP is independent too.
-    assert %Plug.Conn{halted: false} = call(identity_conn({5, 6, 7, 8}, address_a), :identity)
   end
 
   test "keyring requests with unparsed bodies are rate limited per method, path, and IP" do

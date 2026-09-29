@@ -7,14 +7,6 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
   @contract_path "priv/static/regent-services-contract.openapiv3.yaml"
   @openapi_methods ~w(get post put patch delete options head trace)
   @keyring_health_route {"GET", "/api/shared/keyring/health"}
-  @external_shared_route_prefixes ["/api/shared/identity/"]
-  @canonical_shared_identity_routes MapSet.new([
-                                      {"POST", "/api/shared/identity/status"},
-                                      {"POST", "/api/shared/identity/registration-intents"},
-                                      {"POST", "/api/shared/identity/registration-completions"},
-                                      {"POST", "/api/shared/identity/siwa/nonce"},
-                                      {"POST", "/api/shared/identity/siwa/verify"}
-                                    ])
   @expected_response_codes %{
     {"GET", "/"} => MapSet.new(~w(200)),
     {"GET", "/healthz"} => MapSet.new(~w(200)),
@@ -25,6 +17,8 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     {"POST", "/api/shared/siwa/verify"} => MapSet.new(~w(200 400 401 404 413 415 429 500 502)),
     {"POST", "/api/shared/siwa/http-verify"} => MapSet.new(~w(200 400 401 409 413 415 429 500)),
     {"POST", "/api/shared/siwa/activity"} => MapSet.new(~w(200 400 401 413 415 429)),
+    {"POST", "/api/shared/siwa/agent/register-step"} => MapSet.new(~w(200 400 413 415 429)),
+    {"POST", "/api/shared/siwa/agent/registered"} => MapSet.new(~w(200 400 413 415 422 429 502)),
     {"POST", "/api/shared/siwa/wallet/nonce"} =>
       MapSet.new(~w(200 400 401 403 404 413 415 429 500)),
     {"POST", "/api/shared/siwa/wallet/verify"} =>
@@ -67,20 +61,14 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
 
     missing_from_contract = MapSet.difference(router_routes, contract_routes)
 
-    unexpected_contract_routes =
-      contract_routes
-      |> MapSet.difference(router_routes)
-      |> Enum.reject(&external_shared_route?/1)
-      |> MapSet.new()
+    unexpected_contract_routes = MapSet.difference(contract_routes, router_routes)
 
     response_code_drift = response_code_drift(contract_response_codes)
     security_drift = keyring_security_drift(contract_security_routes, keyring_routes)
-    shared_identity_drift = shared_identity_drift(contract_routes)
 
     if MapSet.size(missing_from_contract) == 0 and
          MapSet.size(unexpected_contract_routes) == 0 and response_code_drift == [] and
-         MapSet.size(security_drift) == 0 and
-         MapSet.size(shared_identity_drift) == 0 do
+         MapSet.size(security_drift) == 0 do
       Mix.shell().info(
         "shared services contract covers SIWA routes, expected responses, and keyring security"
       )
@@ -88,7 +76,6 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
       report_drift(missing_from_contract, unexpected_contract_routes)
       report_response_code_drift(response_code_drift)
       report_security_drift(security_drift)
-      report_shared_identity_drift(shared_identity_drift)
       Mix.raise("shared services contract does not cover SIWA routes, responses, or security")
     end
   end
@@ -261,14 +248,6 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     |> MapSet.difference(contract_security_routes)
   end
 
-  defp shared_identity_drift(contract_routes) do
-    MapSet.difference(@canonical_shared_identity_routes, contract_routes)
-  end
-
-  defp external_shared_route?({_method, path}) do
-    Enum.any?(@external_shared_route_prefixes, &String.starts_with?(path, &1))
-  end
-
   defp report_drift(missing_from_contract, unexpected_contract_routes) do
     if MapSet.size(missing_from_contract) > 0 do
       Mix.shell().error("routes missing from contract:")
@@ -297,13 +276,6 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     if MapSet.size(security_drift) > 0 do
       Mix.shell().error("keyring routes missing contract security:")
       Enum.each(security_drift, &Mix.shell().error("  #{format_route(&1)}"))
-    end
-  end
-
-  defp report_shared_identity_drift(shared_identity_drift) do
-    if MapSet.size(shared_identity_drift) > 0 do
-      Mix.shell().error("canonical shared identity routes missing:")
-      Enum.each(shared_identity_drift, &Mix.shell().error("  #{format_route(&1)}"))
     end
   end
 

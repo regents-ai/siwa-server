@@ -228,7 +228,7 @@ constraints. Its rollback refuses to discard remaining wallet challenges. Both n
 consumption and request replay use database-clock expiration checks; invalid proof
 cannot consume a valid challenge.
 
-For an isolated checkout, set `REGENT_SIWA_ROOT` to a frozen `siwa/siwa-elixir`
+For an isolated checkout, set `REGENT_ELIXIR_UTILS_ROOT` to a frozen `elixir-utils`
 export. `REGENT_RELEASE_CONTEXT` identifies the matching Docker input directory
 containing `elixir-utils/`; the packaging check validates actual dependency paths
 against that context. A passing packaging check is not a built or deployed image.

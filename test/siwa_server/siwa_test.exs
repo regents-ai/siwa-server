@@ -5,9 +5,9 @@ defmodule SiwaServer.SiwaTest do
 
   @wallet_address TestWallet.address()
   @chain_id 8453
-  @registry_address "0x3333333333333333333333333333333333333333"
+  @registry_address "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432"
   @token_id "77"
-  @agent_id "eip155:8453:0x3333333333333333333333333333333333333333:77"
+  @agent_id "eip155:8453:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:77"
 
   setup do
     original_base_rpc_url = System.get_env("BASE_RPC_URL")
