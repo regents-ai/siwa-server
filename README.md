@@ -27,10 +27,9 @@ this service over HTTP rather than serving shared SIWA itself, and owns Regent s
 and client generation. Techtree proof and Fold policy stay in Techtree. SIWA only proves
 request identity and audience when a product route needs a signed agent request.
 
-The shared services HTTP contract is owned by `regents-cli`, at
-`docs/regent-services-contract.openapiv3.yaml` in that repository. The served copy at
-`priv/static/regent-services-contract.openapiv3.yaml` here is a generated artifact and must
-match it.
+This repository owns the shared services HTTP contract, at
+`priv/static/regent-services-contract.openapiv3.yaml`. `mix siwa_server.contract_check` checks
+it against this server's routes and the `siwa_keyring` router.
 
 ## Quickstart
 
