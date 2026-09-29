@@ -459,7 +459,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
              MapSet.new(~w(200 400 401 404 413 415 429 500 502))
 
     assert operation_response_codes(contract, "/api/shared/siwa/http-verify", "post") ==
-             MapSet.new(~w(200 400 401 409 413 415 429 500))
+             MapSet.new(~w(200 400 401 409 413 415 429 500 502))
 
     assert operation_response_codes(contract, "/api/shared/siwa/activity", "post") ==
              MapSet.new(~w(200 400 401 413 415 429))

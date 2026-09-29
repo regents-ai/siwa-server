@@ -6,9 +6,6 @@ defmodule SiwaServer.Siwa.Wallet do
 
   @nonce_fields ~w(wallet_address chain_id audience)
   @verify_fields @nonce_fields ++ ~w(nonce message signature)
-  # A smart wallet's signature, with an ERC-6492 deployment around it, stays
-  # well under 4 KiB.
-  @max_signature_size 2 + 2 * 4096
 
   def issue_nonce(params) do
     with {:ok, fields, origin} <- validate(params, @nonce_fields),
@@ -144,7 +141,7 @@ defmodule SiwaServer.Siwa.Wallet do
               is_binary(signature),
        do:
          Regex.match?(~r/^[a-f0-9]{32}$/, nonce) and
-           byte_size(signature) <= @max_signature_size and
+           byte_size(signature) <= 2 + 2 * Siwa.WalletSignature.max_bytes() and
            Regex.match?(~r/^0x(?:[0-9a-fA-F]{2})+$/, signature)
 
   defp valid_proof_fields?(params), do: not Map.has_key?(params, "message")

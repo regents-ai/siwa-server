@@ -115,6 +115,41 @@ defmodule SiwaServer.SiwaTest do
     assert message =~ "does not match"
   end
 
+  test "signed requests from a smart wallet are accepted once Base approves the signature" do
+    receipt = verified_receipt()
+    body = Jason.encode!(%{"summary" => "Smart wallet", "details" => "approved on Base"})
+    created = System.os_time(:second)
+    headers = signed_headers(receipt, body, created, created + 120)
+
+    System.put_env("BASE_RPC_URL", TestRpcServer.smart_wallet_owner_of(@wallet_address))
+
+    assert {:ok, %{"data" => %{"verified" => true}}} =
+             verify_http_request(%{
+               "method" => "POST",
+               "path" => "/v1/agent/bug-report",
+               "headers" => Map.put(headers, "signature", smart_wallet_signature()),
+               "body" => body
+             })
+  end
+
+  test "a signed request Base cannot check answers 502 and leaves the request unused" do
+    receipt = verified_receipt()
+    body = Jason.encode!(%{"summary" => "Lookup failure", "details" => "retry works"})
+    created = System.os_time(:second)
+    headers = signed_headers(receipt, body, created, created + 120)
+    request = %{"method" => "POST", "path" => "/v1/agent/bug-report", "body" => body}
+
+    System.put_env("BASE_RPC_URL", TestRpcServer.rpc_error())
+
+    smart_wallet_headers = Map.put(headers, "signature", smart_wallet_signature())
+
+    assert {:error, {502, "signature_lookup_failed", _message}} =
+             verify_http_request(Map.put(request, "headers", smart_wallet_headers))
+
+    assert {:ok, %{"data" => %{"verified" => true}}} =
+             verify_http_request(Map.put(request, "headers", headers))
+  end
+
   test "signed requests accept checksum-cased registry headers when the receipt matches" do
     receipt = verified_receipt()
     body = Jason.encode!(%{"summary" => "Checksum case", "details" => "accepted"})
@@ -1125,6 +1160,9 @@ defmodule SiwaServer.SiwaTest do
   defp verify_http_request(params, opts \\ []) do
     Siwa.verify_http_request(params, Keyword.put_new(opts, :audience, "regents.sh"))
   end
+
+  # A signature no ordinary wallet made, so only Base can approve it.
+  defp smart_wallet_signature, do: "sig1=:#{Base.encode64(:binary.copy(<<0xAB>>, 224))}:"
 
   defp signature_payload("0x" <> hex) do
     hex

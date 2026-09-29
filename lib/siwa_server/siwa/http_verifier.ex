@@ -20,7 +20,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   tuples by `map_shared_error/1`.
   """
 
-  alias SiwaServer.RuntimeConfig
+  alias SiwaServer.{Ethereum, RuntimeConfig}
   alias SiwaServer.Siwa.{ActivityStore, ReplayStore}
   alias SiwaServer.Text
 
@@ -38,7 +38,8 @@ defmodule SiwaServer.Siwa.HttpVerifier do
              audience: Keyword.get(opts, :audience),
              wallet_audiences: Map.keys(RuntimeConfig.siwa_wallet_origins()),
              signature_tolerance_seconds: RuntimeConfig.siwa_http_signature_tolerance_seconds(),
-             replay_store: &ReplayStore.consume/2
+             replay_store: &ReplayStore.consume/2,
+             base_rpc: Ethereum.base_rpc_opts()
            ),
          :ok <- record_activity(verified.claims, Keyword.get(opts, :audience), method, path) do
       claims = verified.claims
@@ -192,6 +193,9 @@ defmodule SiwaServer.Siwa.HttpVerifier do
 
   defp map_shared_error(:signature_invalid),
     do: {401, "signature_invalid", "signature does not match wallet"}
+
+  defp map_shared_error(:signature_lookup_failed),
+    do: {502, "signature_lookup_failed", "could not check the wallet signature on Base"}
 
   defp map_shared_error(:replayed_request),
     do: {409, "request_replayed", "request replay detected"}

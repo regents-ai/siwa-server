@@ -204,12 +204,13 @@ The optional wallet flow uses `POST /api/shared/siwa/wallet/nonce` and
 the nonce endpoint. Base (`8453`) is the only supported chain. No private key is sent
 to this service.
 
-Both sign-in routes, this one and agent sign-in, accept smart wallets. An ordinary
-wallet's signature is recovered locally. Any other signature is checked on Base with
-ERC-1271 `isValidSignature`, in one `eth_call` through Multicall3; a wallet not deployed
-yet sends an ERC-6492-wrapped signature, and its factory call runs first in that same
-read, so nothing is deployed. Signed HTTP requests after sign-in still need a signature
-the shared SIWA library recovers locally.
+Both sign-in routes, this one and agent sign-in, and every signed HTTP request after
+sign-in accept smart wallets, through `Siwa.WalletSignature` in the shared SIWA library.
+An ordinary wallet's signature is recovered locally. Any other signature is checked on
+Base with ERC-1271 `isValidSignature`, in one `eth_call` through Multicall3; a wallet not
+deployed yet sends an ERC-6492-wrapped signature, and its factory call runs first in that
+same read, so nothing is deployed. A failed lookup on Base answers 502
+`signature_lookup_failed` and uses up neither the challenge nor the request.
 
 `SIWA_WALLET_ORIGINS` lists the approved audiences and the HTTPS origin each one signs
 in from, as comma-separated `audience=origin` pairs, for example

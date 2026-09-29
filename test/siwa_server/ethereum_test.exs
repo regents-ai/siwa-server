@@ -162,6 +162,15 @@ defmodule SiwaServer.EthereumTest do
       assert Ethereum.verify_signature(@deployed_wallet, @smart_message, @deployed_signature) ==
                {:error, {:lookup_failed, "base rpc url is not configured"}}
     end
+
+    test "a Base read slower than the server's time limit is a failed lookup" do
+      Application.put_env(:siwa_server, :ethereum_rpc_timeout_ms, 50)
+      on_exit(fn -> Application.delete_env(:siwa_server, :ethereum_rpc_timeout_ms) end)
+      System.put_env("BASE_RPC_URL", TestRpcServer.timeout())
+
+      assert Ethereum.verify_signature(@deployed_wallet, @smart_message, @deployed_signature) ==
+               {:error, {:lookup_failed, "rpc request timed out"}}
+    end
   end
 
   defp aggregate3_calls("0x" <> hex) do
