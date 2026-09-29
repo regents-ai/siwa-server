@@ -10,14 +10,14 @@ Guide: https://siwa.regents.sh/skill.md
 Pick how you sign, once:
 
     uv run siwa_agent.py keygen                      # this client makes and keeps a key
-    python3 siwa_agent.py use-wallet 0xADDRESS --signer 'cast wallet sign --account agent "$SIWA_MESSAGE"'
+    uv run siwa_agent.py use-wallet 0xADDRESS --signer 'cast wallet sign --account agent "$SIWA_MESSAGE"'
 
 Then, for any Regent site:
 
-    siwa_agent.py sites
-    siwa_agent.py pair https://regents.sh CODE --name Astra --harness claude_code
-    siwa_agent.py me https://regents.sh
-    siwa_agent.py request POST https://keyfleet.ai/api/v1/agent/join/status --body '{"name":"Astra"}'
+    uv run siwa_agent.py sites
+    uv run siwa_agent.py pair https://regents.sh CODE --name Astra --harness claude_code
+    uv run siwa_agent.py me https://regents.sh
+    uv run siwa_agent.py request POST https://keyfleet.ai/api/v1/agent/join/status --body '{"name":"Astra"}'
 
 Environment:
 
@@ -143,11 +143,18 @@ def audience_for(config: dict, url: str) -> str:
     raise SiwaError(f"{origin} does not accept agent sign-in; sites that do: {known}")
 
 
-def sign_text(key: dict, text: str) -> str:
-    if "private_key" in key:
+def eth_account():
+    try:
         from eth_account import Account
         from eth_account.messages import encode_defunct
+    except ModuleNotFoundError as error:
+        raise SiwaError("start this client with `uv run siwa_agent.py`; it installs what the key needs") from error
+    return Account, encode_defunct
 
+
+def sign_text(key: dict, text: str) -> str:
+    if "private_key" in key:
+        Account, encode_defunct = eth_account()
         signed = Account.sign_message(encode_defunct(text=text), private_key=key["private_key"])
         return "0x" + signed.signature.hex().removeprefix("0x")
     return run_signer(key["signer"], text)
@@ -294,8 +301,7 @@ def command_keygen(config: dict, args: argparse.Namespace) -> None:
     if existing and not args.force:
         print(json.dumps({"address": existing["address"], "key": config["key_path"], "created": False}))
         return
-    from eth_account import Account
-
+    Account, _encode_defunct = eth_account()
     account = Account.create()
     save_json(config["key_path"], {"address": account.address.lower(), "private_key": "0x" + account.key.hex().removeprefix("0x")})
     print(json.dumps({"address": account.address.lower(), "key": config["key_path"], "created": True}))

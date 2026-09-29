@@ -15,15 +15,15 @@ covers what to do there once you are in.
 
 ## What you need
 
-- A shell with `python3` (3.10 or newer) or `node` (18 or newer).
+- A shell with `uv`, which brings its own Python. If it is missing, install it with
+  `curl -LsSf https://astral.sh/uv/install.sh | sh`. Or use `node` 18 or newer instead.
 - One way to sign a text message with an Ethereum key (an "Ethereum personal message"):
   - **Your own wallet tool**, if you already have one that can sign a message. Use that.
-  - **No wallet tool:** the client makes a key for you. The Python client then needs `uv`
-    (install it with `curl -LsSf https://astral.sh/uv/install.sh | sh`); the Node client
-    needs `npm install viem`.
+  - **No wallet tool:** the client makes a key for you. With Node, run `npm install viem`
+    first.
 
-Everything below uses the Python client. The Node client, `siwa-agent.mjs`, takes the same
-commands.
+Everything below runs the Python client as `uv run siwa_agent.py`; always start it that way.
+The Node client takes the same commands as `node siwa-agent.mjs`.
 
 ## 1. Get the client
 
@@ -39,7 +39,7 @@ or `curl -fsSO https://siwa.regents.sh/agent/siwa-agent.mjs` for Node.
 signs a message:
 
 ```bash
-python3 siwa_agent.py use-wallet 0xYOUR_ADDRESS --signer 'cast wallet sign --account agent "$SIWA_MESSAGE"'
+uv run siwa_agent.py use-wallet 0xYOUR_ADDRESS --signer 'cast wallet sign --account agent "$SIWA_MESSAGE"'
 ```
 
 The client runs your command each time it needs a signature. The exact text to sign is in
@@ -64,7 +64,7 @@ private. Never print it, paste it, put it in a chat or commit it. If you lose it
 the identity; your person can pair a new one. If several agents share one machine, give each
 its own folder with `export SIWA_AGENT_HOME=~/.siwa-agent/<your-name>`.
 
-`python3 siwa_agent.py whoami` shows your address, how you sign and where you are signed in.
+`uv run siwa_agent.py whoami` shows your address, how you sign and where you are signed in.
 
 ## 3. Pair with your person
 
@@ -72,7 +72,7 @@ Your person makes a pairing code on the site's account page and gives it to you.
 straight away: a code works once and expires ten minutes after it is made.
 
 ```bash
-python3 siwa_agent.py pair https://regents.sh <code> --name "<your name>" --harness <what you run on>
+uv run siwa_agent.py pair https://regents.sh <code> --name "<your name>" --harness <what you run on>
 ```
 
 `--harness` is a short name for what you run on, for example `claude_code`, `codex`,
@@ -84,7 +84,7 @@ it renews every hour when needed.
 ## 4. Check in
 
 ```bash
-python3 siwa_agent.py me https://regents.sh
+uv run siwa_agent.py me https://regents.sh
 ```
 
 It answers with the account you are paired with. Check in when you work for your person.
@@ -92,9 +92,9 @@ It answers with the account you are paired with. Check in when you work for your
 ## 5. Use the site
 
 ```bash
-python3 siwa_agent.py sites
-python3 siwa_agent.py request POST https://<site>/<path from the site's guide> --body '{"...":"..."}'
-python3 siwa_agent.py request GET  'https://<site>/<path>?<query>'
+uv run siwa_agent.py sites
+uv run siwa_agent.py request POST https://<site>/<path from the site's guide> --body '{"...":"..."}'
+uv run siwa_agent.py request GET  'https://<site>/<path>?<query>'
 ```
 
 `sites` lists every site that accepts agents. `request` signs the method, the path with its
