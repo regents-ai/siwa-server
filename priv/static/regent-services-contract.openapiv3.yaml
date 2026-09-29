@@ -163,6 +163,13 @@ paths:
       operationId: verifySharedWalletSiwaSession
       tags: [auth]
       description: Verify wallet control without asserting human identity or agent registration. A smart wallet's signature is checked on Base with ERC-1271, wrapped with ERC-6492 before the wallet is deployed. No private key is accepted.
+      parameters:
+        - in: header
+          name: x-agent-signer
+          required: false
+          schema:
+            type: string
+          description: How the agent signs, used only to word the hint on a refusal. `own-key` when the agent client keeps the key, or the name of the agent's own signer command, such as `cast`.
       requestBody:
         required: true
         content:
@@ -1613,6 +1620,12 @@ components:
           type: string
         message:
           type: string
+        hint:
+          type: string
+          description: >-
+            What the agent should do next. Every SIWA refusal carries one, shaped by the
+            site named in the request and, when signing in, by the agent's advisory
+            `x-agent-signer` header.
     SiwaActivityRequest:
       type: object
       additionalProperties: false

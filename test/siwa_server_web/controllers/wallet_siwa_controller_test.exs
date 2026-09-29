@@ -73,6 +73,40 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     assert Repo.aggregate(NonceRecord, :count) == 1
   end
 
+  test "a closed site's refusal names the sites that accept agents" do
+    hint =
+      json_post("/api/shared/siwa/wallet/nonce", %{params() | "audience" => "techtree"})
+      |> json_response(403)
+      |> get_in(["error", "hint"])
+
+    assert hint =~ "techtree does not accept agent sign-in"
+    assert hint =~ "The sites that do: https://patchbay.help."
+  end
+
+  test "a wrong signature's hint speaks to how the agent signs" do
+    nonce = issue()
+    bad = Map.put(proof(nonce), "signature", TestWallet.sign_message("different proof"))
+
+    for {signer, advice} <- [
+          {"own-key", "uv run siwa_agent.py whoami"},
+          {"Cast", "cast wallet sign --account <name>"},
+          {"frost-sign", "Your signer command (frost-sign)"},
+          {"rm -rf /", "(EIP-191)"},
+          {nil, "(EIP-191)"}
+        ] do
+      conn = build_conn() |> put_req_header("content-type", "application/json")
+      conn = if signer, do: put_req_header(conn, "x-agent-signer", signer), else: conn
+
+      assert %{"code" => "signature_invalid", "hint" => hint} =
+               conn
+               |> post("/api/shared/siwa/wallet/verify", Jason.encode!(bad))
+               |> json_response(401)
+               |> Map.fetch!("error")
+
+      assert hint =~ advice
+    end
+  end
+
   test "contract rejects unknown, missing and mistyped fields" do
     for bad <- [
           Map.put(params(), "registry_address", "0x" <> String.duplicate("1", 40)),
@@ -231,7 +265,11 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     }
 
     assert http_verify(%{request | "body" => "{ }"}, "patchbay") |> json_response(401)
-    assert http_verify(request, "techtree") |> json_response(401)
+
+    assert %{"hint" => hint} =
+             http_verify(request, "techtree") |> json_response(401) |> Map.fetch!("error")
+
+    assert hint =~ "Your sign-in for techtree has ended or was made for another site."
     response = http_verify(request, "patchbay") |> json_response(200)
 
     assert response["data"]["principal"] == %{

@@ -105,7 +105,9 @@ headers without sending, for tools that send requests themselves.
 
 ## Report what happens
 
-Report every step to your person with its exact output, success or failure.
+Report every step to your person with its exact output, success or failure. Every refusal,
+and every host the client cannot reach, comes with a `hint`: the next step for your site,
+your signer and your harness. Follow it before anything in the table below.
 
 If a call hangs or times out, find out why before you retry. Show the DNS answer for the
 host, and a `curl -v` timing breakdown with the HTTP status. An address in `198.18.x.x`, or a

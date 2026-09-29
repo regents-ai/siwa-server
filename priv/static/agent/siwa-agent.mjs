@@ -24,18 +24,40 @@ import { execSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 const CHAIN_ID = 8453;
 const DEFAULT_BROKER = "https://siwa.regents.sh";
 const RECEIPT_RENEW_MARGIN_SECONDS = 60;
 const REQUEST_SIGNATURE_LIFETIME_SECONDS = 120;
 const SIGNER_TIMEOUT_MS = 300_000;
-const USER_AGENT = "siwa-agent-client/2.0 (node)";
+const USER_AGENT = "siwa-agent-client/2.1 (node)";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const SIGNATURE_PATTERN = /0x[0-9a-fA-F]{130,}/g;
 
 class SiwaError extends Error {}
+
+class Unreachable extends Error {
+  constructor(host, reason) {
+    super(`could not reach ${host}: ${reason}`);
+    this.hint = networkHint(host);
+  }
+}
+
+// What to do when a host cannot be reached, shaped by the harness this runs in.
+function networkHint(host) {
+  const steps = [
+    `Find out why before you retry: run \`curl -sv https://${host}/ -o /dev/null\` and show your person`,
+    `the address ${host} resolves to and what happened. An address in 198.18.x.x, or a connection`,
+    `closed with no answer, means your network blocks ${host}; retrying will not help.`,
+  ];
+  if (process.env.CODEX_SANDBOX_NETWORK_DISABLED === "1") {
+    steps.push("You run in Codex's sandbox with network access off: ask your person to allow network access for this command.");
+  } else if (process.env.CLAUDECODE === "1") {
+    steps.push(`Claude Code's sandbox may keep this command off the network: ask your person to allow ${host}.`);
+  }
+  return steps.join(" ");
+}
 
 function settings() {
   const home = process.env.SIWA_AGENT_HOME ?? join(homedir(), ".siwa-agent");
@@ -69,15 +91,18 @@ async function httpJson(method, url, body, headers = {}) {
     init.body = body;
     init.headers["content-type"] ??= "application/json";
   }
-  const response = await fetch(url, init);
-  const text = await response.text();
+  const { status, text } = await fetch(url, init)
+    .then(async (response) => ({ status: response.status, text: await response.text() }))
+    .catch((error) => {
+      throw new Unreachable(new URL(url).hostname, error.cause?.code ?? error.cause?.message ?? error.message);
+    });
   let parsed;
   try {
     parsed = JSON.parse(text);
   } catch {
     parsed = text;
   }
-  return { status: response.status, body: parsed };
+  return { status, body: parsed };
 }
 
 function originOf(url) {
@@ -114,6 +139,11 @@ async function signText(key, text) {
     return privateKeyToAccount(key.private_key).signMessage({ message: text });
   }
   return runSigner(key.signer, text);
+}
+
+// How this client signs, so the sign-in service can word its advice on a refusal.
+function signerName(key) {
+  return key.private_key ? "own-key" : basename(key.signer.trim().split(/\s+/)[0]);
 }
 
 // Hand the exact text to the wallet's own signing command and read back its signature.
@@ -156,7 +186,9 @@ async function signIn(config, key, audience) {
   const challenge = nonce.body.data;
   const signature = await signText(key, challenge.message);
   const proof = { ...base, nonce: challenge.nonce, message: challenge.message, signature };
-  const verified = await httpJson("POST", `${config.broker}/api/shared/siwa/wallet/verify`, JSON.stringify(proof));
+  const verified = await httpJson("POST", `${config.broker}/api/shared/siwa/wallet/verify`, JSON.stringify(proof), {
+    "x-agent-signer": signerName(key),
+  });
   if (verified.status !== 200 || verified.body?.code !== "wallet_verified") {
     throw new SiwaError(`verification failed (${verified.status}): ${JSON.stringify(verified.body)}`);
   }
@@ -362,6 +394,6 @@ async function main(argv) {
 }
 
 main(process.argv.slice(2)).catch((error) => {
-  console.error(JSON.stringify({ error: error.message }));
-  process.exitCode = 2;
+  console.error(JSON.stringify(error.hint ? { error: error.message, hint: error.hint } : { error: error.message }));
+  process.exitCode = error instanceof Unreachable ? 3 : 2;
 });

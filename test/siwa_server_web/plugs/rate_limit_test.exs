@@ -56,7 +56,11 @@ defmodule SiwaServerWeb.Plugs.RateLimitTest do
     assert conn.status == 429
     assert [retry_after] = Plug.Conn.get_resp_header(conn, "retry-after")
     assert String.to_integer(retry_after) >= 1
-    assert conn.resp_body =~ "rate_limited"
+
+    assert %{"error" => %{"code" => "rate_limited", "hint" => hint}} =
+             Jason.decode!(conn.resp_body)
+
+    assert hint =~ "Wait the seconds in Retry-After"
 
     # A different client IP gets its own bucket.
     assert %Plug.Conn{halted: false} = call(unfetched_conn({5, 6, 7, 8}), :siwa_nonce)

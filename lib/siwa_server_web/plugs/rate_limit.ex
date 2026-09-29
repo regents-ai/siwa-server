@@ -7,7 +7,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   @behaviour Plug
 
   alias SiwaServer.RateLimiter
-  alias SiwaServerWeb.ErrorJSON
+  alias SiwaServerWeb.{ErrorJSON, Help}
 
   @defaults %{
     siwa_nonce: [limit: 60, window_ms: 60_000],
@@ -40,7 +40,8 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
         |> put_resp_header("retry-after", retry_after_seconds(retry_after_ms))
         |> json(
           ErrorJSON.error("rate_limited", "Please wait a moment before trying again.", %{
-            "retry_after_ms" => retry_after_ms
+            "retry_after_ms" => retry_after_ms,
+            "hint" => Help.hint("rate_limited", Help.context(conn))
           })
         )
         |> halt()

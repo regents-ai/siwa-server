@@ -51,13 +51,19 @@ DEFAULT_BROKER = "https://siwa.regents.sh"
 RECEIPT_RENEW_MARGIN_SECONDS = 60
 REQUEST_SIGNATURE_LIFETIME_SECONDS = 120
 SIGNER_TIMEOUT_SECONDS = 300
-USER_AGENT = "siwa-agent-client/2.0 (python)"
+USER_AGENT = "siwa-agent-client/2.1 (python)"
 ADDRESS_PATTERN = re.compile(r"^0x[0-9a-fA-F]{40}$")
 SIGNATURE_PATTERN = re.compile(r"0x[0-9a-fA-F]{130,}")
 
 
 class SiwaError(Exception):
     pass
+
+
+class Unreachable(Exception):
+    def __init__(self, host: str, reason: object) -> None:
+        super().__init__(f"could not reach {host}: {reason}")
+        self.host = host
 
 
 def settings() -> dict:
@@ -104,6 +110,22 @@ def http_json(method: str, url: str, body: bytes | None = None, headers: dict | 
             return response.status, decode_body(response.read())
     except urllib.error.HTTPError as error:
         return error.code, decode_body(error.read())
+    except OSError as error:
+        raise Unreachable(urllib.parse.urlsplit(url).hostname, getattr(error, "reason", error)) from error
+
+
+def network_hint(host: str) -> str:
+    """What to do when a host cannot be reached, shaped by the harness this runs in."""
+    steps = [
+        f"Find out why before you retry: run `curl -sv https://{host}/ -o /dev/null` and show your person",
+        f"the address {host} resolves to and what happened. An address in 198.18.x.x, or a connection",
+        f"closed with no answer, means your network blocks {host}; retrying will not help.",
+    ]
+    if os.environ.get("CODEX_SANDBOX_NETWORK_DISABLED") == "1":
+        steps.append("You run in Codex's sandbox with network access off: ask your person to allow network access for this command.")
+    elif os.environ.get("CLAUDECODE") == "1":
+        steps.append(f"Claude Code's sandbox may keep this command off the network: ask your person to allow {host}.")
+    return " ".join(steps)
 
 
 def json_body(value: dict) -> bytes:
@@ -160,6 +182,13 @@ def sign_text(key: dict, text: str) -> str:
     return run_signer(key["signer"], text)
 
 
+def signer_name(key: dict) -> str:
+    """How this client signs, so the sign-in service can word its advice on a refusal."""
+    if "private_key" in key:
+        return "own-key"
+    return os.path.basename((key["signer"].split() or [""])[0])
+
+
 def run_signer(command: str, text: str) -> str:
     """Hand the exact text to the wallet's own signing command and read back its signature."""
     try:
@@ -206,7 +235,7 @@ def sign_in(config: dict, key: dict, audience: str) -> dict:
     challenge = nonce["data"]
     signature = sign_text(key, challenge["message"])
     proof = {**base, "nonce": challenge["nonce"], "message": challenge["message"], "signature": signature}
-    status, verified = http_json("POST", f"{broker}/api/shared/siwa/wallet/verify", json_body(proof))
+    status, verified = http_json("POST", f"{broker}/api/shared/siwa/wallet/verify", json_body(proof), {"x-agent-signer": signer_name(key)})
     if status != 200 or not isinstance(verified, dict) or verified.get("code") != "wallet_verified":
         raise SiwaError(f"verification failed ({status}): {json.dumps(verified)}")
     data = verified["data"]
@@ -415,8 +444,8 @@ def main(argv: list[str]) -> None:
     except SiwaError as error:
         print(json.dumps({"error": str(error)}), file=sys.stderr)
         sys.exit(2)
-    except urllib.error.URLError as error:
-        print(json.dumps({"error": f"could not reach the server: {error.reason}"}), file=sys.stderr)
+    except Unreachable as error:
+        print(json.dumps({"error": str(error), "hint": network_hint(error.host)}), file=sys.stderr)
         sys.exit(3)
 
 
