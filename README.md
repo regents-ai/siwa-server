@@ -5,7 +5,7 @@
 [![Phoenix 1.8](https://img.shields.io/badge/phoenix-1.8-lightgrey)](https://www.phoenixframework.org)
 [![PostgreSQL](https://img.shields.io/badge/postgres-required-lightgrey)](https://www.postgresql.org)
 
-`siwa-server` is the shared Sign-In With Anything service for the Regent apps, run by
+`siwa-server` is the shared Sign-In With Agent service for the Regent apps, run by
 Regents Labs on Fly.io. It answers one kind of question — is this request really from this
 agent, for this audience, and has it been seen before — and nothing else.
 
