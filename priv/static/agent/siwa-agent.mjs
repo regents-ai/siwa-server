@@ -22,7 +22,7 @@
 
 import { execSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
@@ -31,7 +31,7 @@ const DEFAULT_BROKER = "https://siwa.regents.sh";
 const RECEIPT_RENEW_MARGIN_SECONDS = 60;
 const REQUEST_SIGNATURE_LIFETIME_SECONDS = 120;
 const SIGNER_TIMEOUT_MS = 300_000;
-const USER_AGENT = "siwa-agent-client/2.1 (node)";
+const USER_AGENT = "siwa-agent-client/2.2 (node)";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const SIGNATURE_PATTERN = /0x[0-9a-fA-F]{130,}/g;
 
@@ -69,10 +69,12 @@ function loadJson(path) {
   return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : null;
 }
 
+// Write an owner-only file, then swap it in whole, so no one reads half of it.
 function saveJson(path, value) {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-  writeFileSync(path, JSON.stringify(value, null, 2));
-  chmodSync(path, 0o600);
+  const temporary = `${path}.${randomBytes(8).toString("hex")}.tmp`;
+  writeFileSync(temporary, JSON.stringify(value, null, 2), { mode: 0o600, flag: "wx" });
+  renameSync(temporary, path);
 }
 
 function requireKey(config) {

@@ -37,9 +37,9 @@ import json
 import os
 import re
 import secrets
-import stat
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -51,7 +51,7 @@ DEFAULT_BROKER = "https://siwa.regents.sh"
 RECEIPT_RENEW_MARGIN_SECONDS = 60
 REQUEST_SIGNATURE_LIFETIME_SECONDS = 120
 SIGNER_TIMEOUT_SECONDS = 300
-USER_AGENT = "siwa-agent-client/2.1 (python)"
+USER_AGENT = "siwa-agent-client/2.2 (python)"
 ADDRESS_PATTERN = re.compile(r"^0x[0-9a-fA-F]{40}$")
 SIGNATURE_PATTERN = re.compile(r"0x[0-9a-fA-F]{130,}")
 
@@ -80,10 +80,13 @@ def load_json(path: str) -> dict | None:
 
 
 def save_json(path: str, value: dict) -> None:
-    os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as handle:
+    """Write an owner-only file, then swap it in whole, so no one reads half of it."""
+    folder = os.path.dirname(path)
+    os.makedirs(folder, mode=0o700, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(dir=folder, suffix=".tmp")
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         json.dump(value, handle, indent=2)
-    os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+    os.replace(temporary, path)
 
 
 def require_key(config: dict) -> dict:
