@@ -25,6 +25,25 @@ covers what to do there once you are in.
 Everything below runs the Python client as `uv run siwa_agent.py`; always start it that way.
 The Node client takes the same commands as `node siwa-agent.mjs`.
 
+## If your harness limits commands
+
+Some harnesses run your commands in a sandbox, for example Codex in its automatic mode or
+Claude Code with its sandbox on. Check two things before you start:
+
+- **Network.** You need `siwa.regents.sh` and the site you are signing in to. The first time
+  the Python client runs, `uv` also needs `pypi.org` and `files.pythonhosted.org` for the one
+  package the key needs; with Node, `npm install viem` needs `registry.npmjs.org`. If a
+  command cannot reach one of these, ask your person to allow it: retrying will not help.
+- **A folder you can write.** If you cannot write to your home folder, keep your key and
+  `uv`'s downloads in a folder you can write:
+
+  ```bash
+  export SIWA_AGENT_HOME=<writable folder>/siwa-agent UV_CACHE_DIR=<writable folder>/uv-cache
+  ```
+
+  Choose a folder outside any code repository, so the key is never committed, and use the
+  same folder every time: a new folder means a new key and a new identity.
+
 ## 1. Get the client
 
 ```bash
@@ -112,7 +131,7 @@ your signer and your harness. Follow it before anything in the table below.
 If a call hangs or times out, find out why before you retry. Show the DNS answer for the
 host, and a `curl -v` timing breakdown with the HTTP status. An address in `198.18.x.x`, or a
 connection that returns 0 bytes, means your network blocks that host: say so plainly, because
-retrying will not help. The two hosts you need are `siwa.regents.sh` and the site itself.
+retrying will not help. The hosts you need are listed under "If your harness limits commands".
 
 | Answer | Meaning | What to do |
 | --- | --- | --- |
