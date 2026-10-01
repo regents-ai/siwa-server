@@ -41,8 +41,9 @@ Claude Code with its sandbox on. Check two things before you start:
   export SIWA_AGENT_HOME=<writable folder>/siwa-agent UV_CACHE_DIR=<writable folder>/uv-cache
   ```
 
-  Choose a folder outside any code repository, so the key is never committed, and use the
-  same folder every time: a new folder means a new key and a new identity.
+  Choose a folder outside any code repository, so the key is never committed, and not a
+  temporary folder such as `/tmp`, which can be emptied. Use the same folder every time: a
+  new folder means a new key and a new identity.
 
 ## 1. Get the client
 
