@@ -100,7 +100,7 @@ paths:
     post:
       operationId: createSharedWalletSiwaNonce
       tags: [auth]
-      description: Issue a single-use ERC-4361 wallet challenge for an enabled audience. Ordinary wallets and smart wallets on Base can sign it. No private key is accepted.
+      description: Issue a single-use ERC-4361 wallet challenge for an enabled audience. Ordinary wallets, and smart wallets on Ethereum or Base, can sign it. No private key is accepted.
       requestBody:
         required: true
         content:
@@ -162,7 +162,7 @@ paths:
     post:
       operationId: verifySharedWalletSiwaSession
       tags: [auth]
-      description: Verify wallet control without asserting human identity or agent registration. A smart wallet's signature is checked on Base with ERC-1271, wrapped with ERC-6492 before the wallet is deployed. No private key is accepted.
+      description: Verify wallet control without asserting human identity or agent registration. A smart wallet's signature is checked on the chain it signs in on with ERC-1271, wrapped with ERC-6492 before the wallet is deployed. The answer says which method proved the wallet. No private key is accepted.
       parameters:
         - in: header
           name: x-agent-signer
@@ -964,6 +964,14 @@ components:
     BaseChainId:
       type: integer
       enum: [8453]
+    WalletChainId:
+      type: integer
+      enum: [1, 8453]
+      description: The chain the wallet signs in on, Ethereum (1) or Base (8453). An ordinary wallet's signature holds on every chain; a smart wallet's is checked on this chain.
+    VerificationMethod:
+      type: string
+      enum: [eoa_recovery, erc1271, erc6492]
+      description: How the wallet's signature was proven. eoa_recovery holds on every chain; erc1271 and erc6492 hold on the chain named by chainId only.
     HexData:
       type: string
       pattern: "^0x[a-fA-F0-9]*$"
@@ -974,7 +982,7 @@ components:
         wallet_address:
           $ref: "#/components/schemas/Address"
         chain_id:
-          $ref: "#/components/schemas/BaseChainId"
+          $ref: "#/components/schemas/WalletChainId"
         audience:
           type: string
           minLength: 1
@@ -987,7 +995,7 @@ components:
         wallet_address:
           $ref: "#/components/schemas/Address"
         chain_id:
-          $ref: "#/components/schemas/BaseChainId"
+          $ref: "#/components/schemas/WalletChainId"
         audience:
           type: string
           minLength: 1
@@ -1047,7 +1055,7 @@ components:
             walletAddress:
               $ref: "#/components/schemas/Address"
             chainId:
-              $ref: "#/components/schemas/BaseChainId"
+              $ref: "#/components/schemas/WalletChainId"
             audience:
               type: string
             nonce:
@@ -1072,7 +1080,7 @@ components:
           enum: [wallet_verified]
         data:
           type: object
-          required: [verified, principalType, walletAddress, chainId, audience, keyId, signatureScheme, proof, receipt, receiptExpiresAt]
+          required: [verified, principalType, walletAddress, chainId, audience, keyId, signatureScheme, verificationMethod, proof, receipt, receiptExpiresAt]
           properties:
             verified:
               type: boolean
@@ -1083,7 +1091,7 @@ components:
             walletAddress:
               $ref: "#/components/schemas/Address"
             chainId:
-              $ref: "#/components/schemas/BaseChainId"
+              $ref: "#/components/schemas/WalletChainId"
             audience:
               type: string
             keyId:
@@ -1091,6 +1099,8 @@ components:
             signatureScheme:
               type: string
               enum: [evm_personal_sign]
+            verificationMethod:
+              $ref: "#/components/schemas/VerificationMethod"
             proof:
               type: string
               enum: [wallet_signature]
@@ -1112,7 +1122,7 @@ components:
         wallet_address:
           $ref: "#/components/schemas/Address"
         chain_id:
-          $ref: "#/components/schemas/BaseChainId"
+          $ref: "#/components/schemas/WalletChainId"
         audience:
           type: string
       additionalProperties: false
@@ -1125,7 +1135,7 @@ components:
           enum: [http_envelope_valid]
         data:
           type: object
-          required: [verified, walletAddress, chainId, keyId, principal, receiptExpiresAt, requiredHeaders, requiredCoveredComponents, coveredComponents]
+          required: [verified, walletAddress, chainId, keyId, verificationMethod, principal, receiptExpiresAt, requiredHeaders, requiredCoveredComponents, coveredComponents]
           properties:
             verified:
               type: boolean
@@ -1133,9 +1143,11 @@ components:
             walletAddress:
               $ref: "#/components/schemas/Address"
             chainId:
-              $ref: "#/components/schemas/BaseChainId"
+              $ref: "#/components/schemas/WalletChainId"
             keyId:
               type: string
+            verificationMethod:
+              $ref: "#/components/schemas/VerificationMethod"
             principal:
               $ref: "#/components/schemas/WalletPrincipal"
             receiptExpiresAt:
@@ -1294,7 +1306,7 @@ components:
           enum: [http_envelope_valid]
         data:
           type: object
-          required: [verified, walletAddress, chainId, keyId, agent_claims, receiptExpiresAt, requiredHeaders, requiredCoveredComponents, coveredComponents]
+          required: [verified, walletAddress, chainId, keyId, verificationMethod, agent_claims, receiptExpiresAt, requiredHeaders, requiredCoveredComponents, coveredComponents]
           properties:
             verified:
               type: boolean
@@ -1305,6 +1317,8 @@ components:
               $ref: "#/components/schemas/BaseChainId"
             keyId:
               type: string
+            verificationMethod:
+              $ref: "#/components/schemas/VerificationMethod"
             agent_claims:
               $ref: "#/components/schemas/AgentClaims"
             receiptExpiresAt:
@@ -1587,6 +1601,8 @@ components:
             - keystore_path
             - base_rpc_url
             - base_rpc_chain_id
+            - ethereum_rpc_url
+            - ethereum_rpc_chain_id
           properties:
             database:
               type: boolean
@@ -1605,6 +1621,10 @@ components:
             base_rpc_url:
               type: boolean
             base_rpc_chain_id:
+              type: boolean
+            ethereum_rpc_url:
+              type: boolean
+            ethereum_rpc_chain_id:
               type: boolean
           additionalProperties: false
       additionalProperties: false

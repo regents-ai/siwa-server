@@ -46,12 +46,12 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-CHAIN_ID = 8453
+CHAINS = {"base": 8453, "ethereum": 1}
 DEFAULT_BROKER = "https://siwa.regents.sh"
 RECEIPT_RENEW_MARGIN_SECONDS = 60
 REQUEST_SIGNATURE_LIFETIME_SECONDS = 120
 SIGNER_TIMEOUT_SECONDS = 300
-USER_AGENT = "siwa-agent-client/2.2 (python)"
+USER_AGENT = "siwa-agent-client/2.3 (python)"
 ADDRESS_PATTERN = re.compile(r"^0x[0-9a-fA-F]{40}$")
 SIGNATURE_PATTERN = re.compile(r"0x[0-9a-fA-F]{130,}")
 
@@ -94,6 +94,11 @@ def require_key(config: dict) -> dict:
     if not key:
         raise SiwaError(f"no key at {config['key_path']}; run keygen or use-wallet first")
     return key
+
+
+def chain_id(key: dict) -> int:
+    """The chain this key signs in on: the one use-wallet chose, else Base."""
+    return key.get("chain_id", CHAINS["base"])
 
 
 def receipt_path(config: dict, audience: str) -> str:
@@ -231,7 +236,7 @@ def receipt_is_fresh(receipt: dict | None) -> bool:
 def sign_in(config: dict, key: dict, audience: str) -> dict:
     """Obtain a fresh receipt for this key and site, and store it."""
     broker, address = config["broker"], key["address"]
-    base = {"wallet_address": address, "chain_id": CHAIN_ID, "audience": audience}
+    base = {"wallet_address": address, "chain_id": chain_id(key), "audience": audience}
     status, nonce = http_json("POST", f"{broker}/api/shared/siwa/wallet/nonce", json_body(base))
     if status != 200 or not isinstance(nonce, dict) or nonce.get("code") != "nonce_issued":
         raise SiwaError(f"nonce request failed ({status}): {json.dumps(nonce)}")
@@ -276,7 +281,7 @@ def signed_headers(key: dict, receipt: dict, method: str, url: str, body: bytes 
         "x-key-id": receipt["key_id"],
         "x-timestamp": str(created),
         "x-agent-wallet-address": key["address"],
-        "x-agent-chain-id": str(CHAIN_ID),
+        "x-agent-chain-id": str(chain_id(key)),
     }
     components = ["@method", "@path", "x-siwa-receipt", "x-key-id", "x-timestamp", "x-agent-wallet-address", "x-agent-chain-id"]
     if body is not None:
@@ -345,8 +350,9 @@ def command_use_wallet(config: dict, args: argparse.Namespace) -> None:
     existing = load_json(config["key_path"])
     if existing and not args.force:
         raise SiwaError(f"{config['key_path']} already holds {existing['address']}; add --force to replace it")
-    save_json(config["key_path"], {"address": args.address.lower(), "signer": args.signer})
-    print(json.dumps({"address": args.address.lower(), "key": config["key_path"], "signer": args.signer}))
+    chain = CHAINS[args.chain]
+    save_json(config["key_path"], {"address": args.address.lower(), "signer": args.signer, "chain_id": chain})
+    print(json.dumps({"address": args.address.lower(), "key": config["key_path"], "signer": args.signer, "chain_id": chain}))
 
 
 def command_whoami(config: dict, _args: argparse.Namespace) -> None:
@@ -361,6 +367,7 @@ def command_whoami(config: dict, _args: argparse.Namespace) -> None:
     print(json.dumps({
         "address": key["address"],
         "signs_with": "this client's key" if "private_key" in key else key["signer"],
+        "chain_id": chain_id(key),
         "broker": config["broker"],
         "signed_in": signed_in,
     }, indent=2))
@@ -409,6 +416,7 @@ def main(argv: list[str]) -> None:
     use_wallet = commands.add_parser("use-wallet", help="sign with your own wallet tool instead of a key kept here")
     use_wallet.add_argument("address", help="the wallet's Ethereum address")
     use_wallet.add_argument("--signer", required=True, help="shell command that signs $SIWA_MESSAGE (also on stdin) as an Ethereum personal message and prints the 0x signature")
+    use_wallet.add_argument("--chain", choices=sorted(CHAINS), default="base", help="the chain a smart wallet lives on (default base); an ordinary wallet works on either")
     use_wallet.add_argument("--force", action="store_true", help="replace the existing key; the old identity is lost")
     use_wallet.set_defaults(run=command_use_wallet)
 

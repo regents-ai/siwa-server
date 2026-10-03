@@ -14,15 +14,16 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
       Keyword.put(previous, :wallet_origins, %{"patchbay" => "https://patchbay.help"})
     )
 
-    previous_base_rpc_url = System.get_env("BASE_RPC_URL")
+    previous_rpc_urls = Map.new(~w(BASE_RPC_URL ETHEREUM_RPC_URL), &{&1, System.get_env(&1)})
     System.put_env("BASE_RPC_URL", TestRpcServer.wallet_answers({true, <<>>}))
+    System.put_env("ETHEREUM_RPC_URL", TestRpcServer.wallet_answers({true, <<>>}))
 
     on_exit(fn ->
       Application.put_env(:siwa_server, :siwa, previous)
 
-      if previous_base_rpc_url,
-        do: System.put_env("BASE_RPC_URL", previous_base_rpc_url),
-        else: System.delete_env("BASE_RPC_URL")
+      for {name, value} <- previous_rpc_urls do
+        if value, do: System.put_env(name, value), else: System.delete_env(name)
+      end
     end)
   end
 
@@ -51,6 +52,7 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     assert response["code"] == "wallet_verified"
     data = response["data"]
     assert data["proof"] == "wallet_signature"
+    assert data["verificationMethod"] == "eoa_recovery"
     assert data["walletAddress"] == TestWallet.address()
     refute Map.has_key?(data, "agentId")
     {:ok, claims} = Siwa.verify_receipt(data["receipt"], secret: secret(), audience: "patchbay")
@@ -91,6 +93,7 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
           {"own-key", "uv run siwa_agent.py whoami"},
           {"Cast", "cast wallet sign --account <name>"},
           {"frost-sign", "Your signer command (frost-sign)"},
+          {"frost-sign", "--chain ethereum --force"},
           {"rm -rf /", "(EIP-191)"},
           {nil, "(EIP-191)"}
         ] do
@@ -113,7 +116,8 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
           Map.put(params(), "private_key", "not-a-key"),
           Map.delete(params(), "wallet_address"),
           %{params() | "chain_id" => "8453"},
-          %{params() | "chain_id" => 1},
+          %{params() | "chain_id" => 10},
+          %{params() | "chain_id" => 0},
           %{params() | "wallet_address" => "bad"},
           %{params() | "audience" => String.duplicate("a", 201)}
         ] do
@@ -188,6 +192,53 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
       |> Map.fetch!("data")
 
     assert data["walletAddress"] == smart_wallet
+    assert data["verificationMethod"] == "erc1271"
+  end
+
+  test "a smart wallet that signs in on Ethereum is asked on Ethereum, not Base" do
+    smart_wallet = "0x452f678f6e588069d1aef38d3d519567aa1014a4"
+    System.put_env("BASE_RPC_URL", TestRpcServer.rpc_error())
+
+    System.put_env(
+      "ETHEREUM_RPC_URL",
+      TestRpcServer.wallet_answers({true, TestRpcServer.erc1271_approval()})
+    )
+
+    ethereum_params = %{params() | "wallet_address" => smart_wallet, "chain_id" => 1}
+
+    nonce =
+      json_post("/api/shared/siwa/wallet/nonce", ethereum_params)
+      |> json_response(200)
+      |> Map.fetch!("data")
+
+    assert nonce["message"] =~ "\nChain ID: 1\n"
+
+    proof =
+      Map.merge(ethereum_params, %{
+        "nonce" => nonce["nonce"],
+        "message" => nonce["message"],
+        "signature" => "0x" <> String.duplicate("ab", 640)
+      })
+
+    System.delete_env("ETHEREUM_RPC_URL")
+
+    assert %{"message" => "could not check the wallet signature on Ethereum: " <> _reason} =
+             json_post("/api/shared/siwa/wallet/verify", proof)
+             |> json_response(502)
+             |> Map.fetch!("error")
+
+    System.put_env(
+      "ETHEREUM_RPC_URL",
+      TestRpcServer.wallet_answers({true, TestRpcServer.erc1271_approval()})
+    )
+
+    data =
+      json_post("/api/shared/siwa/wallet/verify", proof)
+      |> json_response(200)
+      |> Map.fetch!("data")
+
+    assert data["chainId"] == 1
+    assert data["verificationMethod"] == "erc1271"
   end
 
   test "a failed signature lookup on Base is a 502 and leaves the challenge usable" do
@@ -271,6 +322,7 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
 
     assert hint =~ "Your sign-in for techtree has ended or was made for another site."
     response = http_verify(request, "patchbay") |> json_response(200)
+    assert response["data"]["verificationMethod"] == "eoa_recovery"
 
     assert response["data"]["principal"] == %{
              "kind" => "wallet",

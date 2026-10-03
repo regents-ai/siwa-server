@@ -12,6 +12,7 @@ defmodule SiwaServer.SecretAllowlistTest do
       KEYRING_PROXY_SECRET
       SIWA_ACTIVITY_READ_TOKEN
       BASE_RPC_URL
+      ETHEREUM_RPC_URL
     ) do
       assert allowlist =~ "  - #{name}"
     end
@@ -31,6 +32,7 @@ defmodule SiwaServer.SecretAllowlistTest do
     for name <- ~w(
       BASE_RPC_URL
       DATABASE_URL
+      ETHEREUM_RPC_URL
       KEYRING_PROXY_SECRET
       KEYSTORE_PASSWORD
       PHX_HOST

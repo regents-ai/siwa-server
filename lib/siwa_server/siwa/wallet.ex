@@ -56,7 +56,7 @@ defmodule SiwaServer.Siwa.Wallet do
          {:ok, secret} <- RuntimeConfig.siwa_receipt_secret(),
          {:ok, record} <- NonceStore.get_wallet(nonce_key(fields), fields["nonce"]),
          :ok <- validate_challenge(fields, origin, record),
-         :ok <- verify_signature(record, fields),
+         {:ok, verification_method} <- verify_signature(record, fields),
          :ok <- NonceStore.consume_wallet(record),
          {:ok, receipt} <-
            Siwa.create_receipt(
@@ -85,6 +85,7 @@ defmodule SiwaServer.Siwa.Wallet do
            "audience" => record.audience,
            "keyId" => record.address,
            "signatureScheme" => "evm_personal_sign",
+           "verificationMethod" => Atom.to_string(verification_method),
            "receipt" => receipt.token,
            "receiptExpiresAt" => DateTime.to_iso8601(receipt.expires_at)
          }
@@ -104,9 +105,14 @@ defmodule SiwaServer.Siwa.Wallet do
   end
 
   defp verify_signature(record, fields) do
-    case Ethereum.verify_signature(record.address, fields["message"], fields["signature"]) do
-      :ok ->
-        :ok
+    case Ethereum.verify_signature(
+           record.address,
+           fields["message"],
+           fields["signature"],
+           record.chain_id
+         ) do
+      {:ok, method} ->
+        {:ok, method}
 
       {:error, :signature_invalid} ->
         {:error, {401, "signature_invalid", "signature does not match wallet"}}
@@ -114,13 +120,13 @@ defmodule SiwaServer.Siwa.Wallet do
       {:error, {:lookup_failed, reason}} ->
         {:error,
          {502, "signature_lookup_failed",
-          "could not check the wallet signature on Base: #{reason}"}}
+          "could not check the wallet signature on #{Ethereum.chain_name(record.chain_id)}: #{reason}"}}
     end
   end
 
   defp validate(params, allowed) when is_map(params) do
     with true <- Enum.sort(Map.keys(params)) == Enum.sort(allowed),
-         8453 <- params["chain_id"],
+         true <- params["chain_id"] in Ethereum.wallet_chain_ids(),
          address when is_binary(address) <- params["wallet_address"],
          true <- Regex.match?(~r/^0x[0-9a-fA-F]{40}$/, address),
          audience when is_binary(audience) and byte_size(audience) in 1..200 <- params["audience"],

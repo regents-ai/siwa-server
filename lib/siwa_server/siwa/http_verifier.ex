@@ -39,7 +39,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
              wallet_audiences: Map.keys(RuntimeConfig.siwa_wallet_origins()),
              signature_tolerance_seconds: RuntimeConfig.siwa_http_signature_tolerance_seconds(),
              replay_store: &ReplayStore.consume/2,
-             base_rpc: Ethereum.base_rpc_opts()
+             chain_rpcs: Ethereum.chain_rpcs()
            ),
          :ok <- record_activity(verified.claims, Keyword.get(opts, :audience), method, path) do
       claims = verified.claims
@@ -54,6 +54,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
              "walletAddress" => claims["sub"],
              "chainId" => claims["chain_id"],
              "keyId" => claims["key_id"],
+             "verificationMethod" => Atom.to_string(verified.verification_method),
              "receiptExpiresAt" => unix_ms_to_iso8601(claims["exp"]),
              "requiredHeaders" => Siwa.required_authenticated_request_headers(body, kind),
              "requiredCoveredComponents" =>
@@ -195,7 +196,9 @@ defmodule SiwaServer.Siwa.HttpVerifier do
     do: {401, "signature_invalid", "signature does not match wallet"}
 
   defp map_shared_error(:signature_lookup_failed),
-    do: {502, "signature_lookup_failed", "could not check the wallet signature on Base"}
+    do:
+      {502, "signature_lookup_failed",
+       "could not check the wallet signature on the chain it signed in on"}
 
   defp map_shared_error(:replayed_request),
     do: {409, "request_replayed", "request replay detected"}

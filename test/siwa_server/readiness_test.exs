@@ -6,9 +6,12 @@ defmodule SiwaServer.ReadinessTest do
 
   setup do
     original_base_rpc_url = System.get_env("BASE_RPC_URL")
+    original_ethereum_rpc_url = System.get_env("ETHEREUM_RPC_URL")
+    System.put_env("ETHEREUM_RPC_URL", TestRpcServer.chain_id(1))
 
     on_exit(fn ->
       restore_env("BASE_RPC_URL", original_base_rpc_url)
+      restore_env("ETHEREUM_RPC_URL", original_ethereum_rpc_url)
     end)
 
     :ok
@@ -41,6 +44,21 @@ defmodule SiwaServer.ReadinessTest do
     assert checks.base_rpc_chain_id == false
     assert failures.base_rpc_chain_id =~ "0x1"
     assert failures.base_rpc_chain_id =~ "expected 0x2105"
+  end
+
+  test "Ethereum is checked like Base: configured, and answering as chain 1" do
+    System.put_env("BASE_RPC_URL", TestRpcServer.chain_id(8453))
+    System.delete_env("ETHEREUM_RPC_URL")
+
+    assert %{ready: false, failures: failures} = Readiness.check()
+    assert failures.ethereum_rpc_url =~ "ETHEREUM_RPC_URL is not configured"
+
+    System.put_env("ETHEREUM_RPC_URL", TestRpcServer.chain_id(8453))
+
+    assert %{ready: false, checks: checks, failures: failures} = Readiness.check()
+    assert checks.ethereum_rpc_url == true
+    assert failures.ethereum_rpc_chain_id =~ "expected 0x1"
+    refute Map.has_key?(failures, :base_rpc_chain_id)
   end
 
   test "GET /readyz reports per-check status and failure reasons", %{conn: conn} do

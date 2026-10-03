@@ -7,6 +7,7 @@ defmodule SiwaServer.Readiness do
   alias SiwaServer.RuntimeConfig
 
   @base_chain_id_hex "0x2105"
+  @ethereum_chain_id_hex "0x1"
   @supported_keyring_backend "encrypted_file"
 
   def check do
@@ -19,8 +20,16 @@ defmodule SiwaServer.Readiness do
       keyring_password: keyring_secret_check(:password),
       keyring_secret: keyring_secret_check(:secret),
       keystore_path: keystore_path_check(),
-      base_rpc_url: base_rpc_url_check(),
-      base_rpc_chain_id: base_rpc_chain_id_check()
+      base_rpc_url: rpc_url_check("BASE_RPC_URL", RuntimeConfig.base_rpc_url()),
+      base_rpc_chain_id:
+        rpc_chain_id_check("BASE_RPC_URL", RuntimeConfig.base_rpc_url(), @base_chain_id_hex),
+      ethereum_rpc_url: rpc_url_check("ETHEREUM_RPC_URL", RuntimeConfig.ethereum_rpc_url()),
+      ethereum_rpc_chain_id:
+        rpc_chain_id_check(
+          "ETHEREUM_RPC_URL",
+          RuntimeConfig.ethereum_rpc_url(),
+          @ethereum_chain_id_hex
+        )
     }
 
     checks = Map.new(results, fn {name, result} -> {name, result == :ok} end)
@@ -113,10 +122,10 @@ defmodule SiwaServer.Readiness do
     end
   end
 
-  defp base_rpc_url_check do
-    case RuntimeConfig.base_rpc_url() do
+  defp rpc_url_check(env_name, url) do
+    case url do
       nil ->
-        {:error, "BASE_RPC_URL is not configured"}
+        {:error, "#{env_name} is not configured"}
 
       url ->
         uri = URI.parse(url)
@@ -124,43 +133,36 @@ defmodule SiwaServer.Readiness do
         if uri.scheme in ["http", "https"] and is_binary(uri.host) do
           :ok
         else
-          {:error, "BASE_RPC_URL is not a valid http(s) url"}
+          {:error, "#{env_name} is not a valid http(s) url"}
         end
     end
   end
 
-  defp base_rpc_chain_id_check do
-    case RuntimeConfig.base_rpc_url() do
-      nil ->
-        {:error, "BASE_RPC_URL is not configured"}
+  defp rpc_chain_id_check(env_name, nil, _expected_hex),
+    do: {:error, "#{env_name} is not configured"}
 
-      url ->
-        base_chain_id_probe(url)
-    end
-  rescue
-    # Finch raises when the SiwaServer.Finch pool is not running.
-    error in ArgumentError ->
-      {:error, "base rpc chain id probe failed: #{Exception.message(error)}"}
-  end
-
-  defp base_chain_id_probe(url) do
+  defp rpc_chain_id_check(env_name, url, expected_hex) do
     case Ethereum.json_rpc(url, "eth_chainId", [],
            timeout_ms: Config.readiness_rpc_timeout_ms(),
            finch: SiwaServer.Finch
          ) do
       {:ok, chain_id} when is_binary(chain_id) ->
-        if String.downcase(chain_id) == @base_chain_id_hex do
+        if String.downcase(chain_id) == expected_hex do
           :ok
         else
-          {:error, "base rpc returned chain id #{chain_id}, expected #{@base_chain_id_hex}"}
+          {:error, "#{env_name} returned chain id #{chain_id}, expected #{expected_hex}"}
         end
 
       {:ok, other} ->
-        {:error, "base rpc returned an invalid chain id: #{inspect(other)}"}
+        {:error, "#{env_name} returned an invalid chain id: #{inspect(other)}"}
 
       {:error, reason} ->
-        {:error, "base rpc chain id probe failed: #{inspect(reason)}"}
+        {:error, "#{env_name} chain id probe failed: #{inspect(reason)}"}
     end
+  rescue
+    # Finch raises when the SiwaServer.Finch pool is not running.
+    error in ArgumentError ->
+      {:error, "#{env_name} chain id probe failed: #{Exception.message(error)}"}
   end
 
   defp secret_check(value, missing_reason) do

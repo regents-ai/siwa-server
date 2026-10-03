@@ -21,8 +21,16 @@ defmodule SiwaServer.EthereumTest do
 
   test "genuine signatures verify at every message length" do
     for {length, signature} <- @signatures do
-      assert Ethereum.verify_signature(@address, String.duplicate("a", length), signature) == :ok,
-             "a #{length}-byte message was refused"
+      for chain_id <- Ethereum.wallet_chain_ids() do
+        assert Ethereum.verify_signature(
+                 @address,
+                 String.duplicate("a", length),
+                 signature,
+                 chain_id
+               ) ==
+                 {:ok, :eoa_recovery},
+               "a #{length}-byte message was refused on chain #{chain_id}"
+      end
     end
   end
 
@@ -74,8 +82,13 @@ defmodule SiwaServer.EthereumTest do
         TestRpcServer.wallet_answers({true, TestRpcServer.erc1271_approval()}, self())
       )
 
-      assert Ethereum.verify_signature(@deployed_wallet, @smart_message, @deployed_signature) ==
-               :ok
+      assert Ethereum.verify_signature(
+               @deployed_wallet,
+               @smart_message,
+               @deployed_signature,
+               8453
+             ) ==
+               {:ok, :erc1271}
 
       assert_received {:rpc_request, %{"method" => "eth_call", "params" => [call, "latest"]}}
       assert call["to"] == @multicall3
@@ -95,8 +108,13 @@ defmodule SiwaServer.EthereumTest do
         TestRpcServer.wallet_answers({true, TestRpcServer.erc1271_approval()}, self())
       )
 
-      assert Ethereum.verify_signature(@undeployed_wallet, @smart_message, @undeployed_signature) ==
-               :ok
+      assert Ethereum.verify_signature(
+               @undeployed_wallet,
+               @smart_message,
+               @undeployed_signature,
+               8453
+             ) ==
+               {:ok, :erc6492}
 
       assert_received {:rpc_request, %{"params" => [call, "latest"]}}
 
@@ -119,7 +137,12 @@ defmodule SiwaServer.EthereumTest do
           ] do
         System.put_env("BASE_RPC_URL", TestRpcServer.wallet_answers(answer))
 
-        assert Ethereum.verify_signature(@deployed_wallet, @smart_message, @deployed_signature) ==
+        assert Ethereum.verify_signature(
+                 @deployed_wallet,
+                 @smart_message,
+                 @deployed_signature,
+                 8453
+               ) ==
                  {:error, :signature_invalid}
       end
     end
@@ -130,7 +153,8 @@ defmodule SiwaServer.EthereumTest do
       assert Ethereum.verify_signature(
                @deployed_wallet,
                String.duplicate("a", 106),
-               @signatures[106]
+               @signatures[106],
+               8453
              ) ==
                {:error, :signature_invalid}
     end
@@ -140,7 +164,7 @@ defmodule SiwaServer.EthereumTest do
       suffix_hex = String.duplicate("6492", 16)
 
       for signature <- ["0x" <> suffix_hex, "0x1234" <> suffix_hex] do
-        assert Ethereum.verify_signature(@undeployed_wallet, @smart_message, signature) ==
+        assert Ethereum.verify_signature(@undeployed_wallet, @smart_message, signature, 8453) ==
                  {:error, :signature_invalid}
       end
     end
@@ -154,12 +178,22 @@ defmodule SiwaServer.EthereumTest do
         System.put_env("BASE_RPC_URL", rpc_url)
 
         assert {:error, {:lookup_failed, _reason}} =
-                 Ethereum.verify_signature(@deployed_wallet, @smart_message, @deployed_signature)
+                 Ethereum.verify_signature(
+                   @deployed_wallet,
+                   @smart_message,
+                   @deployed_signature,
+                   8453
+                 )
       end
 
       System.delete_env("BASE_RPC_URL")
 
-      assert Ethereum.verify_signature(@deployed_wallet, @smart_message, @deployed_signature) ==
+      assert Ethereum.verify_signature(
+               @deployed_wallet,
+               @smart_message,
+               @deployed_signature,
+               8453
+             ) ==
                {:error, {:lookup_failed, "base rpc url is not configured"}}
     end
 
@@ -168,7 +202,12 @@ defmodule SiwaServer.EthereumTest do
       on_exit(fn -> Application.delete_env(:siwa_server, :ethereum_rpc_timeout_ms) end)
       System.put_env("BASE_RPC_URL", TestRpcServer.timeout())
 
-      assert Ethereum.verify_signature(@deployed_wallet, @smart_message, @deployed_signature) ==
+      assert Ethereum.verify_signature(
+               @deployed_wallet,
+               @smart_message,
+               @deployed_signature,
+               8453
+             ) ==
                {:error, {:lookup_failed, "rpc request timed out"}}
     end
   end

@@ -157,8 +157,8 @@ defmodule SiwaServer.Siwa do
   defdelegate content_digest_for_body(body), to: Siwa.RequestAuth
 
   defp verify_wallet_signature(wallet_address, message, signature) do
-    case Ethereum.verify_signature(wallet_address, message, signature) do
-      :ok ->
+    case Ethereum.verify_signature(wallet_address, message, signature, @base_chain_id) do
+      {:ok, _method} ->
         :ok
 
       {:error, :signature_invalid} ->

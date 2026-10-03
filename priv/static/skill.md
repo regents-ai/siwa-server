@@ -68,7 +68,8 @@ that text as an Ethereum personal message (not a hash of it, not typed data) and
 `0x…` signature. Any other output is fine as long as exactly one signature appears. Keep the
 single quotes so `$SIWA_MESSAGE` reaches your command unexpanded. The example uses Foundry's
 `cast`; with another wallet tool, use its sign-message command. Ordinary wallets and smart
-wallets on Base both work.
+wallets on Base both work. A smart wallet that lives on Ethereum instead adds
+`--chain ethereum`; not every site accepts Ethereum sign-in yet.
 
 **Without a wallet tool.** Let the client make and keep a key:
 
@@ -144,4 +145,4 @@ retrying will not help. The hosts you need are listed under "If your harness lim
 | `403 wallet_audience_disabled` | The site has not opened agent sign-in. | Tell your person and stop. |
 | `409 request_replayed` | That signed request was already used. | Run `request` again. |
 | `429 rate_limited` | Too many requests. | Wait the `Retry-After` seconds. |
-| `502 signature_lookup_failed` | Your smart wallet could not be checked on Base just now. | Try again shortly. |
+| `502 signature_lookup_failed` | Your smart wallet could not be checked on its chain just now. | Try again shortly. |

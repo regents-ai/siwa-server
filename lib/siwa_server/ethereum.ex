@@ -11,36 +11,60 @@ defmodule SiwaServer.Ethereum do
     end
   end
 
+  @wallet_chain_names %{1 => "Ethereum", 8453 => "Base"}
+
+  @doc "The chains a wallet may sign in on."
+  @spec wallet_chain_ids() :: [pos_integer()]
+  def wallet_chain_ids, do: Map.keys(@wallet_chain_names)
+
+  @spec chain_name(pos_integer()) :: String.t()
+  def chain_name(chain_id), do: Map.fetch!(@wallet_chain_names, chain_id)
+
   @doc """
   Checks an ERC-191 personal signature over `message` from the wallet at
-  `address`: an ordinary wallet's locally, a smart wallet's on Base with
-  ERC-1271 or ERC-6492 (see `Siwa.WalletSignature`).
+  `address`: an ordinary wallet's locally, a smart wallet's with ERC-1271 or
+  ERC-6492 on the chain it signed in on (see `Siwa.WalletSignature`). Answers
+  how the wallet was proven.
   """
-  @spec verify_signature(String.t(), String.t(), String.t()) ::
-          :ok | {:error, :signature_invalid} | {:error, {:lookup_failed, String.t()}}
-  def verify_signature(address, message, signature) do
-    case Siwa.WalletSignature.verify(address, message, signature, base_rpc_opts()) do
-      :ok -> :ok
-      {:error, :signature_invalid} -> {:error, :signature_invalid}
-      {:error, {:lookup_failed, reason}} -> {:error, {:lookup_failed, lookup_reason(reason)}}
+  @spec verify_signature(String.t(), String.t(), String.t(), pos_integer()) ::
+          {:ok, Siwa.WalletSignature.method()}
+          | {:error, :signature_invalid}
+          | {:error, {:lookup_failed, String.t()}}
+  def verify_signature(address, message, signature, chain_id) do
+    case Siwa.WalletSignature.verify(address, message, signature, rpc_opts(chain_id)) do
+      {:ok, method} ->
+        {:ok, method}
+
+      {:error, :signature_invalid} ->
+        {:error, :signature_invalid}
+
+      {:error, {:lookup_failed, reason}} ->
+        {:error, {:lookup_failed, lookup_reason(reason, chain_id)}}
     end
   end
 
-  @doc "The Base RPC options for a signature check through the shared SIWA library."
-  @spec base_rpc_opts() :: keyword()
-  def base_rpc_opts do
+  @doc "The RPC options for each sign-in chain, for signature checks through the shared SIWA library."
+  @spec chain_rpcs() :: %{pos_integer() => keyword()}
+  def chain_rpcs, do: Map.new(wallet_chain_ids(), &{&1, rpc_opts(&1)})
+
+  defp rpc_opts(chain_id) do
     [
-      rpc_url: Text.normalize_optional_text(RuntimeConfig.base_rpc_url()) || "",
+      rpc_url: Text.normalize_optional_text(rpc_url(chain_id)) || "",
       finch: SiwaServer.Finch,
       timeout_ms: rpc_timeout_ms()
     ]
   end
 
-  defp lookup_reason(:rpc_url_required), do: "base rpc url is not configured"
-  defp lookup_reason(:rpc_request_timed_out), do: "rpc request timed out"
-  defp lookup_reason(:invalid_rpc_response), do: "invalid rpc response"
-  defp lookup_reason({:rpc_error, message}) when is_binary(message), do: message
-  defp lookup_reason(_reason), do: "rpc request failed"
+  defp rpc_url(1), do: RuntimeConfig.ethereum_rpc_url()
+  defp rpc_url(8453), do: RuntimeConfig.base_rpc_url()
+
+  defp lookup_reason(:rpc_url_required, chain_id),
+    do: "#{String.downcase(chain_name(chain_id))} rpc url is not configured"
+
+  defp lookup_reason(:rpc_request_timed_out, _chain_id), do: "rpc request timed out"
+  defp lookup_reason(:invalid_rpc_response, _chain_id), do: "invalid rpc response"
+  defp lookup_reason({:rpc_error, message}, _chain_id) when is_binary(message), do: message
+  defp lookup_reason(_reason, _chain_id), do: "rpc request failed"
 
   @spec owner_of(String.t(), String.t(), keyword()) :: {:ok, String.t()} | {:error, String.t()}
   def owner_of(registry_address, token_id, opts \\ []) do

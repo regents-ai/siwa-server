@@ -125,6 +125,7 @@ must fail closed. The SIWA library and the service tests cover these cases.
 | `KEYSTORE_PASSWORD` | Yes in production | Password for the encrypted key store. |
 | `KEYRING_PROXY_SECRET` | Yes in production | Shared secret guarding the internal keyring routes. |
 | `BASE_RPC_URL` | Yes in production | Base mainnet JSON-RPC endpoint. |
+| `ETHEREUM_RPC_URL` | Yes in production | Ethereum mainnet JSON-RPC endpoint, for smart wallets that sign in on Ethereum. |
 
 ## Optional configuration
 

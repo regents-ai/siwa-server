@@ -14,6 +14,7 @@ defmodule SiwaServerWeb.Help do
   alias SiwaServer.RuntimeConfig
 
   @guide "https://siwa.regents.sh/skill.md"
+  @smart_wallet_chain "A smart wallet's signature holds only on the chain it lives on: if yours lives on Ethereum, run `use-wallet` again with `--chain ethereum --force`."
   @client "curl -fsSO https://siwa.regents.sh/agent/siwa_agent.py"
 
   @type context :: %{audience: String.t() | nil, signer: String.t() | nil}
@@ -107,7 +108,7 @@ defmodule SiwaServerWeb.Help do
   defp steps(code, _context)
        when code in ~w(signature_lookup_failed agent_registration_lookup_failed) do
     [
-      "Base could not be read just now to check your wallet. Wait a minute, then run ",
+      "The blockchain could not be read just now to check your wallet. Wait a minute, then run ",
       "the command again. If it keeps happening, tell your person."
     ]
   end
@@ -168,7 +169,8 @@ defmodule SiwaServerWeb.Help do
       "Sign the exact text as an Ethereum personal message (EIP-191): not a hash of it ",
       "and not typed data, with the key of the address you gave. ",
       @guide,
-      " shows how."
+      " shows how. ",
+      @smart_wallet_chain
     ]
   end
 
@@ -178,7 +180,8 @@ defmodule SiwaServerWeb.Help do
       signer,
       ") must sign the exact text in $SIWA_MESSAGE as an Ethereum personal message and ",
       "print the 0x signature: not a hash of it and not typed data. Check that ",
-      "`use-wallet` names the address of the key it signs with."
+      "`use-wallet` names the address of the key it signs with. ",
+      @smart_wallet_chain
     ]
   end
 

@@ -26,12 +26,12 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFile
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
-const CHAIN_ID = 8453;
+const CHAINS = { base: 8453, ethereum: 1 };
 const DEFAULT_BROKER = "https://siwa.regents.sh";
 const RECEIPT_RENEW_MARGIN_SECONDS = 60;
 const REQUEST_SIGNATURE_LIFETIME_SECONDS = 120;
 const SIGNER_TIMEOUT_MS = 300_000;
-const USER_AGENT = "siwa-agent-client/2.2 (node)";
+const USER_AGENT = "siwa-agent-client/2.3 (node)";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const SIGNATURE_PATTERN = /0x[0-9a-fA-F]{130,}/g;
 
@@ -81,6 +81,11 @@ function requireKey(config) {
   const key = loadJson(config.keyPath);
   if (!key) throw new SiwaError(`no key at ${config.keyPath}; run keygen or use-wallet first`);
   return key;
+}
+
+// The chain this key signs in on: the one use-wallet chose, else Base.
+function chainId(key) {
+  return key.chain_id ?? CHAINS.base;
 }
 
 function receiptPath(config, audience) {
@@ -180,7 +185,7 @@ function receiptIsFresh(receipt) {
 
 // Obtain a fresh receipt for this key and site, and store it.
 async function signIn(config, key, audience) {
-  const base = { wallet_address: key.address, chain_id: CHAIN_ID, audience };
+  const base = { wallet_address: key.address, chain_id: chainId(key), audience };
   const nonce = await httpJson("POST", `${config.broker}/api/shared/siwa/wallet/nonce`, JSON.stringify(base));
   if (nonce.status !== 200 || nonce.body?.code !== "nonce_issued") {
     throw new SiwaError(`nonce request failed (${nonce.status}): ${JSON.stringify(nonce.body)}`);
@@ -227,7 +232,7 @@ async function signedHeaders(key, receipt, method, url, body) {
     "x-key-id": receipt.key_id,
     "x-timestamp": String(created),
     "x-agent-wallet-address": key.address,
-    "x-agent-chain-id": String(CHAIN_ID),
+    "x-agent-chain-id": String(chainId(key)),
   };
   const components = ["@method", "@path", "x-siwa-receipt", "x-key-id", "x-timestamp", "x-agent-wallet-address", "x-agent-chain-id"];
   if (body !== undefined) {
@@ -318,14 +323,18 @@ async function keygen(config, args) {
 }
 
 function useWallet(config, args) {
-  const signer = required(takeOption(args, "--signer"), "use-wallet <address> --signer <command> [--force]");
+  const usage = "use-wallet <address> --signer <command> [--chain base|ethereum] [--force]";
+  const signer = required(takeOption(args, "--signer"), usage);
+  const chainName = takeOption(args, "--chain") ?? "base";
   const force = takeFlag(args, "--force");
-  const address = required(args[0], "use-wallet <address> --signer <command> [--force]");
+  const address = required(args[0], usage);
   if (!ADDRESS_PATTERN.test(address)) throw new SiwaError(`${address} is not an Ethereum address`);
+  if (!Object.hasOwn(CHAINS, chainName)) throw new SiwaError(`--chain must be base or ethereum, not ${chainName}`);
   const existing = loadJson(config.keyPath);
   if (existing && !force) throw new SiwaError(`${config.keyPath} already holds ${existing.address}; add --force to replace it`);
-  saveJson(config.keyPath, { address: address.toLowerCase(), signer });
-  console.log(JSON.stringify({ address: address.toLowerCase(), key: config.keyPath, signer }));
+  const chain = CHAINS[chainName];
+  saveJson(config.keyPath, { address: address.toLowerCase(), signer, chain_id: chain });
+  console.log(JSON.stringify({ address: address.toLowerCase(), key: config.keyPath, signer, chain_id: chain }));
 }
 
 function whoami(config) {
@@ -340,7 +349,13 @@ function whoami(config) {
     : [];
   console.log(
     JSON.stringify(
-      { address: key.address, signs_with: key.private_key ? "this client's key" : key.signer, broker: config.broker, signed_in: signedIn },
+      {
+        address: key.address,
+        signs_with: key.private_key ? "this client's key" : key.signer,
+        chain_id: chainId(key),
+        broker: config.broker,
+        signed_in: signedIn,
+      },
       null,
       2,
     ),
@@ -390,7 +405,7 @@ async function main(argv) {
     }
     default:
       throw new SiwaError(
-        "commands: keygen [--force], use-wallet <address> --signer <command>, whoami, sites, sign-in <site>, pair <site> <code> --name NAME --harness HARNESS, me <site>, request <method> <url>, headers <method> <url>",
+        "commands: keygen [--force], use-wallet <address> --signer <command> [--chain base|ethereum], whoami, sites, sign-in <site>, pair <site> <code> --name NAME --harness HARNESS, me <site>, request <method> <url>, headers <method> <url>",
       );
   }
 }

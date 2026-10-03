@@ -396,6 +396,15 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     assert response(get(conn, "/"), 200) == "ok"
     assert response(get(conn, "/healthz"), 200) == "ok"
 
+    previous_ethereum_rpc_url = System.get_env("ETHEREUM_RPC_URL")
+    System.put_env("ETHEREUM_RPC_URL", TestRpcServer.chain_id(1))
+
+    on_exit(fn ->
+      if previous_ethereum_rpc_url,
+        do: System.put_env("ETHEREUM_RPC_URL", previous_ethereum_rpc_url),
+        else: System.delete_env("ETHEREUM_RPC_URL")
+    end)
+
     ready_conn = get(conn, "/readyz")
     assert %{"ready" => true, "checks" => checks} = json_response(ready_conn, 200)
     assert checks["database"] == true
@@ -407,6 +416,8 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     assert checks["keystore_path"] == true
     assert checks["base_rpc_url"] == true
     assert checks["base_rpc_chain_id"] == true
+    assert checks["ethereum_rpc_url"] == true
+    assert checks["ethereum_rpc_chain_id"] == true
 
     metrics = response(get(conn, "/metrics"), 200)
     assert metrics =~ "siwa_server"

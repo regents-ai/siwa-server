@@ -58,7 +58,7 @@ defmodule SiwaServer.Siwa.NonceRecord do
       "wallet" ->
         changeset
         |> validate_required([:chain_id, :canonical_message])
-        |> validate_inclusion(:chain_id, [8453])
+        |> validate_inclusion(:chain_id, SiwaServer.Ethereum.wallet_chain_ids())
 
       _ ->
         validate_required(changeset, [:agent_id, :agent_registry])

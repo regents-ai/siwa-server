@@ -923,17 +923,19 @@ defmodule SiwaServer.SiwaTest do
     message = "hello"
     signature = TestWallet.sign_message(message)
 
-    assert :ok = Ethereum.verify_signature(@wallet_address, message, signature)
+    assert {:ok, :eoa_recovery} =
+             Ethereum.verify_signature(@wallet_address, message, signature, @chain_id)
 
     assert {:error, :signature_invalid} =
              Ethereum.verify_signature(
                "0x1111111111111111111111111111111111111111",
                message,
-               signature
+               signature,
+               @chain_id
              )
 
     assert {:error, :signature_invalid} =
-             Ethereum.verify_signature(@wallet_address, message, "not-a-signature")
+             Ethereum.verify_signature(@wallet_address, message, "not-a-signature", @chain_id)
   end
 
   test "ethereum signatures verify concurrently without the keyring" do
@@ -943,13 +945,13 @@ defmodule SiwaServer.SiwaTest do
     results =
       1..20
       |> Task.async_stream(
-        fn _ -> Ethereum.verify_signature(@wallet_address, message, signature) end,
+        fn _ -> Ethereum.verify_signature(@wallet_address, message, signature, @chain_id) end,
         max_concurrency: 20,
         timeout: 5_000
       )
       |> Enum.map(fn {:ok, result} -> result end)
 
-    assert results == List.duplicate(:ok, 20)
+    assert results == List.duplicate({:ok, :eoa_recovery}, 20)
   end
 
   test "owner lookups time out cleanly" do
