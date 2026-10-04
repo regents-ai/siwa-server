@@ -1,7 +1,8 @@
 defmodule SiwaServerWeb.WalletSiwaControllerTest do
   use SiwaServerWeb.ConnCase, async: false
+  use Oban.Testing, repo: SiwaServer.Repo
 
-  alias SiwaServer.{Repo, TestRpcServer, TestWallet}
+  alias SiwaServer.{AgentBook, Repo, TestRpcServer, TestWallet}
   alias SiwaServer.Siwa.{ActivityStore, NonceRecord, NonceStore, ReplayStore, Wallet}
   import Ecto.Query
 
@@ -56,6 +57,11 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     {:ok, claims} = Siwa.verify_receipt(data["receipt"], secret: secret(), audience: "patchbay")
     assert claims["typ"] == "siwa_wallet_receipt"
     assert claims["verified"] == "wallet_signature"
+
+    assert_enqueued(
+      worker: AgentBook.Refresh,
+      args: %{wallet_address: String.downcase(TestWallet.address())}
+    )
 
     assert json_post("/api/shared/siwa/wallet/verify", proof(nonce)) |> json_response(404)
   end
@@ -311,6 +317,10 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
              http_verify(request, "techtree") |> json_response(401) |> Map.fetch!("error")
 
     assert hint =~ "Your sign-in for techtree has ended or was made for another site."
+    human_id = "0x" <> String.duplicate("ab", 32)
+
+    Repo.insert!(AgentBook.Human.changeset(%{wallet_address: signer.address, human_id: human_id}))
+
     response = http_verify(request, "patchbay") |> json_response(200)
     assert response["data"]["verificationMethod"] == "eoa_recovery"
 
@@ -322,6 +332,7 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
            }
 
     assert response["data"]["agentRegistration"] == nil
+    assert response["data"]["agentBook"] == %{"humanId" => human_id}
     assert http_verify(request, "patchbay") |> json_response(409)
 
     assert [

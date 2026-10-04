@@ -106,6 +106,7 @@ activity_read_token =
 
 if prod?, do: required_env.("BASE_RPC_URL")
 if prod?, do: required_env.("ETHEREUM_RPC_URL")
+if prod?, do: required_env.("WORLD_RPC_URL")
 
 keystore_backend =
   env_value.("KEYSTORE_BACKEND", Keyword.get(current_keyring, :backend, "encrypted_file"))

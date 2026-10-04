@@ -32,6 +32,8 @@ config :siwa_server, :siwa,
   receipt_secret: "siwa-server-test-receipt-secret",
   activity_read_token: "siwa-server-test-activity-read-token"
 
+config :siwa_server, Oban, testing: :manual
+
 config :siwa_server, :siwa_cleanup, enabled: false, interval_ms: 60_000, batch_size: 1_000
 
 config :siwa_keyring,

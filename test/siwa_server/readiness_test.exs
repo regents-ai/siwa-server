@@ -7,11 +7,14 @@ defmodule SiwaServer.ReadinessTest do
   setup do
     original_base_rpc_url = System.get_env("BASE_RPC_URL")
     original_ethereum_rpc_url = System.get_env("ETHEREUM_RPC_URL")
+    original_world_rpc_url = System.get_env("WORLD_RPC_URL")
     System.put_env("ETHEREUM_RPC_URL", TestRpcServer.chain_id(1))
+    System.put_env("WORLD_RPC_URL", TestRpcServer.chain_id(480))
 
     on_exit(fn ->
       restore_env("BASE_RPC_URL", original_base_rpc_url)
       restore_env("ETHEREUM_RPC_URL", original_ethereum_rpc_url)
+      restore_env("WORLD_RPC_URL", original_world_rpc_url)
     end)
 
     :ok

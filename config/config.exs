@@ -17,6 +17,13 @@ config :siwa_server, :siwa,
   receipt_secret: nil,
   activity_read_token: nil
 
+config :siwa_server, Oban,
+  repo: SiwaServer.Repo,
+  notifier: Oban.Notifiers.PG,
+  queues: [agent_book: 5],
+  pruner: [max_age: {7, :days}],
+  lifeline: [rescue_after: {10, :minutes}]
+
 config :siwa_server, :siwa_cleanup,
   enabled: true,
   interval_ms: 60_000,

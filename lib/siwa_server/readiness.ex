@@ -8,6 +8,7 @@ defmodule SiwaServer.Readiness do
 
   @base_chain_id_hex "0x2105"
   @ethereum_chain_id_hex "0x1"
+  @world_chain_id_hex "0x1e0"
   @supported_keyring_backend "encrypted_file"
 
   def check do
@@ -29,7 +30,10 @@ defmodule SiwaServer.Readiness do
           "ETHEREUM_RPC_URL",
           RuntimeConfig.ethereum_rpc_url(),
           @ethereum_chain_id_hex
-        )
+        ),
+      world_rpc_url: rpc_url_check("WORLD_RPC_URL", RuntimeConfig.world_rpc_url()),
+      world_rpc_chain_id:
+        rpc_chain_id_check("WORLD_RPC_URL", RuntimeConfig.world_rpc_url(), @world_chain_id_hex)
     }
 
     checks = Map.new(results, fn {name, result} -> {name, result == :ok} end)

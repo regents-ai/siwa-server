@@ -129,6 +129,7 @@ must fail closed. The SIWA library and the service tests cover these cases.
 | `KEYRING_PROXY_SECRET` | Yes in production | Shared secret guarding the internal keyring routes. |
 | `BASE_RPC_URL` | Yes in production | Base mainnet JSON-RPC endpoint. |
 | `ETHEREUM_RPC_URL` | Yes in production | Ethereum mainnet JSON-RPC endpoint, for smart wallets that sign in on Ethereum. |
+| `WORLD_RPC_URL` | Yes in production | World Chain JSON-RPC endpoint, for reading World's AgentBook. |
 
 ## Optional configuration
 
@@ -231,7 +232,9 @@ Wallet receipts have type `siwa_wallet_receipt` and proof `wallet_signature`.
 HTTP verification returns an explicit `principal` of kind `wallet` and
 `agentRegistration`: the wallet's newest listing in the agent registry made through
 this server, or null. Sites link to `agentRegistration.registryUrl` when it is set.
-Product consumers check product ownership themselves. Payment and human identity
+It also returns `agentBook`: `{humanId}` when World's AgentBook names a World
+ID-verified person behind the wallet, or null (see below).
+Product consumers check product ownership themselves. Payment and human accounts
 remain separate. Both nonce consumption and request replay use database-clock
 expiration checks; invalid proof cannot consume a valid challenge.
 
@@ -247,6 +250,18 @@ that profile. Nothing is stored until `registered` reads the transaction at the 
 Base block and finds the token the registry minted to that wallet. The listing is then
 kept, the registration file is served at `agentUri`, and http-verify names it. This
 server never sends or funds a transaction.
+
+### World AgentBook
+
+A person can vouch for their agent with World ID: World's own tool,
+`npx @worldcoin/agentkit-cli register <address>`, records the wallet in World's
+AgentBook on World Chain, `0xA23aB2712eA7BBa896930544C7d6636a96b944dA`, under the
+person's anonymous World ID number (the nullifier hash), and World pays the gas.
+Each wallet sign-in queues an Oban job that reads `lookupHuman(wallet)` at the latest
+World Chain block through `WORLD_RPC_URL` and saves the answer in
+`agent_book_humans`. http-verify returns the saved entry as
+`agentBook: {humanId}`, or null. Sites decide when to show `humanId`; the same person's
+agents share it. Sign-in never waits for World Chain.
 
 For an isolated checkout, set `REGENT_ELIXIR_UTILS_ROOT` to a frozen `elixir-utils`
 export. `REGENT_RELEASE_CONTEXT` identifies the matching Docker input directory

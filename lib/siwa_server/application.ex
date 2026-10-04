@@ -8,6 +8,7 @@ defmodule SiwaServer.Application do
     children = [
       SiwaServerWeb.Telemetry,
       SiwaServer.Repo,
+      {Oban, Application.fetch_env!(:siwa_server, Oban)},
       SiwaServer.RateLimiter,
       {Finch, name: SiwaServer.Finch},
       {Task.Supervisor, name: SiwaServer.Siwa.CleanupTaskSupervisor},

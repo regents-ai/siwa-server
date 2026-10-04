@@ -6,6 +6,7 @@ defmodule SiwaServer.RuntimeConfig do
 
   def base_rpc_url, do: fetch("BASE_RPC_URL")
   def ethereum_rpc_url, do: fetch("ETHEREUM_RPC_URL")
+  def world_rpc_url, do: fetch("WORLD_RPC_URL")
 
   def siwa_receipt_secret do
     case fetch_siwa(:receipt_secret) do

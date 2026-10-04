@@ -16,13 +16,14 @@ defmodule SiwaServer.Siwa.HttpVerifier do
 
   Each verified request is then recorded by `SiwaServer.Siwa.ActivityStore`,
   and the answer names the agent's registry entry when it registered one
-  through this server (see `SiwaServer.AgentRegistration`).
+  through this server (see `SiwaServer.AgentRegistration`), and the person
+  World's AgentBook last named behind the wallet (see `SiwaServer.AgentBook`).
 
   Library error reasons are mapped to stable client-facing status/code
   tuples by `map_shared_error/1`.
   """
 
-  alias SiwaServer.{AgentRegistration, Ethereum, RuntimeConfig}
+  alias SiwaServer.{AgentBook, AgentRegistration, Ethereum, RuntimeConfig}
   alias SiwaServer.Siwa.{ActivityStore, ReplayStore}
   alias SiwaServer.Text
 
@@ -61,6 +62,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
              Siwa.required_authenticated_request_components(headers, body),
            "coveredComponents" => verified.covered_components,
            "agentRegistration" => AgentRegistration.latest(claims["sub"]),
+           "agentBook" => AgentBook.human(claims["sub"]),
            "principal" => %{
              "kind" => "wallet",
              "wallet_address" => claims["sub"],

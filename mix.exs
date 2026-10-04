@@ -42,6 +42,7 @@ defmodule SiwaServer.MixProject do
       {:phoenix, "~> 1.8.4"},
       {:phoenix_ecto, "~> 4.5"},
       {:ecto_sql, "~> 3.13"},
+      {:oban, "~> 2.24"},
       {:postgrex, ">= 0.0.0"},
       {:req, "~> 0.7"},
       {:finch, "~> 0.21"},

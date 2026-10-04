@@ -1064,7 +1064,7 @@ components:
           enum: [http_envelope_valid]
         data:
           type: object
-          required: [verified, walletAddress, chainId, keyId, verificationMethod, principal, receiptExpiresAt, requiredHeaders, requiredCoveredComponents, coveredComponents, agentRegistration]
+          required: [verified, walletAddress, chainId, keyId, verificationMethod, principal, receiptExpiresAt, requiredHeaders, requiredCoveredComponents, coveredComponents, agentRegistration, agentBook]
           properties:
             verified:
               type: boolean
@@ -1083,6 +1083,11 @@ components:
               description: The wallet's newest listing in the Base agent registry made through this server, or null.
               oneOf:
                 - $ref: "#/components/schemas/AgentRegistration"
+                - type: "null"
+            agentBook:
+              description: The person World's AgentBook on World Chain last named behind this wallet, read at each sign-in, or null. Each site decides when to show humanId.
+              oneOf:
+                - $ref: "#/components/schemas/AgentBookHuman"
                 - type: "null"
             receiptExpiresAt:
               type: string
@@ -1195,6 +1200,16 @@ components:
         registryUrl:
           type: string
           format: uri
+      additionalProperties: false
+    AgentBookHuman:
+      type: object
+      description: A World ID-verified person stands behind this agent wallet in World's AgentBook (World Chain, 0xA23aB2712eA7BBa896930544C7d6636a96b944dA).
+      required: [humanId]
+      properties:
+        humanId:
+          type: string
+          pattern: "^0x[0-9a-f]{64}$"
+          description: The person's anonymous World ID number (nullifier hash). The same person's agents share it.
       additionalProperties: false
     AgentRegisteredResponse:
       oneOf:

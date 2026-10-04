@@ -98,13 +98,14 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     assert response(get(conn, "/"), 200) == "ok"
     assert response(get(conn, "/healthz"), 200) == "ok"
 
-    previous_ethereum_rpc_url = System.get_env("ETHEREUM_RPC_URL")
+    previous_rpc_urls = Map.new(~w(ETHEREUM_RPC_URL WORLD_RPC_URL), &{&1, System.get_env(&1)})
     System.put_env("ETHEREUM_RPC_URL", TestRpcServer.chain_id(1))
+    System.put_env("WORLD_RPC_URL", TestRpcServer.chain_id(480))
 
     on_exit(fn ->
-      if previous_ethereum_rpc_url,
-        do: System.put_env("ETHEREUM_RPC_URL", previous_ethereum_rpc_url),
-        else: System.delete_env("ETHEREUM_RPC_URL")
+      for {name, value} <- previous_rpc_urls do
+        if value, do: System.put_env(name, value), else: System.delete_env(name)
+      end
     end)
 
     ready_conn = get(conn, "/readyz")
