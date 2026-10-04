@@ -1,6 +1,7 @@
 defmodule SiwaServerWeb.ActivityControllerTest do
   use SiwaServerWeb.ConnCase, async: false
 
+  alias SiwaServer.AgentBook.Human
   alias SiwaServer.AgentRegistration.Record
   alias SiwaServer.Repo
   alias SiwaServer.Siwa.ActivityStore
@@ -14,7 +15,7 @@ defmodule SiwaServerWeb.ActivityControllerTest do
     :ok = ActivityStore.record(@wallet, "autolaunch", "POST", "/v1/agent/launches?draft=1")
     :ok = ActivityStore.record(@other, "techtree", "POST", "/v1/runs")
 
-    assert %{"activity" => activity, "agentRegistration" => nil} =
+    assert %{"activity" => activity, "agentRegistration" => nil, "agentBook" => nil} =
              read(%{
                "wallet_address" => String.upcase(@wallet) |> String.replace("0X", "0x"),
                "since" => an_hour_ago()
@@ -54,6 +55,16 @@ defmodule SiwaServerWeb.ActivityControllerTest do
              |> get_in(["data", "agentRegistration"])
 
     assert String.ends_with?(profile_url, "/agent-profiles/" <> String.duplicate("c0", 16))
+  end
+
+  test "names the World ID-verified person AgentBook last named behind the wallet" do
+    human_id = "0x" <> String.duplicate("24", 32)
+    Repo.insert!(Human.changeset(%{wallet_address: @wallet, human_id: human_id}))
+
+    assert %{"humanId" => ^human_id} =
+             read(%{"wallet_address" => @wallet, "since" => an_hour_ago()})
+             |> json_response(200)
+             |> get_in(["data", "agentBook"])
   end
 
   test "only requests at or after since are read" do
