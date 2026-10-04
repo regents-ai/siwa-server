@@ -4,15 +4,8 @@ defmodule SiwaServer.RuntimeConfig do
   alias SiwaServer.Config
   alias SiwaServer.Text
 
-  @default_siwa_domain "regent.cx"
-  @default_siwa_verify_uri "https://regent.cx/api/shared/siwa/verify"
-
   def base_rpc_url, do: fetch("BASE_RPC_URL")
   def ethereum_rpc_url, do: fetch("ETHEREUM_RPC_URL")
-
-  def siwa_domain, do: fetch_siwa(:domain) || @default_siwa_domain
-
-  def siwa_verify_uri, do: fetch_siwa(:verify_uri) || @default_siwa_verify_uri
 
   def siwa_receipt_secret do
     case fetch_siwa(:receipt_secret) do

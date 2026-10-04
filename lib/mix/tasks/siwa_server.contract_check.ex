@@ -14,13 +14,12 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     {"GET", "/metrics"} => MapSet.new(~w(200)),
     {"GET", "/regent-services-contract.openapiv3.yaml"} => MapSet.new(~w(200)),
     {"GET", "/api/shared/siwa/audiences"} => MapSet.new(~w(200)),
-    {"POST", "/api/shared/siwa/nonce"} => MapSet.new(~w(200 400 413 415 429)),
-    {"POST", "/api/shared/siwa/verify"} => MapSet.new(~w(200 400 401 404 413 415 429 500 502)),
     {"POST", "/api/shared/siwa/http-verify"} =>
       MapSet.new(~w(200 400 401 409 413 415 429 500 502)),
     {"POST", "/api/shared/siwa/activity"} => MapSet.new(~w(200 400 401 413 415 429)),
     {"POST", "/api/shared/siwa/agent/register-step"} => MapSet.new(~w(200 400 413 415 429)),
     {"POST", "/api/shared/siwa/agent/registered"} => MapSet.new(~w(200 400 413 415 422 429 502)),
+    {"GET", "/agent-profiles/{profile_id}"} => MapSet.new(~w(200 404 429)),
     {"POST", "/api/shared/siwa/wallet/nonce"} =>
       MapSet.new(~w(200 400 401 403 404 413 415 429 500)),
     {"POST", "/api/shared/siwa/wallet/verify"} =>
@@ -56,7 +55,7 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     router_routes =
       SiwaServerWeb.Router
       |> Phoenix.Router.routes()
-      |> Enum.map(&{&1.verb |> to_string() |> String.upcase(), &1.path})
+      |> Enum.map(&{&1.verb |> to_string() |> String.upcase(), openapi_path(&1.path)})
       |> Enum.reject(fn {_verb, path} -> String.starts_with?(path, "/api/shared/keyring") end)
       |> MapSet.new()
       |> MapSet.union(keyring_routes)
@@ -114,6 +113,8 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
   end
 
   defp collect_contract_route(_line, acc), do: acc
+
+  defp openapi_path(path), do: Regex.replace(~r/:(\w+)/, path, "{\\1}")
 
   defp contract_response_codes(contract) do
     contract

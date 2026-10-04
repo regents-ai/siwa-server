@@ -19,4 +19,17 @@ defmodule SiwaServerWeb.AgentRegistrationController do
       json(conn, payload)
     end
   end
+
+  # The registration file explorers and other sites read, so any page may fetch it.
+  def profile(conn, %{"profile_id" => profile_id}) do
+    case AgentRegistration.profile(profile_id) do
+      {:ok, file} ->
+        conn
+        |> put_resp_header("access-control-allow-origin", "*")
+        |> json(file)
+
+      :error ->
+        {:error, {404, "agent_profile_not_found", "no registered agent has this profile"}}
+    end
+  end
 end

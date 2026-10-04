@@ -11,7 +11,7 @@ kill_timeout = "5s"
 
 [env]
   ECTO_IPV6 = "true"
-  PHX_HOST = "siwa-server.fly.dev"
+  PHX_HOST = "siwa.regents.sh"
   PHX_SERVER = "true"
   PORT = "8080"
   SIWA_WALLET_ORIGINS = "patchbay=https://patchbay.help,regents=https://regents.sh,keyfleet=https://keyfleet.ai,techtree=https://techtree.sh"

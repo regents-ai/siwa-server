@@ -26,13 +26,12 @@ defmodule SiwaServer.Siwa.Wallet do
         canonical_message: message
       }
 
-      case NonceStore.put_wallet(attrs) do
+      case NonceStore.put(attrs) do
         {:ok, _record} ->
           {:ok,
            %{
              "code" => "nonce_issued",
              "data" => %{
-               "principalType" => "wallet",
                "walletAddress" => fields["wallet_address"],
                "chainId" => fields["chain_id"],
                "audience" => fields["audience"],
@@ -54,10 +53,10 @@ defmodule SiwaServer.Siwa.Wallet do
   def verify(params) do
     with {:ok, fields, origin} <- validate(params, @verify_fields),
          {:ok, secret} <- RuntimeConfig.siwa_receipt_secret(),
-         {:ok, record} <- NonceStore.get_wallet(nonce_key(fields), fields["nonce"]),
+         {:ok, record} <- NonceStore.get(nonce_key(fields), fields["nonce"]),
          :ok <- validate_challenge(fields, origin, record),
          {:ok, verification_method} <- verify_signature(record, fields),
-         :ok <- NonceStore.consume_wallet(record),
+         :ok <- NonceStore.consume(record),
          {:ok, receipt} <-
            Siwa.create_receipt(
              %{
@@ -78,7 +77,6 @@ defmodule SiwaServer.Siwa.Wallet do
          "code" => "wallet_verified",
          "data" => %{
            "verified" => true,
-           "principalType" => "wallet",
            "proof" => "wallet_signature",
            "walletAddress" => record.address,
            "chainId" => record.chain_id,

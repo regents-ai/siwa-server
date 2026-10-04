@@ -131,8 +131,16 @@ defmodule SiwaServerWeb.Help do
   defp steps(code, _context)
        when code in ~w(transaction_not_registration registration_reverted) do
     [
-      "That transaction did not register an agent. Check the transaction hash you sent, ",
-      "and that the registration succeeded on Base, then send it again."
+      "That transaction did not list this wallet with this profile in the agent registry. ",
+      "Send the hash of the transaction `register-step` built, with the same name, ",
+      "description and image, after it succeeds on Base."
+    ]
+  end
+
+  defp steps("agent_profile_not_found", _context) do
+    [
+      "No agent is listed with this profile. A profile is served once its registration ",
+      "lands on Base and its transaction hash reaches `registered`."
     ]
   end
 

@@ -27,31 +27,14 @@ defmodule SiwaServer.Siwa.NonceStoreTest do
     assert Repo.aggregate(NonceRecord, :count, :id) == 1
   end
 
-  test "consume allows only one concurrent use of a nonce" do
-    insert_nonce!("race-nonce", DateTime.add(DateTime.utc_now(), 60, :second))
-
-    results =
-      1..20
-      |> Task.async_stream(
-        fn _ -> NonceStore.consume("key-race-nonce", "race-nonce") end,
-        max_concurrency: 20,
-        timeout: 5_000
-      )
-      |> Enum.map(fn {:ok, result} -> result end)
-
-    assert Enum.count(results, &match?({:ok, _record}, &1)) == 1
-    assert Enum.count(results, &match?({:error, :unknown_nonce}, &1)) == 19
-    assert Repo.get_by(NonceRecord, nonce: "race-nonce") == nil
-  end
-
   defp insert_nonce!(nonce, expiration_time) do
     %NonceRecord{}
     |> NonceRecord.changeset(%{
       nonce_key: "key-#{nonce}",
       nonce: nonce,
       address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-      agent_id: "77",
-      agent_registry: "eip155:8453:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432",
+      chain_id: 8453,
+      canonical_message: "sign-in challenge #{nonce}",
       audience: "platform",
       issued_at: DateTime.add(expiration_time, -300, :second),
       expiration_time: expiration_time

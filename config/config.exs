@@ -11,13 +11,7 @@ config :siwa_server,
   ecto_repos: [SiwaServer.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 
-config :siwa,
-  nonce_store: :unused,
-  nonce_secret: nil
-
 config :siwa_server, :siwa,
-  domain: "regent.cx",
-  verify_uri: "https://regent.cx/api/shared/siwa/verify",
   nonce_ttl_seconds: 300,
   receipt_ttl_seconds: 3_600,
   receipt_secret: nil,

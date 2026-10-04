@@ -7,7 +7,14 @@ defmodule SiwaServerWeb.Router do
 
   # One pipeline per SIWA endpoint; they differ only in which rate-limit
   # bucket they apply (limits are configured per name in :rate_limits).
-  for name <- [:siwa_nonce, :siwa_verify, :siwa_http_verify, :siwa_activity, :siwa_register] do
+  for name <- [
+        :siwa_nonce,
+        :siwa_verify,
+        :siwa_http_verify,
+        :siwa_activity,
+        :siwa_register,
+        :agent_profile
+      ] do
     pipeline name do
       plug :accepts, ["json"]
       plug SiwaServerWeb.Plugs.RateLimit, name: name
@@ -25,13 +32,11 @@ defmodule SiwaServerWeb.Router do
 
   scope "/api/shared/siwa", SiwaServerWeb do
     pipe_through :siwa_nonce
-    post "/nonce", AgentSiwaController, :nonce
     post "/wallet/nonce", WalletSiwaController, :nonce
   end
 
   scope "/api/shared/siwa", SiwaServerWeb do
     pipe_through :siwa_verify
-    post "/verify", AgentSiwaController, :verify
     post "/wallet/verify", WalletSiwaController, :verify
   end
 
@@ -49,6 +54,11 @@ defmodule SiwaServerWeb.Router do
     pipe_through :siwa_register
     post "/register-step", AgentRegistrationController, :register_step
     post "/registered", AgentRegistrationController, :registered
+  end
+
+  scope "/", SiwaServerWeb do
+    pipe_through :agent_profile
+    get "/agent-profiles/:profile_id", AgentRegistrationController, :profile
   end
 
   forward "/api/shared/keyring", SiwaServerWeb.KeyringForwarder

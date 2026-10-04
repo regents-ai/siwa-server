@@ -36,9 +36,8 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
            } = json_response(get(conn, "/api/shared/siwa/audiences"), 200)
   end
 
-  test "canonical ordinary-wallet challenge yields wallet proof without registry or human identity" do
+  test "canonical ordinary-wallet challenge yields a wallet proof" do
     nonce = issue()
-    assert nonce["principalType"] == "wallet"
     assert nonce["nonce"] =~ ~r/^[a-f0-9]{32}$/
     assert nonce["message"] =~ "patchbay.help wants you to sign in with your Ethereum account:"
     assert nonce["message"] =~ "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
@@ -54,12 +53,9 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     assert data["proof"] == "wallet_signature"
     assert data["verificationMethod"] == "eoa_recovery"
     assert data["walletAddress"] == TestWallet.address()
-    refute Map.has_key?(data, "agentId")
     {:ok, claims} = Siwa.verify_receipt(data["receipt"], secret: secret(), audience: "patchbay")
     assert claims["typ"] == "siwa_wallet_receipt"
     assert claims["verified"] == "wallet_signature"
-    refute Map.has_key?(claims, "token_id")
-    refute Map.has_key?(claims, "registry_address")
 
     assert json_post("/api/shared/siwa/wallet/verify", proof(nonce)) |> json_response(404)
   end
@@ -112,7 +108,6 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
 
   test "contract rejects unknown, missing and mistyped fields" do
     for bad <- [
-          Map.put(params(), "registry_address", "0x" <> String.duplicate("1", 40)),
           Map.put(params(), "private_key", "not-a-key"),
           Map.delete(params(), "wallet_address"),
           %{params() | "chain_id" => "8453"},
@@ -135,11 +130,6 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
         ] do
       assert json_post("/api/shared/siwa/wallet/verify", bad) |> json_response(400)
     end
-  end
-
-  test "legacy routes do not downgrade when agent registration fields are missing" do
-    assert json_post("/api/shared/siwa/nonce", params()) |> json_response(400)
-    assert json_post("/api/shared/siwa/verify", proof(issue())) |> json_response(400)
   end
 
   test "changed messages and signatures cannot burn the correct challenge" do
@@ -268,7 +258,7 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     )
 
     assert json_post("/api/shared/siwa/wallet/verify", proof(nonce)) |> json_response(401)
-    assert {:error, :unknown_nonce} = NonceStore.consume_wallet(record)
+    assert {:error, :unknown_nonce} = NonceStore.consume(record)
   end
 
   test "origin changes invalidate an outstanding challenge" do
@@ -331,8 +321,7 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
              "audience" => "patchbay"
            }
 
-    refute Map.has_key?(response["data"], "agent_claims")
-    refute "x-agent-token-id" in response["data"]["requiredHeaders"]
+    assert response["data"]["agentRegistration"] == nil
     assert http_verify(request, "patchbay") |> json_response(409)
 
     assert [
@@ -343,20 +332,6 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
                occurred_at: %DateTime{}
              }
            ] = ActivityStore.recent(signer.address, DateTime.add(DateTime.utc_now(), -60))
-  end
-
-  test "nonce database keeps agent and wallet shapes disjoint" do
-    nonce = issue()
-    record = Repo.one!(NonceRecord)
-    assert record.principal_kind == "wallet"
-    assert is_nil(record.agent_id)
-    assert is_nil(record.agent_registry)
-
-    assert {:error, %Ecto.Changeset{}} =
-             record |> NonceRecord.changeset(%{agent_id: "1"}) |> Repo.update(mode: :savepoint)
-
-    assert {:error, :unknown_nonce} = NonceStore.consume(record.nonce_key, nonce["nonce"])
-    assert json_post("/api/shared/siwa/wallet/verify", proof(nonce)) |> json_response(200)
   end
 
   test "durable replay store refuses already expired entries even after cleanup" do

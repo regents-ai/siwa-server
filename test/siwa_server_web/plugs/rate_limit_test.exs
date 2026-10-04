@@ -30,16 +30,14 @@ defmodule SiwaServerWeb.Plugs.RateLimitTest do
   defp unfetched_conn(ip) do
     # Plug.Test.conn/2 without params leaves body_params as %Plug.Conn.Unfetched{},
     # matching a request whose body was never parsed upstream.
-    %{conn(:post, "/api/shared/siwa/nonce") | remote_ip: ip}
+    %{conn(:post, "/api/shared/siwa/wallet/nonce") | remote_ip: ip}
   end
 
   defp parsed_conn(ip, wallet_address) do
     conn =
-      conn(:post, "/api/shared/siwa/nonce", %{
+      conn(:post, "/api/shared/siwa/wallet/nonce", %{
         "wallet_address" => wallet_address,
         "chain_id" => 8453,
-        "registry_address" => "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432",
-        "token_id" => "77",
         "audience" => "platform"
       })
 
@@ -66,7 +64,7 @@ defmodule SiwaServerWeb.Plugs.RateLimitTest do
     assert %Plug.Conn{halted: false} = call(unfetched_conn({5, 6, 7, 8}), :siwa_nonce)
   end
 
-  test "requests with parsed body params are keyed on agent identity and IP" do
+  test "requests with parsed body params are keyed on wallet, chain, audience and IP" do
     wallet = "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
     assert %Plug.Conn{halted: false} = call(parsed_conn({1, 2, 3, 4}, wallet), :siwa_nonce)

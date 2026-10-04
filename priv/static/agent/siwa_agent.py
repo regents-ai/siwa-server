@@ -19,10 +19,15 @@ Then, for any Regent site:
     uv run siwa_agent.py me https://regents.sh
     uv run siwa_agent.py request POST https://keyfleet.ai/api/v1/agent/join/status --body '{"name":"Astra"}'
 
+Optional, once: list yourself in the agent registry on Base (your wallet pays the gas):
+
+    uv run siwa_agent.py register-agent --name Astra --description "What I do"
+
 Environment:
 
     SIWA_AGENT_HOME where the key and receipts are kept (default ~/.siwa-agent)
     SIWA_BROKER     the SIWA server (default https://siwa.regents.sh)
+    SIWA_BASE_RPC   the Base node register-agent sends through (default https://mainnet.base.org)
 
 A private key made by keygen never leaves this machine. With use-wallet, this
 client never sees a private key at all: it hands each text to your signer.
@@ -48,10 +53,12 @@ from datetime import datetime, timezone
 
 CHAINS = {"base": 8453, "ethereum": 1}
 DEFAULT_BROKER = "https://siwa.regents.sh"
+DEFAULT_BASE_RPC = "https://mainnet.base.org"
+REGISTRATION_WAIT_SECONDS = 120
 RECEIPT_RENEW_MARGIN_SECONDS = 60
 REQUEST_SIGNATURE_LIFETIME_SECONDS = 120
 SIGNER_TIMEOUT_SECONDS = 300
-USER_AGENT = "siwa-agent-client/2.3 (python)"
+USER_AGENT = "siwa-agent-client/2.4 (python)"
 ADDRESS_PATTERN = re.compile(r"^0x[0-9a-fA-F]{40}$")
 SIGNATURE_PATTERN = re.compile(r"0x[0-9a-fA-F]{130,}")
 
@@ -69,7 +76,8 @@ class Unreachable(Exception):
 def settings() -> dict:
     home = os.path.expanduser(os.environ.get("SIWA_AGENT_HOME", "~/.siwa-agent"))
     broker = os.environ.get("SIWA_BROKER", DEFAULT_BROKER).strip().rstrip("/")
-    return {"home": home, "broker": broker, "key_path": os.path.join(home, "key.json")}
+    base_rpc = os.environ.get("SIWA_BASE_RPC", DEFAULT_BASE_RPC).strip()
+    return {"home": home, "broker": broker, "base_rpc": base_rpc, "key_path": os.path.join(home, "key.json")}
 
 
 def load_json(path: str) -> dict | None:
@@ -405,6 +413,78 @@ def command_headers(config: dict, args: argparse.Namespace) -> None:
     print(json.dumps(signed_headers(key, receipt, args.method.upper(), args.url, body), indent=2))
 
 
+def base_rpc(config: dict, method: str, params: list):
+    status, body = http_json("POST", config["base_rpc"], json_body({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}))
+    if status != 200 or not isinstance(body, dict) or "result" not in body:
+        raise SiwaError(f"Base node refused {method} ({status}): {json.dumps(body)}")
+    return body["result"]
+
+
+def send_registration(config: dict, key: dict, step: dict) -> str:
+    """Sign the registration with this client's key and send it on Base; the wallet pays the gas."""
+    Account, _encode_defunct = eth_account()
+    call = {"from": step["from"], "to": step["to"], "data": step["data"], "value": step["value"]}
+    gas = int(base_rpc(config, "eth_estimateGas", [call]), 16) * 6 // 5
+    tip = int(base_rpc(config, "eth_maxPriorityFeePerGas", []), 16)
+    base_fee = int(base_rpc(config, "eth_getBlockByNumber", ["latest", False])["baseFeePerGas"], 16)
+    max_fee = base_fee * 2 + tip
+    balance = int(base_rpc(config, "eth_getBalance", [step["from"], "latest"]), 16)
+    if balance < gas * max_fee:
+        raise SiwaError(
+            f"{step['from']} holds {balance} wei on Base; the registration needs up to {gas * max_fee} wei of ETH on Base for gas. "
+            "Ask your person to send a little ETH on Base to that address, then run this again."
+        )
+    transaction = {
+        "chainId": step["chainId"],
+        "nonce": int(base_rpc(config, "eth_getTransactionCount", [step["from"], "pending"]), 16),
+        "to": bytes.fromhex(step["to"].removeprefix("0x")),
+        "data": step["data"],
+        "value": int(step["value"], 16),
+        "gas": gas,
+        "maxFeePerGas": max_fee,
+        "maxPriorityFeePerGas": tip,
+        "type": 2,
+    }
+    signed = Account.sign_transaction(transaction, private_key=key["private_key"])
+    raw = signed.raw_transaction.hex()
+    return base_rpc(config, "eth_sendRawTransaction", ["0x" + raw.removeprefix("0x")])
+
+
+def wait_for_registration(config: dict, profile: dict, tx_hash: str) -> tuple[int, dict | str]:
+    deadline = time.time() + REGISTRATION_WAIT_SECONDS
+    while True:
+        status, body = http_json("POST", f"{config['broker']}/api/shared/siwa/agent/registered", json_body({**profile, "tx_hash": tx_hash}))
+        pending = status == 200 and isinstance(body, dict) and body.get("code") == "registration_pending"
+        if not pending or time.time() > deadline:
+            return status, body
+        time.sleep(2)
+
+
+def command_register_agent(config: dict, args: argparse.Namespace) -> None:
+    key = require_key(config)
+    profile = {"wallet_address": key["address"], "name": args.name, "description": args.description}
+    if args.image:
+        profile["image"] = args.image
+    if args.tx_hash:
+        print_response(*wait_for_registration(config, profile, args.tx_hash))
+        return
+    status, body = http_json("POST", f"{config['broker']}/api/shared/siwa/agent/register-step", json_body(profile))
+    if status != 200 or not isinstance(body, dict) or body.get("code") != "registration_step":
+        print_response(status, body)
+        return
+    step = body["data"]
+    if "private_key" not in key:
+        same = f"--name {json.dumps(args.name)} --description {json.dumps(args.description)}" + (f" --image {json.dumps(args.image)}" if args.image else "")
+        print(json.dumps({
+            "step": step,
+            "send": f"cast send {step['to']} 'register(string)' '{step['agentUri']}' --rpc-url {config['base_rpc']} --account agent",
+            "then": f"uv run siwa_agent.py register-agent {same} --tx-hash 0xTRANSACTION_HASH",
+            "note": "Send this one transaction from your wallet on Base with your wallet tool, then report its hash with the `then` command.",
+        }, indent=2))
+        return
+    print_response(*wait_for_registration(config, profile, send_registration(config, key, step)))
+
+
 def main(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -437,6 +517,13 @@ def main(argv: list[str]) -> None:
     me = commands.add_parser("me", help="check in and see which account you are paired with")
     me.add_argument("site")
     me.set_defaults(run=command_me)
+
+    register = commands.add_parser("register-agent", help="optional: list yourself in the agent registry on Base; your wallet pays the gas")
+    register.add_argument("--name", required=True, help="your public name in the registry")
+    register.add_argument("--description", required=True, help="what you do, in a sentence or two")
+    register.add_argument("--image", help="an https address of your picture")
+    register.add_argument("--tx-hash", help="the registration you already sent with your own wallet tool")
+    register.set_defaults(run=command_register_agent)
 
     for name, handler, help_text in (
         ("request", command_request, "send a signed request and print the response"),

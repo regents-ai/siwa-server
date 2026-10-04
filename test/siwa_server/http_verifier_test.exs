@@ -1,27 +1,37 @@
-defmodule SiwaServer.SiwaTest do
+defmodule SiwaServer.HttpVerifierTest do
   use SiwaServer.DataCase, async: false
 
-  alias SiwaServer.{Ethereum, Repo, RuntimeConfig, Siwa, TestRpcServer, TestWallet}
+  alias SiwaServer.{Ethereum, Repo, RuntimeConfig, TestRpcServer, TestWallet}
+  alias SiwaServer.Siwa.HttpVerifier
 
   @wallet_address TestWallet.address()
   @chain_id 8453
-  @registry_address "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432"
-  @token_id "77"
-  @agent_id "eip155:8453:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:77"
 
   setup do
-    original_base_rpc_url = System.get_env("BASE_RPC_URL")
-    System.put_env("BASE_RPC_URL", TestRpcServer.owner_of(@wallet_address))
+    previous_siwa = Application.get_env(:siwa_server, :siwa)
+    previous_base_rpc_url = System.get_env("BASE_RPC_URL")
+
+    Application.put_env(
+      :siwa_server,
+      :siwa,
+      Keyword.put(previous_siwa, :wallet_origins, %{
+        "patchbay" => "https://patchbay.help",
+        "techtree" => "https://techtree.sh"
+      })
+    )
+
+    System.put_env("BASE_RPC_URL", TestRpcServer.wallet_answers({true, <<>>}))
 
     on_exit(fn ->
-      restore_env("BASE_RPC_URL", original_base_rpc_url)
+      Application.put_env(:siwa_server, :siwa, previous_siwa)
+      restore_env("BASE_RPC_URL", previous_base_rpc_url)
     end)
 
     :ok
   end
 
   test "signed requests reject expired signature windows" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Expired request", "details" => "body binding"})
     created = System.os_time(:second) - 120
     expires = created + 30
@@ -38,7 +48,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   test "signed requests reject stale signature windows" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Stale request", "details" => "body binding"})
     created = System.os_time(:second) - RuntimeConfig.siwa_http_signature_tolerance_seconds() - 1
     expires = System.os_time(:second) + 30
@@ -55,7 +65,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   test "signed requests reject a mismatched body digest" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Digest mismatch", "details" => "body binding"})
     created = System.os_time(:second)
     expires = created + 120
@@ -63,7 +73,7 @@ defmodule SiwaServer.SiwaTest do
     headers =
       receipt
       |> signed_headers(body, created, expires)
-      |> Map.put("content-digest", Siwa.content_digest_for_body("different-body"))
+      |> Map.put("content-digest", Elixir.Siwa.content_digest_for_body("different-body"))
 
     assert {:error, {401, "http_body_binding_invalid", message}} =
              verify_http_request(%{
@@ -77,7 +87,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   test "signed requests require the verified request body when content-digest is present" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Missing body", "details" => "body binding"})
     created = System.os_time(:second)
     expires = created + 120
@@ -92,36 +102,16 @@ defmodule SiwaServer.SiwaTest do
     assert message =~ "request body is required"
   end
 
-  test "signed requests reject unverified registry and token headers" do
-    receipt = verified_receipt()
-    body = Jason.encode!(%{"summary" => "Unverified claim", "details" => "blocked"})
-    created = System.os_time(:second)
-    expires = created + 120
-
-    headers =
-      signed_headers(receipt, body, created, expires, %{
-        "x-agent-registry-address" => "0x2222222222222222222222222222222222222222",
-        "x-agent-token-id" => "99"
-      })
-
-    assert {:error, {401, "receipt_binding_mismatch", message}} =
-             verify_http_request(%{
-               "method" => "POST",
-               "path" => "/v1/agent/bug-report",
-               "headers" => headers,
-               "body" => body
-             })
-
-    assert message =~ "does not match"
-  end
-
   test "signed requests from a smart wallet are accepted once Base approves the signature" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Smart wallet", "details" => "approved on Base"})
     created = System.os_time(:second)
     headers = signed_headers(receipt, body, created, created + 120)
 
-    System.put_env("BASE_RPC_URL", TestRpcServer.smart_wallet_owner_of(@wallet_address))
+    System.put_env(
+      "BASE_RPC_URL",
+      TestRpcServer.wallet_answers({true, TestRpcServer.erc1271_approval()})
+    )
 
     assert {:ok, %{"data" => %{"verified" => true}}} =
              verify_http_request(%{
@@ -133,7 +123,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   test "a signed request Base cannot check answers 502 and leaves the request unused" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Lookup failure", "details" => "retry works"})
     created = System.os_time(:second)
     headers = signed_headers(receipt, body, created, created + 120)
@@ -150,28 +140,8 @@ defmodule SiwaServer.SiwaTest do
              verify_http_request(Map.put(request, "headers", headers))
   end
 
-  test "signed requests accept checksum-cased registry headers when the receipt matches" do
-    receipt = verified_receipt()
-    body = Jason.encode!(%{"summary" => "Checksum case", "details" => "accepted"})
-    created = System.os_time(:second)
-    expires = created + 120
-
-    headers =
-      signed_headers(receipt, body, created, expires, %{
-        "x-agent-registry-address" => String.upcase(@registry_address)
-      })
-
-    assert {:ok, %{"data" => %{"verified" => true}}} =
-             verify_http_request(%{
-               "method" => "POST",
-               "path" => "/v1/agent/bug-report",
-               "headers" => headers,
-               "body" => body
-             })
-  end
-
   test "signed requests reject malformed header maps" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Malformed headers", "details" => "blocked"})
     created = System.os_time(:second)
     expires = created + 120
@@ -192,7 +162,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   test "signed requests reject a malformed chain header without crashing" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Malformed chain", "details" => "blocked"})
     created = System.os_time(:second)
     expires = created + 120
@@ -213,7 +183,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   test "signed requests reject duplicate normalized header names" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Duplicate headers", "details" => "blocked"})
     created = System.os_time(:second)
     expires = created + 120
@@ -234,7 +204,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   test "signed requests reject a receipt for the wrong audience" do
-    receipt = verified_receipt("techtree")
+    receipt = receipt("techtree")
     body = Jason.encode!(%{"summary" => "Audience mismatch", "details" => "blocked"})
     created = System.os_time(:second)
     expires = created + 120
@@ -247,299 +217,14 @@ defmodule SiwaServer.SiwaTest do
                  "headers" => signed_headers(receipt, body, created, expires),
                  "body" => body
                },
-               audience: "platform"
+               audience: "patchbay"
              )
 
     assert message =~ "audience"
   end
 
-  test "shared sign-in rejects a wallet that does not own the claimed agent identity" do
-    original_base_rpc_url = System.get_env("BASE_RPC_URL")
-
-    System.put_env(
-      "BASE_RPC_URL",
-      TestRpcServer.owner_of("0x1111111111111111111111111111111111111111")
-    )
-
-    on_exit(fn ->
-      restore_env("BASE_RPC_URL", original_base_rpc_url)
-    end)
-
-    assert {:ok, %{"data" => %{"nonce" => nonce}}} =
-             Siwa.issue_nonce(%{
-               "wallet_address" => @wallet_address,
-               "chain_id" => @chain_id,
-               "registry_address" => @registry_address,
-               "token_id" => @token_id,
-               "audience" => "platform"
-             })
-
-    message = siwa_message(nonce)
-    signature = TestWallet.sign_message(message)
-
-    assert {:error, {401, "agent_identity_not_owned", message}} =
-             Siwa.verify_session(%{
-               "wallet_address" => @wallet_address,
-               "chain_id" => @chain_id,
-               "registry_address" => @registry_address,
-               "token_id" => @token_id,
-               "audience" => "platform",
-               "nonce" => nonce,
-               "message" => message,
-               "signature" => signature
-             })
-
-    assert message =~ "does not own"
-  end
-
-  test "shared sign-in rejects malformed canonical SIWA messages" do
-    assert {:ok, %{"data" => %{"nonce" => nonce}}} =
-             Siwa.issue_nonce(%{
-               "wallet_address" => @wallet_address,
-               "chain_id" => @chain_id,
-               "registry_address" => @registry_address,
-               "token_id" => @token_id,
-               "audience" => "platform"
-             })
-
-    bad_message =
-      """
-      regent.cx wants you to sign in with your Agent account:
-      #{@wallet_address}
-
-      URI: https://wrong.example.com/api/shared/siwa/verify
-      Version: 1
-      Agent ID: #{@token_id}
-      Agent Registry: eip155:#{@chain_id}:#{@registry_address}
-      Chain ID: #{@chain_id}
-      Nonce: #{nonce}
-      Issued At: 2026-04-16T00:00:00Z
-      """
-      |> String.trim()
-
-    assert {:error, {401, "signature_invalid", message}} =
-             Siwa.verify_session(%{
-               "wallet_address" => @wallet_address,
-               "chain_id" => @chain_id,
-               "registry_address" => @registry_address,
-               "token_id" => @token_id,
-               "audience" => "platform",
-               "nonce" => nonce,
-               "message" => bad_message,
-               "signature" => TestWallet.sign_message(bad_message)
-             })
-
-    assert message =~ "canonical SIWA format"
-  end
-
-  test "a smart wallet that owns the agent signs in once Base approves its signature" do
-    smart_wallet = "0x452f678f6e588069D1Aef38D3D519567aA1014A4"
-    System.put_env("BASE_RPC_URL", TestRpcServer.smart_wallet_owner_of(smart_wallet))
-
-    params = %{
-      "wallet_address" => smart_wallet,
-      "chain_id" => @chain_id,
-      "registry_address" => @registry_address,
-      "token_id" => @token_id,
-      "audience" => "platform"
-    }
-
-    assert {:ok, %{"data" => %{"nonce" => nonce}}} = Siwa.issue_nonce(params)
-
-    assert {:ok, %{"data" => %{"verified" => true, "walletAddress" => wallet}}} =
-             Siwa.verify_session(
-               Map.merge(params, %{
-                 "nonce" => nonce,
-                 "message" => String.replace(siwa_message(nonce), @wallet_address, smart_wallet),
-                 "signature" => "0x" <> String.duplicate("ab", 224)
-               })
-             )
-
-    assert wallet == String.downcase(smart_wallet)
-  end
-
-  test "a failed signature lookup on Base leaves the nonce unused" do
-    assert {:ok, %{"data" => %{"nonce" => nonce}}} =
-             Siwa.issue_nonce(%{
-               "wallet_address" => @wallet_address,
-               "chain_id" => @chain_id,
-               "registry_address" => @registry_address,
-               "token_id" => @token_id,
-               "audience" => "platform"
-             })
-
-    proof = %{
-      "wallet_address" => @wallet_address,
-      "chain_id" => @chain_id,
-      "registry_address" => @registry_address,
-      "token_id" => @token_id,
-      "audience" => "platform",
-      "nonce" => nonce,
-      "message" => siwa_message(nonce)
-    }
-
-    System.put_env("BASE_RPC_URL", TestRpcServer.rpc_error())
-
-    assert {:error, {502, "signature_lookup_failed", _message}} =
-             Siwa.verify_session(Map.put(proof, "signature", "0x" <> String.duplicate("ab", 224)))
-
-    System.put_env("BASE_RPC_URL", TestRpcServer.owner_of(@wallet_address))
-
-    assert {:ok, %{"data" => %{"verified" => true}}} =
-             Siwa.verify_session(
-               Map.put(proof, "signature", TestWallet.sign_message(proof["message"]))
-             )
-  end
-
-  test "invalid shared sign-in signatures do not consume the nonce" do
-    assert {:ok, %{"data" => %{"nonce" => nonce}}} =
-             Siwa.issue_nonce(%{
-               "wallet_address" => @wallet_address,
-               "chain_id" => @chain_id,
-               "registry_address" => @registry_address,
-               "token_id" => @token_id,
-               "audience" => "platform"
-             })
-
-    message = siwa_message(nonce)
-    bad_signature = "0x" <> String.duplicate("00", 65)
-
-    assert {:error, {401, "signature_invalid", _message}} =
-             Siwa.verify_session(%{
-               "wallet_address" => @wallet_address,
-               "chain_id" => @chain_id,
-               "registry_address" => @registry_address,
-               "token_id" => @token_id,
-               "audience" => "platform",
-               "nonce" => nonce,
-               "message" => message,
-               "signature" => bad_signature
-             })
-
-    assert {:ok, %{"data" => %{"verified" => true, "nonce" => ^nonce}}} =
-             Siwa.verify_session(%{
-               "wallet_address" => @wallet_address,
-               "chain_id" => @chain_id,
-               "registry_address" => @registry_address,
-               "token_id" => @token_id,
-               "audience" => "platform",
-               "nonce" => nonce,
-               "message" => message,
-               "signature" => TestWallet.sign_message(message)
-             })
-  end
-
-  test "shared sign-in rejects messages that do not name the requested app audience" do
-    assert {:ok, %{"data" => %{"nonce" => nonce}}} =
-             Siwa.issue_nonce(%{
-               "wallet_address" => @wallet_address,
-               "chain_id" => @chain_id,
-               "registry_address" => @registry_address,
-               "token_id" => @token_id,
-               "audience" => "platform"
-             })
-
-    bad_message = siwa_message(nonce, "techtree")
-
-    assert {:error, {401, "signature_invalid", message}} =
-             Siwa.verify_session(%{
-               "wallet_address" => @wallet_address,
-               "chain_id" => @chain_id,
-               "registry_address" => @registry_address,
-               "token_id" => @token_id,
-               "audience" => "platform",
-               "nonce" => nonce,
-               "message" => bad_message,
-               "signature" => TestWallet.sign_message(bad_message)
-             })
-
-    assert message =~ "does not match"
-  end
-
-  test "shared sign-in rejects duplicate SIWA fields" do
-    assert {:ok, %{"data" => %{"nonce" => nonce}}} =
-             Siwa.issue_nonce(%{
-               "wallet_address" => @wallet_address,
-               "chain_id" => @chain_id,
-               "registry_address" => @registry_address,
-               "token_id" => @token_id,
-               "audience" => "platform"
-             })
-
-    bad_message =
-      """
-      regent.cx wants you to sign in with your Agent account:
-      #{@wallet_address}
-
-      URI: https://regent.cx/api/shared/siwa/verify
-      Version: 1
-      Agent ID: #{@token_id}
-      Agent Registry: eip155:#{@chain_id}:#{@registry_address}
-      Chain ID: #{@chain_id}
-      Nonce: #{nonce}
-      Nonce: duplicate
-      Issued At: 2026-04-16T00:00:00Z
-      """
-      |> String.trim()
-
-    assert {:error, {401, "signature_invalid", message}} =
-             Siwa.verify_session(%{
-               "wallet_address" => @wallet_address,
-               "chain_id" => @chain_id,
-               "registry_address" => @registry_address,
-               "token_id" => @token_id,
-               "audience" => "platform",
-               "nonce" => nonce,
-               "message" => bad_message,
-               "signature" => TestWallet.sign_message(bad_message)
-             })
-
-    assert message =~ "canonical SIWA format"
-  end
-
-  test "shared sign-in rejects extra SIWA fields" do
-    assert {:ok, %{"data" => %{"nonce" => nonce}}} =
-             Siwa.issue_nonce(%{
-               "wallet_address" => @wallet_address,
-               "chain_id" => @chain_id,
-               "registry_address" => @registry_address,
-               "token_id" => @token_id,
-               "audience" => "platform"
-             })
-
-    bad_message =
-      """
-      regent.cx wants you to sign in with your Agent account:
-      #{@wallet_address}
-
-      URI: https://regent.cx/api/shared/siwa/verify
-      Version: 1
-      Agent ID: #{@token_id}
-      Agent Registry: eip155:#{@chain_id}:#{@registry_address}
-      Chain ID: #{@chain_id}
-      Nonce: #{nonce}
-      Issued At: 2026-04-16T00:00:00Z
-      Resources: https://example.com
-      """
-      |> String.trim()
-
-    assert {:error, {401, "signature_invalid", message}} =
-             Siwa.verify_session(%{
-               "wallet_address" => @wallet_address,
-               "chain_id" => @chain_id,
-               "registry_address" => @registry_address,
-               "token_id" => @token_id,
-               "audience" => "platform",
-               "nonce" => nonce,
-               "message" => bad_message,
-               "signature" => TestWallet.sign_message(bad_message)
-             })
-
-    assert message =~ "canonical SIWA format"
-  end
-
   test "http verification fails closed when the receipt secret is missing" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Missing secret", "details" => "blocked"})
     created = System.os_time(:second)
     expires = created + 120
@@ -562,29 +247,8 @@ defmodule SiwaServer.SiwaTest do
     assert message =~ "not configured"
   end
 
-  test "verified agent claims expose the verified ERC-8004 identity" do
-    receipt = verified_receipt()
-    body = Jason.encode!(%{"summary" => "Signed request", "details" => "accepted"})
-    created = System.os_time(:second)
-    expires = created + 120
-
-    assert {:ok, %{"data" => %{"agent_claims" => claims}}} =
-             verify_http_request(%{
-               "method" => "POST",
-               "path" => "/v1/agent/bug-report",
-               "headers" => signed_headers(receipt, body, created, expires),
-               "body" => body
-             })
-
-    assert claims["wallet_address"] == @wallet_address
-    assert claims["chain_id"] == @chain_id
-    assert claims["registry_address"] == @registry_address
-    assert claims["token_id"] == @token_id
-    assert claims["agent_id"] == @agent_id
-  end
-
   test "signed requests bind query values in the path component" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Query-bound request", "details" => "accepted"})
     created = System.os_time(:second)
     expires = created + 120
@@ -610,7 +274,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   test "signed requests keep replay protection for the full signature window" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Replay window", "details" => "accepted once"})
     created = System.os_time(:second)
     expires = created + 600
@@ -625,7 +289,16 @@ defmodule SiwaServer.SiwaTest do
              })
 
     replay_key =
-      "#{@wallet_address}|#{request_nonce(headers)}|POST|/v1/agent/bug-report|#{Siwa.content_digest_for_body(body)}"
+      Jason.encode!([
+        "wallet",
+        @wallet_address,
+        @chain_id,
+        "patchbay",
+        request_nonce(headers),
+        "POST",
+        "/v1/agent/bug-report",
+        Elixir.Siwa.content_digest_for_body(body)
+      ])
 
     assert {:ok, %{rows: [[^replay_key, _expires_at]]}} =
              Repo.query(
@@ -643,7 +316,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   test "invalid request signatures do not consume replay protection" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Bad signature", "details" => "does not burn replay"})
     created = System.os_time(:second)
     expires = created + 600
@@ -668,7 +341,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   test "signed requests allow only one concurrent use of the same signature" do
-    receipt = test_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Concurrent replay", "details" => "accepted once"})
     created = System.os_time(:second)
     expires = created + 600
@@ -694,7 +367,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   test "signed requests reject duplicate covered components" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Duplicate components", "details" => "blocked"})
     created = System.os_time(:second)
     expires = created + 120
@@ -708,8 +381,6 @@ defmodule SiwaServer.SiwaTest do
       "x-timestamp",
       "x-agent-wallet-address",
       "x-agent-chain-id",
-      "x-agent-registry-address",
-      "x-agent-token-id",
       "content-digest"
     ]
 
@@ -725,7 +396,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   test "signed requests reject unknown covered components" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Unknown components", "details" => "blocked"})
     created = System.os_time(:second)
     expires = created + 120
@@ -738,8 +409,6 @@ defmodule SiwaServer.SiwaTest do
       "x-timestamp",
       "x-agent-wallet-address",
       "x-agent-chain-id",
-      "x-agent-registry-address",
-      "x-agent-token-id",
       "content-digest",
       "x-extra-header"
     ]
@@ -766,7 +435,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   test "signed requests reject missing covered components" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Missing component", "details" => "blocked"})
     created = System.os_time(:second)
     expires = created + 120
@@ -778,8 +447,6 @@ defmodule SiwaServer.SiwaTest do
       "x-key-id",
       "x-timestamp",
       "x-agent-wallet-address",
-      "x-agent-chain-id",
-      "x-agent-registry-address",
       "content-digest"
     ]
 
@@ -795,7 +462,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   test "signed requests reject missing signed headers" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Missing header", "details" => "blocked"})
     created = System.os_time(:second)
     expires = created + 120
@@ -817,7 +484,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   test "signed requests reject malformed signature payloads" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Bad signature", "details" => "blocked"})
     created = System.os_time(:second)
     expires = created + 120
@@ -839,7 +506,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   test "signed requests reject reordered covered components when the signature is not rebuilt" do
-    receipt = verified_receipt()
+    receipt = receipt()
     body = Jason.encode!(%{"summary" => "Reordered", "details" => "blocked"})
     created = System.os_time(:second)
     expires = created + 120
@@ -847,7 +514,7 @@ defmodule SiwaServer.SiwaTest do
     headers = signed_headers(receipt, body, created, expires)
 
     reordered_components =
-      ~s|("@path" "@method" "x-siwa-receipt" "x-key-id" "x-timestamp" "x-agent-wallet-address" "x-agent-chain-id" "x-agent-registry-address" "x-agent-token-id" "content-digest")|
+      ~s|("@path" "@method" "x-siwa-receipt" "x-key-id" "x-timestamp" "x-agent-wallet-address" "x-agent-chain-id" "content-digest")|
 
     headers =
       Map.update!(headers, "signature-input", fn signature_input ->
@@ -954,136 +621,26 @@ defmodule SiwaServer.SiwaTest do
     assert results == List.duplicate({:ok, :eoa_recovery}, 20)
   end
 
-  test "owner lookups time out cleanly" do
-    with_app_env(:siwa_server, :ethereum_rpc_timeout_ms, 50, fn ->
-      assert {:error, "rpc request timed out"} =
-               Ethereum.owner_of(@registry_address, @token_id, rpc_url: TestRpcServer.timeout())
-    end)
-  end
-
-  describe "map_nonce_error/1" do
-    import ExUnit.CaptureLog
-
-    test "warns on unexpected error shapes and keeps the invalid_nonce response" do
-      log =
-        capture_log(fn ->
-          assert {400, "invalid_nonce", _message} = Siwa.map_nonce_error(:totally_unexpected)
-        end)
-
-      assert log =~ "unexpected SIWA nonce error shape"
-      assert log =~ "totally_unexpected"
-    end
-
-    test "warns on nonce store database exceptions and keeps the invalid_nonce response" do
-      exception = DBConnection.ConnectionError.exception("connection refused")
-
-      log =
-        capture_log(fn ->
-          assert {400, "invalid_nonce", _message} = Siwa.map_nonce_error(exception)
-        end)
-
-      assert log =~ "SIWA nonce store failed"
-      assert log =~ "connection refused"
-    end
-
-    test "warns on rejected nonce inserts and keeps the invalid_nonce response" do
-      changeset =
-        %SiwaServer.Siwa.NonceRecord{}
-        |> Ecto.Changeset.change()
-        |> Ecto.Changeset.add_error(:nonce, "is invalid")
-
-      log =
-        capture_log(fn ->
-          assert {400, "invalid_nonce", _message} = Siwa.map_nonce_error(changeset)
-        end)
-
-      assert log =~ "SIWA nonce store rejected nonce insert"
-    end
-
-    test "maps library validation shapes to invalid_nonce without warning" do
-      log =
-        capture_log(fn ->
-          assert {400, "invalid_nonce", _message} = Siwa.map_nonce_error(:audience_required)
-
-          assert {400, "invalid_nonce", _message} =
-                   Siwa.map_nonce_error(:invalid_agent_registry)
-        end)
-
-      refute log =~ "SIWA nonce"
-      refute log =~ "unexpected"
-    end
-  end
-
-  defp verified_receipt(audience \\ "regents.sh") do
-    assert {:ok, %{"data" => %{"nonce" => nonce}}} =
-             Siwa.issue_nonce(%{
-               "wallet_address" => @wallet_address,
-               "chain_id" => @chain_id,
-               "registry_address" => @registry_address,
-               "token_id" => @token_id,
-               "audience" => audience
-             })
-
-    message = siwa_message(nonce, audience)
-    signature = TestWallet.sign_message(message)
-
-    assert {:ok, %{"data" => %{"receipt" => receipt}}} =
-             Siwa.verify_session(%{
-               "wallet_address" => @wallet_address,
-               "chain_id" => @chain_id,
-               "registry_address" => @registry_address,
-               "token_id" => @token_id,
-               "audience" => audience,
-               "nonce" => nonce,
-               "message" => message,
-               "signature" => signature
-             })
-
-    receipt
-  end
-
-  defp test_receipt(audience \\ "regents.sh") do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+  defp receipt(audience \\ "patchbay") do
     secret = :siwa_server |> Application.fetch_env!(:siwa) |> Keyword.fetch!(:receipt_secret)
 
     assert {:ok, receipt} =
              Elixir.Siwa.create_receipt(
                %{
-                 "typ" => "siwa_receipt",
+                 "typ" => "siwa_wallet_receipt",
+                 "verified" => "wallet_signature",
                  "jti" => Ecto.UUID.generate(),
                  "sub" => @wallet_address,
-                 "agent_id" => @agent_id,
                  "aud" => audience,
                  "chain_id" => @chain_id,
                  "nonce" => "receipt-#{System.unique_integer([:positive])}",
-                 "key_id" => @wallet_address,
-                 "registry_address" => @registry_address,
-                 "token_id" => @token_id
+                 "key_id" => @wallet_address
                },
                receipt_secret: secret,
-               now: now,
                ttl_ms: 3_600_000
              )
 
     receipt.token
-  end
-
-  defp siwa_message(nonce, audience \\ "platform") do
-    """
-    regent.cx wants you to sign in with your Agent account:
-    #{@wallet_address}
-
-    Sign in to #{audience}.
-
-    URI: https://regent.cx/api/shared/siwa/verify
-    Version: 1
-    Agent ID: #{@token_id}
-    Agent Registry: eip155:#{@chain_id}:#{@registry_address}
-    Chain ID: #{@chain_id}
-    Nonce: #{nonce}
-    Issued At: 2026-04-16T00:00:00Z
-    """
-    |> String.trim()
   end
 
   defp signed_headers(
@@ -1101,9 +658,7 @@ defmodule SiwaServer.SiwaTest do
       "x-timestamp" => Integer.to_string(created),
       "x-agent-wallet-address" => @wallet_address,
       "x-agent-chain-id" => Integer.to_string(@chain_id),
-      "x-agent-registry-address" => @registry_address,
-      "x-agent-token-id" => @token_id,
-      "content-digest" => Siwa.content_digest_for_body(body)
+      "content-digest" => Elixir.Siwa.content_digest_for_body(body)
     }
 
     headers = Map.merge(base_headers, extra_headers)
@@ -1118,8 +673,6 @@ defmodule SiwaServer.SiwaTest do
           "x-timestamp",
           "x-agent-wallet-address",
           "x-agent-chain-id",
-          "x-agent-registry-address",
-          "x-agent-token-id",
           "content-digest"
         ]
 
@@ -1160,7 +713,7 @@ defmodule SiwaServer.SiwaTest do
   end
 
   defp verify_http_request(params, opts \\ []) do
-    Siwa.verify_http_request(params, Keyword.put_new(opts, :audience, "regents.sh"))
+    HttpVerifier.verify(params, Keyword.put_new(opts, :audience, "patchbay"))
   end
 
   # A signature no ordinary wallet made, so only Base can approve it.

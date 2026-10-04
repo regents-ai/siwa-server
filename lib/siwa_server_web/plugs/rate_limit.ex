@@ -15,6 +15,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
     siwa_http_verify: [limit: 600, window_ms: 60_000],
     siwa_activity: [limit: 600, window_ms: 60_000],
     siwa_register: [limit: 60, window_ms: 60_000],
+    agent_profile: [limit: 600, window_ms: 60_000],
     keyring_internal: [limit: 600, window_ms: 60_000]
   }
 
@@ -59,14 +60,13 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
       "http-verify",
       agent_header(conn, "x-agent-wallet-address"),
       agent_header(conn, "x-agent-chain-id"),
-      agent_header(conn, "x-agent-registry-address"),
-      agent_header(conn, "x-agent-token-id"),
       client_ip(conn)
     ]
     |> Enum.join(":")
   end
 
   defp client_key(conn, :siwa_activity), do: "activity:#{client_ip(conn)}"
+  defp client_key(conn, :agent_profile), do: "agent-profile:#{client_ip(conn)}"
 
   defp client_key(conn, :keyring_internal) do
     "keyring:#{conn.method}:#{conn.request_path}:#{client_ip(conn)}"
@@ -78,8 +78,6 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
     [
       Map.get(body, "wallet_address"),
       Map.get(body, "chain_id"),
-      Map.get(body, "registry_address"),
-      Map.get(body, "token_id"),
       Map.get(body, "audience"),
       client_ip(conn)
     ]

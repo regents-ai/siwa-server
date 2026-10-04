@@ -119,12 +119,6 @@ config :siwa_server, SiwaServerWeb.Endpoint, http: [port: port]
 wallet_origins = SiwaServer.WalletOrigins.parse!(System.get_env("SIWA_WALLET_ORIGINS"))
 
 config :siwa_server, :siwa,
-  domain: env_value.("SIWA_DOMAIN", Keyword.get(current_siwa, :domain, "regent.cx")),
-  verify_uri:
-    env_value.(
-      "SIWA_VERIFY_URI",
-      Keyword.get(current_siwa, :verify_uri, "https://regent.cx/api/shared/siwa/verify")
-    ),
   wallet_origins: wallet_origins,
   nonce_ttl_seconds:
     env_integer.("SIWA_NONCE_TTL_SECONDS", Keyword.get(current_siwa, :nonce_ttl_seconds, 300)),

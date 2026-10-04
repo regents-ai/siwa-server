@@ -226,105 +226,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "502":
-          description: Smart wallet signature lookup on Base failed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "429":
-          $ref: "#/components/responses/RateLimitError"
-  /api/shared/siwa/nonce:
-    post:
-      operationId: createSharedAgentSiwaNonce
-      tags: [auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SiwaNonceRequest"
-      responses:
-        "200":
-          description: Shared SIWA nonce issued for one app audience
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SiwaNonceResponse"
-        "400":
-          description: Invalid SIWA nonce request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "413":
-          description: SIWA nonce request body is too large
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "415":
-          description: SIWA nonce request content type is unsupported
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "429":
-          $ref: "#/components/responses/RateLimitError"
-  /api/shared/siwa/verify:
-    post:
-      operationId: verifySharedAgentSiwaSession
-      tags: [auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SiwaVerifyRequest"
-      responses:
-        "200":
-          description: Shared SIWA identity verified for one app audience
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SiwaVerifyResponse"
-        "400":
-          description: Invalid SIWA verification request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "401":
-          description: Signature or nonce validation failed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "404":
-          description: SIWA nonce was not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "413":
-          description: SIWA verification request body is too large
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "415":
-          description: SIWA verification request content type is unsupported
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "500":
-          description: SIWA verification is not configured
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "502":
-          description: Wallet signature or agent identity lookup on Base failed
+          description: Smart wallet signature lookup on the chain it signed in on failed
           content:
             application/json:
               schema:
@@ -354,7 +256,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SiwaHttpVerifyResponse"
+                $ref: "#/components/schemas/WalletSiwaHttpVerifyResponse"
         "400":
           description: Invalid envelope request
           content:
@@ -454,13 +356,15 @@ paths:
   /api/shared/siwa/agent/register-step:
     post:
       operationId: buildAgentRegistrationStep
-      summary: Build the transaction that mints an agent identity on Base
+      summary: Build the transaction that lists an agent in the Base agent registry
       description: >-
-        Returns the unsigned transaction a wallet sends to mint its own agent
-        identity in the Base ERC-8004 agent registry
-        0x8004a169fb4a3325136eb29fa0ceb6d2e539a432. The wallet pays the gas.
-        With agent_uri the call is register(string), otherwise register().
-        Nothing is stored.
+        Optional; sign-in never needs it. Returns the unsigned transaction a
+        wallet sends to list itself in the Base ERC-8004 agent registry
+        0x8004a169fb4a3325136eb29fa0ceb6d2e539a432: register(agentUri), where
+        agentUri is the agent's public profile on this server. The URI names a
+        digest of the wallet, name, description and image, so sending the
+        transaction is consent to exactly that profile. The wallet pays the gas;
+        this server never sends or funds a transaction. Nothing is stored.
       tags: [auth]
       requestBody:
         required: true
@@ -501,12 +405,12 @@ paths:
       summary: Read what a sent registration did on Base
       description: >-
         Reads the transaction at the latest Base block. It must be the wallet's
-        registration exactly as register-step built it for the same agent_uri.
-        Until its receipt exists the answer is registration_pending; ask again
-        after a couple of seconds. Once it lands the answer carries the token id
-        the registry minted to the wallet, which the agent then uses to sign in
-        through /api/shared/siwa/nonce and /api/shared/siwa/verify. Nothing is
-        stored.
+        registration exactly as register-step built it for the same name,
+        description and image. Until its receipt exists the answer is
+        registration_pending; ask again after a couple of seconds. Once it lands
+        the registration is kept: the profile is served at its agentUri, and
+        /api/shared/siwa/http-verify names it in agentRegistration for the
+        wallet's signed requests.
       tags: [auth]
       requestBody:
         required: true
@@ -540,7 +444,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "422":
-          description: The transaction reverted, or is not this wallet's registration
+          description: The transaction reverted, or is not this wallet's registration of this profile
           content:
             application/json:
               schema:
@@ -553,6 +457,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /agent-profiles/{profile_id}:
+    get:
+      operationId: readAgentProfile
+      summary: The registration file of an agent listed through this server
+      description: >-
+        The ERC-8004 registration file an agent's registry entry points to.
+        Served once a registration of it has landed; anyone may read it.
+      tags: [auth]
+      parameters:
+        - in: path
+          name: profile_id
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-f]{32}$"
+      responses:
+        "200":
+          description: The agent's registration file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentProfile"
+        "404":
+          description: No registered agent has this profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
   /api/shared/keyring/health:
     get:
       operationId: siwaKeyringHealth
@@ -1047,11 +981,8 @@ components:
           enum: [nonce_issued]
         data:
           type: object
-          required: [principalType, walletAddress, chainId, audience, nonce, message, issuedAt, expiresAt]
+          required: [walletAddress, chainId, audience, nonce, message, issuedAt, expiresAt]
           properties:
-            principalType:
-              type: string
-              enum: [wallet]
             walletAddress:
               $ref: "#/components/schemas/Address"
             chainId:
@@ -1080,14 +1011,11 @@ components:
           enum: [wallet_verified]
         data:
           type: object
-          required: [verified, principalType, walletAddress, chainId, audience, keyId, signatureScheme, verificationMethod, proof, receipt, receiptExpiresAt]
+          required: [verified, walletAddress, chainId, audience, keyId, signatureScheme, verificationMethod, proof, receipt, receiptExpiresAt]
           properties:
             verified:
               type: boolean
               enum: [true]
-            principalType:
-              type: string
-              enum: [wallet]
             walletAddress:
               $ref: "#/components/schemas/Address"
             chainId:
@@ -1135,7 +1063,7 @@ components:
           enum: [http_envelope_valid]
         data:
           type: object
-          required: [verified, walletAddress, chainId, keyId, verificationMethod, principal, receiptExpiresAt, requiredHeaders, requiredCoveredComponents, coveredComponents]
+          required: [verified, walletAddress, chainId, keyId, verificationMethod, principal, receiptExpiresAt, requiredHeaders, requiredCoveredComponents, coveredComponents, agentRegistration]
           properties:
             verified:
               type: boolean
@@ -1150,6 +1078,11 @@ components:
               $ref: "#/components/schemas/VerificationMethod"
             principal:
               $ref: "#/components/schemas/WalletPrincipal"
+            agentRegistration:
+              description: The wallet's newest listing in the Base agent registry made through this server, or null.
+              oneOf:
+                - $ref: "#/components/schemas/AgentRegistration"
+                - type: "null"
             receiptExpiresAt:
               type: string
               format: date-time
@@ -1166,116 +1099,6 @@ components:
               items:
                 type: string
           additionalProperties: false
-      additionalProperties: false
-    SiwaNonceRequest:
-      type: object
-      required: [wallet_address, chain_id, registry_address, token_id, audience]
-      properties:
-        wallet_address:
-          $ref: "#/components/schemas/Address"
-        chain_id:
-          $ref: "#/components/schemas/BaseChainId"
-        registry_address:
-          $ref: "#/components/schemas/Address"
-        token_id:
-          type: string
-        audience:
-          type: string
-      additionalProperties: false
-    SiwaNonceResponse:
-      type: object
-      required: [code, data]
-      properties:
-        code:
-          type: string
-          enum: [nonce_issued]
-        data:
-          type: object
-          required: [nonce, walletAddress, chainId, registryAddress, tokenId, audience, expiresAt]
-          properties:
-            nonce:
-              type: string
-            walletAddress:
-              $ref: "#/components/schemas/Address"
-            chainId:
-              $ref: "#/components/schemas/BaseChainId"
-            registryAddress:
-              $ref: "#/components/schemas/Address"
-            tokenId:
-              type: string
-            audience:
-              type: string
-            expiresAt:
-              type: string
-              format: date-time
-          additionalProperties: false
-        meta:
-          $ref: "#/components/schemas/LooseObject"
-      additionalProperties: false
-    SiwaVerifyRequest:
-      type: object
-      required: [wallet_address, chain_id, registry_address, token_id, audience, nonce, message, signature]
-      properties:
-        wallet_address:
-          $ref: "#/components/schemas/Address"
-        chain_id:
-          $ref: "#/components/schemas/BaseChainId"
-        registry_address:
-          $ref: "#/components/schemas/Address"
-        token_id:
-          type: string
-        audience:
-          type: string
-        nonce:
-          type: string
-        message:
-          type: string
-        signature:
-          $ref: "#/components/schemas/HexData"
-      additionalProperties: false
-    SiwaVerifyResponse:
-      type: object
-      required: [code, data]
-      properties:
-        code:
-          type: string
-          enum: [siwa_verified]
-        data:
-          type: object
-          required: [verified, walletAddress, chainId, registryAddress, tokenId, agentId, audience, nonce, keyId, signatureScheme, receipt, receiptIssuedAt, receiptExpiresAt]
-          properties:
-            verified:
-              type: boolean
-              enum: [true]
-            walletAddress:
-              $ref: "#/components/schemas/Address"
-            chainId:
-              $ref: "#/components/schemas/BaseChainId"
-            registryAddress:
-              $ref: "#/components/schemas/Address"
-            tokenId:
-              type: string
-            agentId:
-              type: string
-            audience:
-              type: string
-            nonce:
-              type: string
-            keyId:
-              type: string
-            signatureScheme:
-              type: string
-            receipt:
-              type: string
-            receiptIssuedAt:
-              type: string
-              format: date-time
-            receiptExpiresAt:
-              type: string
-              format: date-time
-          additionalProperties: false
-        meta:
-          $ref: "#/components/schemas/LooseObject"
       additionalProperties: false
     SiwaHttpVerifyRequest:
       type: object
@@ -1292,64 +1115,31 @@ components:
         body:
           type: string
       additionalProperties: false
-    SiwaHttpVerifyResponse:
-      description: Legacy registered-agent result, or an explicit wallet principal only for server-enabled audiences. Missing registry claims never select wallet mode. Wallet signatures bind the exact method, path including query, receipt, chain, address, timestamp, nonce and body digest; callers must sign a fresh HTTP envelope when recovering an existing payment intent.
-      oneOf:
-        - $ref: "#/components/schemas/AgentSiwaHttpVerifyResponse"
-        - $ref: "#/components/schemas/WalletSiwaHttpVerifyResponse"
-    AgentSiwaHttpVerifyResponse:
+    AgentProfileFields:
       type: object
-      required: [code, data]
+      required: [name, description]
       properties:
-        code:
+        name:
           type: string
-          enum: [http_envelope_valid]
-        data:
-          type: object
-          required: [verified, walletAddress, chainId, keyId, verificationMethod, agent_claims, receiptExpiresAt, requiredHeaders, requiredCoveredComponents, coveredComponents]
-          properties:
-            verified:
-              type: boolean
-              enum: [true]
-            walletAddress:
-              $ref: "#/components/schemas/Address"
-            chainId:
-              $ref: "#/components/schemas/BaseChainId"
-            keyId:
-              type: string
-            verificationMethod:
-              $ref: "#/components/schemas/VerificationMethod"
-            agent_claims:
-              $ref: "#/components/schemas/AgentClaims"
-            receiptExpiresAt:
-              type: string
-              format: date-time
-            requiredHeaders:
-              type: array
-              items:
-                type: string
-            requiredCoveredComponents:
-              type: array
-              items:
-                type: string
-            coveredComponents:
-              type: array
-              items:
-                type: string
-          additionalProperties: false
-        meta:
-          $ref: "#/components/schemas/LooseObject"
-      additionalProperties: false
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        image:
+          type: string
+          maxLength: 500
+          pattern: "^https://\\S+$"
     AgentRegisterStepRequest:
-      type: object
-      required: [wallet_address]
-      properties:
-        wallet_address:
-          $ref: "#/components/schemas/Address"
-        agent_uri:
-          type: string
-          description: The agent's registration file URI, stored on chain with the identity.
-      additionalProperties: false
+      allOf:
+        - $ref: "#/components/schemas/AgentProfileFields"
+        - type: object
+          required: [wallet_address]
+          properties:
+            wallet_address:
+              $ref: "#/components/schemas/Address"
+      unevaluatedProperties: false
     AgentRegisterStepResponse:
       type: object
       required: [code, data]
@@ -1359,7 +1149,7 @@ components:
           enum: [registration_step]
         data:
           type: object
-          required: [chainId, from, to, data, value]
+          required: [chainId, from, to, data, value, agentUri]
           properties:
             chainId:
               $ref: "#/components/schemas/BaseChainId"
@@ -1371,20 +1161,39 @@ components:
               $ref: "#/components/schemas/HexData"
             value:
               $ref: "#/components/schemas/HexData"
+            agentUri:
+              type: string
+              format: uri
           additionalProperties: false
       additionalProperties: false
     AgentRegisteredRequest:
+      allOf:
+        - $ref: "#/components/schemas/AgentProfileFields"
+        - type: object
+          required: [wallet_address, tx_hash]
+          properties:
+            wallet_address:
+              $ref: "#/components/schemas/Address"
+            tx_hash:
+              type: string
+              pattern: "^0x[a-fA-F0-9]{64}$"
+      unevaluatedProperties: false
+    AgentRegistration:
       type: object
-      required: [wallet_address, tx_hash]
+      description: An agent's entry in the Base agent registry, made through this server. Sites link to registryUrl.
+      required: [agentId, tokenId, profileUrl, registryUrl]
       properties:
-        wallet_address:
-          $ref: "#/components/schemas/Address"
-        agent_uri:
+        agentId:
           type: string
-          description: The same agent_uri given to register-step, if any.
-        tx_hash:
+          description: eip155:8453:<registry address>:<token id>
+        tokenId:
           type: string
-          pattern: "^0x[a-fA-F0-9]{64}$"
+        profileUrl:
+          type: string
+          format: uri
+        registryUrl:
+          type: string
+          format: uri
       additionalProperties: false
     AgentRegisteredResponse:
       oneOf:
@@ -1409,40 +1218,55 @@ components:
               type: string
               enum: [agent_registered]
             data:
-              type: object
-              required: [txHash, walletAddress, chainId, registryAddress, tokenId, agentId]
-              properties:
-                txHash:
-                  type: string
-                walletAddress:
-                  $ref: "#/components/schemas/Address"
-                chainId:
-                  $ref: "#/components/schemas/BaseChainId"
-                registryAddress:
-                  $ref: "#/components/schemas/Address"
-                tokenId:
-                  type: string
-                agentId:
-                  type: string
-              additionalProperties: false
+              allOf:
+                - $ref: "#/components/schemas/AgentRegistration"
+                - type: object
+                  required: [txHash, walletAddress, chainId, registryAddress]
+                  properties:
+                    txHash:
+                      type: string
+                    walletAddress:
+                      $ref: "#/components/schemas/Address"
+                    chainId:
+                      $ref: "#/components/schemas/BaseChainId"
+                    registryAddress:
+                      $ref: "#/components/schemas/Address"
+              unevaluatedProperties: false
           additionalProperties: false
-    AgentClaims:
+    AgentProfile:
       type: object
-      required: [agent_id, wallet_address, chain_id, registry_address, token_id]
+      description: ERC-8004 registration file (registration-v1).
+      required: [type, name, description, image, services, x402Support, active, registrations]
       properties:
-        agent_id:
+        type:
           type: string
-        wallet_address:
-          $ref: "#/components/schemas/Address"
-        chain_id:
-          $ref: "#/components/schemas/BaseChainId"
-        registry_address:
-          $ref: "#/components/schemas/Address"
-        token_id:
+          enum: ["https://eips.ethereum.org/EIPS/eip-8004#registration-v1"]
+        name:
           type: string
-        audience:
+        description:
           type: string
-      additionalProperties: true
+        image:
+          type: string
+        services:
+          type: array
+          items:
+            type: object
+        x402Support:
+          type: boolean
+        active:
+          type: boolean
+        registrations:
+          type: array
+          items:
+            type: object
+            required: [agentId, agentRegistry]
+            properties:
+              agentId:
+                type: integer
+              agentRegistry:
+                type: string
+            additionalProperties: false
+      additionalProperties: false
     EmptyObject:
       type: object
       additionalProperties: false

@@ -3,15 +3,9 @@ defmodule SiwaServerWeb.AgentSiwaRequest do
 
   import Ecto.Changeset
 
-  alias SiwaServerWeb.AgentSiwaRequest.{HttpVerify, Nonce, Registered, RegisterStep, Verify}
+  alias SiwaServerWeb.AgentSiwaRequest.{HttpVerify, Registered, RegisterStep}
 
   @type error :: {:error, {400, String.t(), String.t()}}
-
-  @spec cast_nonce(map()) :: {:ok, Nonce.t()} | error()
-  def cast_nonce(params), do: cast(params, Nonce)
-
-  @spec cast_verify(map()) :: {:ok, Verify.t()} | error()
-  def cast_verify(params), do: cast(params, Verify)
 
   @spec cast_http_verify(map()) :: {:ok, HttpVerify.t()} | error()
   def cast_http_verify(params), do: cast(params, HttpVerify)
@@ -22,7 +16,7 @@ defmodule SiwaServerWeb.AgentSiwaRequest do
   @spec cast_registered(map()) :: {:ok, Registered.t()} | error()
   def cast_registered(params), do: cast(params, Registered)
 
-  @spec to_params(Nonce.t() | Verify.t() | HttpVerify.t()) :: %{String.t() => term()}
+  @spec to_params(HttpVerify.t()) :: %{String.t() => term()}
   def to_params(%_{} = request) do
     request
     |> Map.from_struct()
@@ -48,14 +42,16 @@ defmodule SiwaServerWeb.AgentSiwaRequest do
   def validate_address(changeset, field),
     do: validate_format(changeset, field, ~r/^0x[0-9a-fA-F]{40}$/)
 
-  # `:integer` fields accept numeric strings through `cast/3`; the contract
-  # requires a JSON integer, so check the raw params before coercion.
-  def ensure_integer_param(changeset, params, field) do
-    case Map.get(params, Atom.to_string(field)) do
-      nil -> changeset
-      value when is_integer(value) -> changeset
-      _value -> add_error(changeset, field, "must be an integer")
-    end
+  # The agent's public registry profile: the text is shown as given, so it is
+  # only bounded; an image is a link anyone can open.
+  def validate_profile(changeset) do
+    changeset
+    |> validate_required([:name, :description])
+    |> validate_nonblank([:name, :description, :image])
+    |> validate_length(:name, max: 100)
+    |> validate_length(:description, max: 1_000)
+    |> validate_length(:image, max: 500)
+    |> validate_format(:image, ~r{\Ahttps://\S+\z})
   end
 
   defp cast(params, module) when is_map(params) do

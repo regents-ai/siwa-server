@@ -1,25 +1,11 @@
 defmodule SiwaServerWeb.AgentSiwaController do
   use SiwaServerWeb, :controller
 
-  alias SiwaServer.Siwa
+  alias SiwaServer.Siwa.HttpVerifier
   alias SiwaServer.Text
   alias SiwaServerWeb.AgentSiwaRequest
 
   action_fallback SiwaServerWeb.FallbackController
-
-  def nonce(conn, params) do
-    with {:ok, request} <- AgentSiwaRequest.cast_nonce(params),
-         {:ok, payload} <- request |> AgentSiwaRequest.to_params() |> Siwa.issue_nonce() do
-      json(conn, payload)
-    end
-  end
-
-  def verify(conn, params) do
-    with {:ok, request} <- AgentSiwaRequest.cast_verify(params),
-         {:ok, payload} <- request |> AgentSiwaRequest.to_params() |> Siwa.verify_session() do
-      json(conn, payload)
-    end
-  end
 
   def http_verify(conn, params) do
     with {:ok, audience} <- required_header(conn, "x-siwa-audience"),
@@ -27,7 +13,7 @@ defmodule SiwaServerWeb.AgentSiwaController do
          {:ok, payload} <-
            request
            |> AgentSiwaRequest.to_params()
-           |> Siwa.verify_http_request(audience: audience) do
+           |> HttpVerifier.verify(audience: audience) do
       json(conn, payload)
     end
   end

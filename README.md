@@ -80,16 +80,19 @@ mix phx.server
 | Route | Method | Purpose |
 | --- | --- | --- |
 | `/` | GET | Service root. |
-| `/api/shared/siwa/nonce` | POST | Issue a nonce for a sign-in attempt. |
-| `/api/shared/siwa/verify` | POST | Verify a sign-in. |
+| `/api/shared/siwa/wallet/nonce` | POST | Issue a wallet sign-in challenge. |
+| `/api/shared/siwa/wallet/verify` | POST | Verify a wallet sign-in. |
 | `/api/shared/siwa/http-verify` | POST | Verify a signed HTTP request. |
+| `/api/shared/siwa/agent/register-step` | POST | Build the optional agent registry listing transaction. |
+| `/api/shared/siwa/agent/registered` | POST | Read that transaction and keep the listing once it lands. |
+| `/agent-profiles/{profile_id}` | GET | A listed agent's public registration file. |
 | `/healthz` | GET | Liveness. |
 | `/readyz` | GET | Readiness. |
 | `/metrics` | GET | Prometheus scrape endpoint. |
 | `/regent-services-contract.openapiv3.yaml` | GET | The served shared services contract. |
 
-The current Agent account shape is mandatory across these routes: wallet, chain, registry
-address, token ID, audience, nonce, and the request body when a protected request has one.
+Sign-in has one path: the agent's wallet. A signed request binds the wallet, chain,
+audience and the request body when it has one.
 Protected request verification also expects the signed path to include the query string when
 one is present, and callers must send the app audience that owns the request.
 
@@ -136,8 +139,6 @@ must fail closed. The SIWA library and the service tests cover these cases.
 | `POOL_SIZE` | `10` | Database connection pool size. |
 | `ECTO_IPV6` | unset | `true` connects to PostgreSQL over IPv6. |
 | `DNS_CLUSTER_QUERY` | unset | DNS query used for clustering. |
-| `SIWA_DOMAIN` | `regent.cx` | Domain expected in the canonical SIWA sign-in message. |
-| `SIWA_VERIFY_URI` | `https://regent.cx/api/shared/siwa/verify` | URI expected in the canonical SIWA sign-in message. |
 | `SIWA_NONCE_TTL_SECONDS` | `300` | How long an issued nonce stays valid. |
 | `SIWA_RECEIPT_TTL_SECONDS` | `3600` | How long a receipt stays valid. |
 | `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS` | `300` | Clock skew allowed on a signed HTTP request. |
@@ -227,15 +228,25 @@ https://siwa.regents.sh/skill.md and the Python client at
 https://siwa.regents.sh/agent/siwa_agent.py (Node: `/agent/siwa-agent.mjs`).
 
 Wallet receipts have type `siwa_wallet_receipt` and proof `wallet_signature`.
-HTTP verification returns an explicit `principal` of kind `wallet`, with no
-`agent_claims`. Product consumers must explicitly support this principal and check
-product ownership. Payment, human identity and registered-agent ownership remain
-separate. Existing registered-agent routes do not accept omitted registry fields.
+HTTP verification returns an explicit `principal` of kind `wallet` and
+`agentRegistration`: the wallet's newest listing in the agent registry made through
+this server, or null. Sites link to `agentRegistration.registryUrl` when it is set.
+Product consumers check product ownership themselves. Payment and human identity
+remain separate. Both nonce consumption and request replay use database-clock
+expiration checks; invalid proof cannot consume a valid challenge.
 
-The nonce migration preserves existing agent rows and enforces disjoint wallet/agent
-constraints. Its rollback refuses to discard remaining wallet challenges. Both nonce
-consumption and request replay use database-clock expiration checks; invalid proof
-cannot consume a valid challenge.
+### Optional agent registry listing
+
+An agent may list itself in the ERC-8004 agent registry on Base,
+`0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`. Sign-in never depends on it.
+`register-step` takes the wallet, a name, a description and an optional HTTPS image,
+and returns the one transaction, `register(agentUri)`, for the wallet to send and pay
+for. `agentUri` is `https://siwa.regents.sh/agent-profiles/<id>`, where the id is a
+digest of the wallet and the profile, so the signed transaction is consent to exactly
+that profile. Nothing is stored until `registered` reads the transaction at the latest
+Base block and finds the token the registry minted to that wallet. The listing is then
+kept, the registration file is served at `agentUri`, and http-verify names it. This
+server never sends or funds a transaction.
 
 For an isolated checkout, set `REGENT_ELIXIR_UTILS_ROOT` to a frozen `elixir-utils`
 export. `REGENT_RELEASE_CONTEXT` identifies the matching Docker input directory

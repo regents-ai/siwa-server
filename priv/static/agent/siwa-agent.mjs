@@ -13,9 +13,13 @@
 //   node siwa-agent.mjs me https://regents.sh
 //   node siwa-agent.mjs request POST https://keyfleet.ai/api/v1/agent/join/status --body '{"name":"Astra"}'
 //
+// Optional, once: list yourself in the agent registry on Base (your wallet pays the gas):
+//   node siwa-agent.mjs register-agent --name Astra --description "What I do"
+//
 // Environment:
 //   SIWA_AGENT_HOME where the key and receipts are kept (default ~/.siwa-agent)
 //   SIWA_BROKER     the SIWA server (default https://siwa.regents.sh)
+//   SIWA_BASE_RPC   the Base node register-agent sends through (default https://mainnet.base.org)
 //
 // A private key made by keygen never leaves this machine. With use-wallet, this
 // client never sees a private key at all: it hands each text to your signer.
@@ -28,10 +32,12 @@ import { basename, dirname, join } from "node:path";
 
 const CHAINS = { base: 8453, ethereum: 1 };
 const DEFAULT_BROKER = "https://siwa.regents.sh";
+const DEFAULT_BASE_RPC = "https://mainnet.base.org";
+const REGISTRATION_WAIT_MS = 120_000;
 const RECEIPT_RENEW_MARGIN_SECONDS = 60;
 const REQUEST_SIGNATURE_LIFETIME_SECONDS = 120;
 const SIGNER_TIMEOUT_MS = 300_000;
-const USER_AGENT = "siwa-agent-client/2.3 (node)";
+const USER_AGENT = "siwa-agent-client/2.4 (node)";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const SIGNATURE_PATTERN = /0x[0-9a-fA-F]{130,}/g;
 
@@ -62,7 +68,8 @@ function networkHint(host) {
 function settings() {
   const home = process.env.SIWA_AGENT_HOME ?? join(homedir(), ".siwa-agent");
   const broker = (process.env.SIWA_BROKER ?? DEFAULT_BROKER).trim().replace(/\/+$/, "");
-  return { home, broker, keyPath: join(home, "key.json") };
+  const baseRpc = (process.env.SIWA_BASE_RPC ?? DEFAULT_BASE_RPC).trim();
+  return { home, broker, baseRpc, keyPath: join(home, "key.json") };
 }
 
 function loadJson(path) {
@@ -362,6 +369,74 @@ function whoami(config) {
   );
 }
 
+// Sign the registration with this client's key and send it on Base; the wallet pays the gas.
+async function sendRegistration(config, key, step) {
+  const { createPublicClient, createWalletClient, http } = await import("viem");
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const { base } = await import("viem/chains");
+  const transport = http(config.baseRpc);
+  const account = privateKeyToAccount(key.private_key);
+  const chain = createPublicClient({ chain: base, transport });
+  const call = { account: step.from, to: step.to, data: step.data, value: BigInt(step.value) };
+  const gas = ((await chain.estimateGas(call)) * 6n) / 5n;
+  const { maxFeePerGas, maxPriorityFeePerGas } = await chain.estimateFeesPerGas();
+  const balance = await chain.getBalance({ address: step.from });
+  if (balance < gas * maxFeePerGas) {
+    throw new SiwaError(
+      `${step.from} holds ${balance} wei on Base; the registration needs up to ${gas * maxFeePerGas} wei of ETH on Base for gas. ` +
+        "Ask your person to send a little ETH on Base to that address, then run this again.",
+    );
+  }
+  return createWalletClient({ account, chain: base, transport }).sendTransaction({
+    to: step.to,
+    data: step.data,
+    value: BigInt(step.value),
+    gas,
+    maxFeePerGas,
+    maxPriorityFeePerGas,
+  });
+}
+
+async function waitForRegistration(config, profile, txHash) {
+  const deadline = Date.now() + REGISTRATION_WAIT_MS;
+  for (;;) {
+    const result = await httpJson("POST", `${config.broker}/api/shared/siwa/agent/registered`, JSON.stringify({ ...profile, tx_hash: txHash }));
+    const pending = result.status === 200 && result.body?.code === "registration_pending";
+    if (!pending || Date.now() > deadline) return result;
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+}
+
+async function registerAgent(config, args) {
+  const usage = 'register-agent --name NAME --description "WHAT YOU DO" [--image HTTPS_URL] [--tx-hash HASH]';
+  const name = required(takeOption(args, "--name"), usage);
+  const description = required(takeOption(args, "--description"), usage);
+  const image = takeOption(args, "--image");
+  const txHash = takeOption(args, "--tx-hash");
+  const key = requireKey(config);
+  const profile = { wallet_address: key.address, name, description, ...(image ? { image } : {}) };
+  if (txHash) return printResponse(await waitForRegistration(config, profile, txHash));
+  const result = await httpJson("POST", `${config.broker}/api/shared/siwa/agent/register-step`, JSON.stringify(profile));
+  if (result.status !== 200 || result.body?.code !== "registration_step") return printResponse(result);
+  const step = result.body.data;
+  if (!key.private_key) {
+    const same = `--name ${JSON.stringify(name)} --description ${JSON.stringify(description)}${image ? ` --image ${JSON.stringify(image)}` : ""}`;
+    return console.log(
+      JSON.stringify(
+        {
+          step,
+          send: `cast send ${step.to} 'register(string)' '${step.agentUri}' --rpc-url ${config.baseRpc} --account agent`,
+          then: `node siwa-agent.mjs register-agent ${same} --tx-hash 0xTRANSACTION_HASH`,
+          note: "Send this one transaction from your wallet on Base with your wallet tool, then report its hash with the `then` command.",
+        },
+        null,
+        2,
+      ),
+    );
+  }
+  return printResponse(await waitForRegistration(config, profile, await sendRegistration(config, key, step)));
+}
+
 async function main(argv) {
   const [command, ...args] = argv;
   const config = settings();
@@ -397,6 +472,8 @@ async function main(argv) {
       const request = parseRequestArgs(args);
       return printResponse(await sendSigned(config, request.method, request.url, request.body, request.extra));
     }
+    case "register-agent":
+      return registerAgent(config, args);
     case "headers": {
       const request = parseRequestArgs(args);
       const key = requireKey(config);
@@ -405,7 +482,7 @@ async function main(argv) {
     }
     default:
       throw new SiwaError(
-        "commands: keygen [--force], use-wallet <address> --signer <command> [--chain base|ethereum], whoami, sites, sign-in <site>, pair <site> <code> --name NAME --harness HARNESS, me <site>, request <method> <url>, headers <method> <url>",
+        "commands: keygen [--force], use-wallet <address> --signer <command> [--chain base|ethereum], whoami, sites, sign-in <site>, pair <site> <code> --name NAME --harness HARNESS, me <site>, request <method> <url>, headers <method> <url>, register-agent --name NAME --description TEXT [--image URL] [--tx-hash HASH]",
       );
   }
 }

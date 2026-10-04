@@ -1,26 +1,28 @@
 defmodule SiwaServer.Siwa.HttpVerifier do
   @moduledoc """
-  Verifies signed HTTP request envelopes presented by SIWA-authenticated
-  agents.
+  Verifies signed HTTP request envelopes presented by agents signed in with
+  their wallet.
 
   `verify/2` validates the request shape (method, absolute path, string
   headers, optional body), then delegates to
   `Siwa.RequestAuth.verify_authenticated_request/2`, which checks:
 
-    * the SIWA receipt issued by `SiwaServer.Siwa.verify_session/1`
+    * the wallet receipt issued by `SiwaServer.Siwa.Wallet.verify/1`
       (signature, expiry, and audience binding),
     * the HTTP message signature over the covered components, within the
       configured timestamp tolerance,
     * the content-digest binding when a body is present, and
     * single use of the signature via `SiwaServer.Siwa.ReplayStore`.
 
-  Each verified request is then recorded by `SiwaServer.Siwa.ActivityStore`.
+  Each verified request is then recorded by `SiwaServer.Siwa.ActivityStore`,
+  and the answer names the agent's registry entry when it registered one
+  through this server (see `SiwaServer.AgentRegistration`).
 
   Library error reasons are mapped to stable client-facing status/code
   tuples by `map_shared_error/1`.
   """
 
-  alias SiwaServer.{Ethereum, RuntimeConfig}
+  alias SiwaServer.{AgentRegistration, Ethereum, RuntimeConfig}
   alias SiwaServer.Siwa.{ActivityStore, ReplayStore}
   alias SiwaServer.Text
 
@@ -43,25 +45,29 @@ defmodule SiwaServer.Siwa.HttpVerifier do
            ),
          :ok <- record_activity(verified.claims, Keyword.get(opts, :audience), method, path) do
       claims = verified.claims
-      kind = if claims["typ"] == "siwa_wallet_receipt", do: :wallet, else: :agent
 
       {:ok,
        %{
          "code" => "http_envelope_valid",
-         "data" =>
-           %{
-             "verified" => true,
-             "walletAddress" => claims["sub"],
-             "chainId" => claims["chain_id"],
-             "keyId" => claims["key_id"],
-             "verificationMethod" => Atom.to_string(verified.verification_method),
-             "receiptExpiresAt" => unix_ms_to_iso8601(claims["exp"]),
-             "requiredHeaders" => Siwa.required_authenticated_request_headers(body, kind),
-             "requiredCoveredComponents" =>
-               Siwa.required_authenticated_request_components(headers, body, kind),
-             "coveredComponents" => verified.covered_components
+         "data" => %{
+           "verified" => true,
+           "walletAddress" => claims["sub"],
+           "chainId" => claims["chain_id"],
+           "keyId" => claims["key_id"],
+           "verificationMethod" => Atom.to_string(verified.verification_method),
+           "receiptExpiresAt" => unix_ms_to_iso8601(claims["exp"]),
+           "requiredHeaders" => Siwa.required_authenticated_request_headers(body),
+           "requiredCoveredComponents" =>
+             Siwa.required_authenticated_request_components(headers, body),
+           "coveredComponents" => verified.covered_components,
+           "agentRegistration" => AgentRegistration.latest(claims["sub"]),
+           "principal" => %{
+             "kind" => "wallet",
+             "wallet_address" => claims["sub"],
+             "chain_id" => claims["chain_id"],
+             "audience" => claims["aud"]
            }
-           |> Map.merge(principal_data(claims, kind))
+         }
        }}
     else
       {:error, {code, message}} -> {:error, {400, code, message}}
@@ -208,29 +214,6 @@ defmodule SiwaServer.Siwa.HttpVerifier do
 
   defp map_shared_error(_reason),
     do: {500, "request_replay_failed", "could not verify replay state"}
-
-  defp principal_data(claims, :agent), do: %{"agent_claims" => verified_agent_claims(claims)}
-
-  defp principal_data(claims, :wallet) do
-    %{
-      "principal" => %{
-        "kind" => "wallet",
-        "wallet_address" => claims["sub"],
-        "chain_id" => claims["chain_id"],
-        "audience" => claims["aud"]
-      }
-    }
-  end
-
-  defp verified_agent_claims(receipt_claims) do
-    %{
-      "agent_id" => receipt_claims["agent_id"],
-      "wallet_address" => receipt_claims["sub"],
-      "chain_id" => receipt_claims["chain_id"],
-      "registry_address" => receipt_claims["registry_address"],
-      "token_id" => receipt_claims["token_id"]
-    }
-  end
 
   defp unix_ms_to_iso8601(unix_ms),
     do: unix_ms |> DateTime.from_unix!(:millisecond) |> DateTime.to_iso8601()

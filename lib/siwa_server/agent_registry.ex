@@ -1,10 +1,7 @@
 defmodule SiwaServer.AgentRegistry do
   @moduledoc """
-  The one agent registry SIWA accepts: the ERC-8004 identity registry on Base.
-
-  An agent is its token in this registry. Sign-in checks that the signing
-  wallet owns the token, and every agent id this server issues names this
-  registry, so two sites that see the same agent id see the same agent.
+  The ERC-8004 identity registry on Base, where an agent may choose to list
+  itself (see `SiwaServer.AgentRegistration`). Sign-in never depends on it.
   """
 
   @chain_id 8453

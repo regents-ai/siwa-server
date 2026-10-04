@@ -74,7 +74,7 @@ defmodule SiwaServer.WalletConcurrencyTest do
 
     {:ok, record} =
       Sandbox.unboxed_run(Repo, fn ->
-        NonceStore.put_wallet(%{
+        NonceStore.put(%{
           nonce_key: "lock-expiry:#{Ecto.UUID.generate()}",
           nonce: "lock-fixture",
           address: "0x1111111111111111111111111111111111111111",
@@ -120,7 +120,7 @@ defmodule SiwaServer.WalletConcurrencyTest do
 
     contender =
       Task.Supervisor.async_nolink(supervisor, fn ->
-        Sandbox.unboxed_run(Repo, fn -> NonceStore.consume_wallet(record) end)
+        Sandbox.unboxed_run(Repo, fn -> NonceStore.consume(record) end)
       end)
 
     await_nonce_lock_wait(100)

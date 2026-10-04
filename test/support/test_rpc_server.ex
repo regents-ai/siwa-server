@@ -1,36 +1,6 @@
 defmodule SiwaServer.TestRpcServer do
   @moduledoc false
 
-  @multicall3 "0xca11bde05977b3631167028862be2a173976ca11"
-
-  # Base where `owner_address` owns the agent and no smart wallet answers a
-  # signature check.
-  def owner_of(owner_address) do
-    start(fn request ->
-      result =
-        cond do
-          request =~ "eth_chainId" -> chain_id_hex(8453)
-          request =~ @multicall3 -> aggregate3_result({true, <<>>})
-          true -> "0x000000000000000000000000" <> String.trim_leading(owner_address, "0x")
-        end
-
-      %{"id" => 1, "jsonrpc" => "2.0", "result" => result}
-    end)
-  end
-
-  # Base where the smart wallet `owner_address` owns the agent and approves
-  # every signature check.
-  def smart_wallet_owner_of(owner_address) do
-    start(fn request ->
-      result =
-        if request =~ @multicall3,
-          do: aggregate3_result({true, erc1271_approval()}),
-          else: "0x000000000000000000000000" <> String.trim_leading(owner_address, "0x")
-
-      %{"id" => 1, "jsonrpc" => "2.0", "result" => result}
-    end)
-  end
-
   def chain_id(chain_id) do
     start(fn _request -> %{"id" => 1, "jsonrpc" => "2.0", "result" => chain_id_hex(chain_id)} end)
   end
