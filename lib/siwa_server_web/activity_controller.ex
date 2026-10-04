@@ -1,13 +1,14 @@
 defmodule SiwaServerWeb.ActivityController do
   @moduledoc """
   Lets a Regents site read one wallet's recent verified requests, so a person
-  can see what their agent has been doing across the sites. Only callers
-  holding the activity read token may read it.
+  can see what their agent has been doing across the sites, and the wallet's
+  newest agent registry listing made through this server, so the site can link
+  to it. Only callers holding the activity read token may read it.
   """
 
   use SiwaServerWeb, :controller
 
-  alias SiwaServer.RuntimeConfig
+  alias SiwaServer.{AgentRegistration, RuntimeConfig}
   alias SiwaServer.Siwa.ActivityStore
 
   action_fallback SiwaServerWeb.FallbackController
@@ -22,7 +23,9 @@ defmodule SiwaServerWeb.ActivityController do
         |> ActivityStore.recent(since)
         |> Enum.map(&Map.update!(&1, :occurred_at, fn at -> DateTime.to_iso8601(at) end))
 
-      json(conn, %{data: %{activity: activity}})
+      json(conn, %{
+        data: %{activity: activity, agentRegistration: AgentRegistration.latest(wallet_address)}
+      })
     end
   end
 

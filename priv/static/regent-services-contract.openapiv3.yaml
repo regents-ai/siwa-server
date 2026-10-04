@@ -310,7 +310,8 @@ paths:
         verified for the wallet, newest first, over the last 30 days. Each entry
         names the audience, method, path without its query and the time of
         verification. Request bodies, headers, receipts and signatures are never
-        kept.
+        kept. agentRegistration is the wallet's newest agent registry listing made
+        through this server, or null, the same as http-verify returns.
       tags: [internal]
       security:
         - ActivityReadToken: []
@@ -1489,13 +1490,18 @@ components:
         data:
           type: object
           additionalProperties: false
-          required: [activity]
+          required: [activity, agentRegistration]
           properties:
             activity:
               type: array
               maxItems: 50
               items:
                 $ref: "#/components/schemas/SiwaActivityEntry"
+            agentRegistration:
+              description: The wallet's newest listing in the Base agent registry made through this server, or null.
+              oneOf:
+                - $ref: "#/components/schemas/AgentRegistration"
+                - type: "null"
     SiwaActivityEntry:
       type: object
       additionalProperties: false

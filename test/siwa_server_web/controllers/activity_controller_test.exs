@@ -1,6 +1,8 @@
 defmodule SiwaServerWeb.ActivityControllerTest do
   use SiwaServerWeb.ConnCase, async: false
 
+  alias SiwaServer.AgentRegistration.Record
+  alias SiwaServer.Repo
   alias SiwaServer.Siwa.ActivityStore
 
   @wallet "0x1111111111111111111111111111111111111111"
@@ -12,13 +14,13 @@ defmodule SiwaServerWeb.ActivityControllerTest do
     :ok = ActivityStore.record(@wallet, "autolaunch", "POST", "/v1/agent/launches?draft=1")
     :ok = ActivityStore.record(@other, "techtree", "POST", "/v1/runs")
 
-    activity =
-      read(%{
-        "wallet_address" => String.upcase(@wallet) |> String.replace("0X", "0x"),
-        "since" => an_hour_ago()
-      })
-      |> json_response(200)
-      |> get_in(["data", "activity"])
+    assert %{"activity" => activity, "agentRegistration" => nil} =
+             read(%{
+               "wallet_address" => String.upcase(@wallet) |> String.replace("0X", "0x"),
+               "since" => an_hour_ago()
+             })
+             |> json_response(200)
+             |> Map.fetch!("data")
 
     assert [
              %{"audience" => "autolaunch", "method" => "POST", "path" => "/v1/agent/launches"},
@@ -27,6 +29,31 @@ defmodule SiwaServerWeb.ActivityControllerTest do
 
     assert Enum.all?(activity, &(Map.keys(&1) == ~w(audience method occurred_at path)))
     assert {:ok, _at, 0} = DateTime.from_iso8601(hd(activity)["occurred_at"])
+  end
+
+  test "names the wallet's agent registry listing so the site can link to it" do
+    Repo.insert!(
+      Record.changeset(%{
+        profile_id: String.duplicate("c0", 16),
+        wallet_address: @wallet,
+        name: "Astra",
+        description: "Finds bugs in Elixir code.",
+        token_id: "97609",
+        tx_hash: "0x" <> String.duplicate("ab", 32)
+      })
+    )
+
+    assert %{
+             "agentId" => "eip155:8453:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:97609",
+             "tokenId" => "97609",
+             "profileUrl" => profile_url,
+             "registryUrl" => "https://www.8004scan.io/agents/base/97609"
+           } =
+             read(%{"wallet_address" => @wallet, "since" => an_hour_ago()})
+             |> json_response(200)
+             |> get_in(["data", "agentRegistration"])
+
+    assert String.ends_with?(profile_url, "/agent-profiles/" <> String.duplicate("c0", 16))
   end
 
   test "only requests at or after since are read" do
