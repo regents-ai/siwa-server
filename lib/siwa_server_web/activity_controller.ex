@@ -5,12 +5,16 @@ defmodule SiwaServerWeb.ActivityController do
   doing across the sites. The answer also names the wallet's newest agent
   registry listing made through this server, so the site can link to it, and the
   World ID-verified person AgentBook last named behind it, if any.
-  Only callers holding the activity read token may read it.
+  Each site reads with its own key. Every read is counted under the site whose
+  key it presented, and every refused key under "refused", so an unexpected
+  reader or a run of refused keys shows up in the metrics.
   """
 
   use SiwaServerWeb, :controller
 
-  alias SiwaServer.{AgentBook, AgentRegistration, RuntimeConfig}
+  require Logger
+
+  alias SiwaServer.{ActivityReaders, AgentBook, AgentRegistration, RuntimeConfig}
   alias SiwaServer.Siwa.ActivityStore
 
   action_fallback SiwaServerWeb.FallbackController
@@ -18,9 +22,11 @@ defmodule SiwaServerWeb.ActivityController do
   @address ~r/^0x[0-9a-fA-F]{40}$/
 
   def read(conn, params) do
-    with :ok <- authorize(conn),
+    with {:ok, reader} <- authorize(conn),
          {:ok, wallet_address, since, start} <- cast(params),
          {:ok, entries, next} <- page(wallet_address, since, start) do
+      Logger.info("activity read reader=#{reader} wallet=#{String.downcase(wallet_address)}")
+
       activity =
         Enum.map(entries, &Map.update!(&1, :occurred_at, fn at -> DateTime.to_iso8601(at) end))
 
@@ -36,16 +42,20 @@ defmodule SiwaServerWeb.ActivityController do
   end
 
   defp authorize(conn) do
-    expected = "Bearer " <> RuntimeConfig.siwa_activity_read_token()
-
-    case get_req_header(conn, "authorization") do
-      [presented] ->
-        if Plug.Crypto.secure_compare(presented, expected), do: :ok, else: unauthorized()
-
-      _headers ->
+    with [presented] <- get_req_header(conn, "authorization"),
+         {:ok, reader} <- ActivityReaders.reader(RuntimeConfig.siwa_activity_readers(), presented) do
+      counted(reader)
+      {:ok, reader}
+    else
+      _refused ->
+        counted("refused")
+        Logger.warning("activity read refused: no site's key was presented")
         unauthorized()
     end
   end
+
+  defp counted(reader),
+    do: :telemetry.execute([:siwa_server, :siwa, :activity, :read], %{}, %{reader: reader})
 
   defp cast(%{"wallet_address" => wallet_address, "since" => since} = params)
        when is_binary(wallet_address) and is_binary(since) do

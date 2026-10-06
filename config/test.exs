@@ -30,7 +30,10 @@ config :siwa_server, :siwa,
   nonce_ttl_seconds: 300,
   receipt_ttl_seconds: 3_600,
   receipt_secret: "siwa-server-test-receipt-secret",
-  activity_read_token: "siwa-server-test-activity-read-token"
+  activity_readers: %{
+    "regents" => "siwa-test-regents-activity-read-key-01",
+    "patchbay" => "siwa-test-patchbay-activity-read-key-1"
+  }
 
 config :siwa_server, Oban, testing: :manual
 

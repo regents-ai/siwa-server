@@ -99,10 +99,12 @@ keyring_proxy_secret =
         Keyword.get(current_keyring, :secret, "siwa-dev-keyring-secret")
       )
 
-activity_read_token =
-  if prod?,
-    do: required_env.("SIWA_ACTIVITY_READ_TOKEN"),
-    else: env_value.("SIWA_ACTIVITY_READ_TOKEN", Keyword.get(current_siwa, :activity_read_token))
+activity_readers =
+  case env_value.("SIWA_ACTIVITY_READERS", nil) do
+    nil when prod? -> required_env.("SIWA_ACTIVITY_READERS")
+    nil -> Keyword.fetch!(current_siwa, :activity_readers)
+    value -> SiwaServer.ActivityReaders.parse!(value)
+  end
 
 if prod?, do: required_env.("BASE_RPC_URL")
 if prod?, do: required_env.("ETHEREUM_RPC_URL")
@@ -129,7 +131,7 @@ config :siwa_server, :siwa,
       Keyword.get(current_siwa, :receipt_ttl_seconds, 3_600)
     ),
   receipt_secret: receipt_secret,
-  activity_read_token: activity_read_token
+  activity_readers: activity_readers
 
 config :siwa_server, :siwa_cleanup,
   enabled:

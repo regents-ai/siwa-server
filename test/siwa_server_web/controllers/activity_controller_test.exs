@@ -8,7 +8,8 @@ defmodule SiwaServerWeb.ActivityControllerTest do
 
   @wallet "0x1111111111111111111111111111111111111111"
   @other "0x2222222222222222222222222222222222222222"
-  @token "siwa-server-test-activity-read-token"
+  @token "siwa-test-regents-activity-read-key-01"
+  @patchbay_token "siwa-test-patchbay-activity-read-key-1"
 
   test "a Regents site reads one wallet's verified requests, newest first" do
     :ok = ActivityStore.record(@wallet, "regents", "get", "/api/agents/v1/me")
@@ -89,6 +90,19 @@ defmodule SiwaServerWeb.ActivityControllerTest do
 
     assert %{"data" => %{"activity" => []}} =
              read(%{"wallet_address" => @wallet, "since" => later}) |> json_response(200)
+  end
+
+  test "each read is counted under the site whose key it presented" do
+    ref = :telemetry_test.attach_event_handlers(self(), [[:siwa_server, :siwa, :activity, :read]])
+    body = %{"wallet_address" => @wallet, "since" => an_hour_ago()}
+
+    assert read(body) |> json_response(200)
+    assert read(body, "Bearer " <> @patchbay_token) |> json_response(200)
+    assert read(body, "Bearer not-a-site-key") |> json_response(401)
+
+    for reader <- ["regents", "patchbay", "refused"] do
+      assert_received {[:siwa_server, :siwa, :activity, :read], ^ref, %{}, %{reader: ^reader}}
+    end
   end
 
   test "a missing or wrong token is refused" do

@@ -15,7 +15,7 @@ config :siwa_server, :siwa,
   nonce_ttl_seconds: 300,
   receipt_ttl_seconds: 3_600,
   receipt_secret: nil,
-  activity_read_token: nil
+  activity_readers: %{}
 
 config :siwa_server, Oban,
   repo: SiwaServer.Repo,

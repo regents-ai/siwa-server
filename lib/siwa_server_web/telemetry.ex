@@ -77,6 +77,12 @@ defmodule SiwaServerWeb.Telemetry do
         reporter_options: [buckets: @request_duration_buckets],
         description: "Ethereum RPC operation duration in seconds"
       ),
+      counter("siwa_server.siwa.activity.reads.total",
+        event_name: [:siwa_server, :siwa, :activity, :read],
+        measurement: fn _measurements, _metadata -> 1 end,
+        tags: [:reader],
+        description: "Activity reads by the site whose key was presented, or refused"
+      ),
       counter("siwa_server.siwa.cleanup.runs.total",
         event_name: [:siwa_server, :siwa, :cleanup],
         measurement: fn _measurements, _metadata -> 1 end,

@@ -87,7 +87,8 @@ config :siwa_server, SiwaServerWeb.Endpoint,
 # Enable dev routes for dashboard and mailbox
 config :siwa_server, dev_routes: true
 
-config :siwa_server, :siwa, activity_read_token: "siwa-dev-activity-read-token"
+config :siwa_server, :siwa,
+  activity_readers: %{"regents" => "siwa-dev-regents-activity-read-key-0001"}
 
 config :siwa_keyring,
   password: "change-me",

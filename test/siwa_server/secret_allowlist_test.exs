@@ -10,7 +10,7 @@ defmodule SiwaServer.SecretAllowlistTest do
       SIWA_RECEIPT_SECRET
       KEYSTORE_PASSWORD
       KEYRING_PROXY_SECRET
-      SIWA_ACTIVITY_READ_TOKEN
+      SIWA_ACTIVITY_READERS
       BASE_RPC_URL
       ETHEREUM_RPC_URL
     ) do
@@ -19,7 +19,7 @@ defmodule SiwaServer.SecretAllowlistTest do
 
     assert allowlist =~ "  - shared_siwa_receipt_signing"
     assert allowlist =~ "  - shared_keyring_proxy_hmac"
-    assert allowlist =~ "  - shared_siwa_activity_read_token"
+    assert allowlist =~ "  - per_site_siwa_activity_read_keys"
     assert allowlist =~ "  - product_billing_secret"
     assert allowlist =~ "  - mobile_payment_secret"
     refute allowlist =~ "STRIPE_SECRET"
@@ -37,7 +37,7 @@ defmodule SiwaServer.SecretAllowlistTest do
       KEYSTORE_PASSWORD
       PHX_HOST
       PORT
-      SIWA_ACTIVITY_READ_TOKEN
+      SIWA_ACTIVITY_READERS
       SIWA_CLEANUP_BATCH_SIZE
       SIWA_RECEIPT_SECRET
     ) do
