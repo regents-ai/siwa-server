@@ -31,7 +31,6 @@ erl_crash.dump
 siwa_server-*.tar
 
 # Local planning and agent notes.
-AGENTS.md
 IMPLEMENTATION_PLAN.md
 PLAN.md
 NOTES.md

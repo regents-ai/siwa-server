@@ -10,7 +10,21 @@ defmodule SiwaServer.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
-      listeners: [Phoenix.CodeReloader]
+      listeners: [Phoenix.CodeReloader],
+      usage_rules: usage_rules()
+    ]
+  end
+
+  # `mix usage_rules.sync` writes the marked block at the end of AGENTS.md: how to
+  # read the installed version's docs, and links to each package's own rules in deps/.
+  defp usage_rules do
+    [
+      file: "AGENTS.md",
+      usage_rules: [
+        {:usage_rules, sub_rules: []},
+        {:usage_rules, sub_rules: :all, main: false, link: :markdown},
+        {:phoenix, sub_rules: ["phoenix", "ecto"], link: :markdown}
+      ]
     ]
   end
 
@@ -58,7 +72,8 @@ defmodule SiwaServer.MixProject do
       {:siwa_keyring, path: Path.join(elixir_utils_root(), "siwa/siwa-elixir/apps/siwa_keyring")},
       {:regent_chain, path: Path.join(elixir_utils_root(), "chain")},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false}
+      {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false},
+      {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
     ]
   end
 
@@ -90,6 +105,7 @@ defmodule SiwaServer.MixProject do
         "format --check-formatted",
         "credo --strict",
         "sobelow --exit --skip",
+        "usage_rules.sync --check",
         "check.services_contract",
         "check.release_packaging",
         "xref graph --label compile-connected --fail-above 0",
