@@ -67,6 +67,22 @@ defmodule SiwaServerWeb.ActivityControllerTest do
              |> get_in(["data", "agentBook"])
   end
 
+  test "reads 20 at a time, newest first, and the next cursor reads the rest" do
+    for n <- 1..25, do: :ok = ActivityStore.record(@wallet, "regents", "GET", "/r/#{n}")
+
+    assert %{"activity" => first, "next" => next} =
+             read(%{"wallet_address" => @wallet, "since" => an_hour_ago()})
+             |> json_response(200)
+             |> Map.fetch!("data")
+
+    assert %{"activity" => rest, "next" => nil} =
+             read(%{"wallet_address" => @wallet, "since" => an_hour_ago(), "after" => next})
+             |> json_response(200)
+             |> Map.fetch!("data")
+
+    assert Enum.map(first ++ rest, & &1["path"]) == Enum.map(25..1//-1, &"/r/#{&1}")
+  end
+
   test "only requests at or after since are read" do
     :ok = ActivityStore.record(@wallet, "regents", "GET", "/api/agents/v1/me")
     later = DateTime.utc_now() |> DateTime.add(1) |> DateTime.to_iso8601()
@@ -90,7 +106,9 @@ defmodule SiwaServerWeb.ActivityControllerTest do
           %{"wallet_address" => "0x12", "since" => an_hour_ago()},
           %{"wallet_address" => @wallet, "since" => "yesterday"},
           %{"wallet_address" => @wallet},
-          %{"wallet_address" => @wallet, "since" => an_hour_ago(), "limit" => 5}
+          %{"wallet_address" => @wallet, "since" => an_hour_ago(), "limit" => 5},
+          %{"wallet_address" => @wallet, "since" => an_hour_ago(), "after" => "not-a-cursor"},
+          %{"wallet_address" => @wallet, "since" => an_hour_ago(), "after" => nil}
         ] do
       assert %{"error" => %{"code" => "invalid_activity_request"}} =
                read(body) |> json_response(400)
@@ -102,7 +120,7 @@ defmodule SiwaServerWeb.ActivityControllerTest do
 
     assert {:ok, 0} = ActivityStore.cleanup_expired(DateTime.utc_now())
     assert {:ok, 1} = ActivityStore.cleanup_expired(DateTime.add(DateTime.utc_now(), 31, :day))
-    assert ActivityStore.recent(@wallet, ~U[2026-01-01 00:00:00Z]) == []
+    assert ActivityStore.page(@wallet, ~U[2026-01-01 00:00:00Z], nil) == {:ok, [], nil}
   end
 
   defp an_hour_ago, do: DateTime.utc_now() |> DateTime.add(-3_600) |> DateTime.to_iso8601()

@@ -306,8 +306,10 @@ paths:
       operationId: readSharedSiwaActivity
       summary: Read one wallet's recent verified requests across Regents sites
       description: >-
-        Returns up to 50 of the most recent requests that /api/shared/siwa/http-verify
-        verified for the wallet, newest first, over the last 30 days. Each entry
+        Returns the requests that /api/shared/siwa/http-verify verified for the
+        wallet over the last 30 days, newest first, 20 at a time. next is the
+        cursor for the following 20: send it back as after, and stop when next is
+        null. Each entry
         names the audience, method, path without its query and the time of
         verification. Request bodies, headers, receipts and signatures are never
         kept. agentRegistration is the wallet's newest agent registry listing made
@@ -1499,6 +1501,10 @@ components:
           type: string
           format: date-time
           description: Only requests verified at or after this time are returned.
+        after:
+          type: string
+          minLength: 1
+          description: The next cursor from the previous page. Leave it out for the first page.
     SiwaActivityResponse:
       type: object
       additionalProperties: false
@@ -1507,13 +1513,19 @@ components:
         data:
           type: object
           additionalProperties: false
-          required: [activity, agentRegistration, agentBook]
+          required: [activity, next, agentRegistration, agentBook]
           properties:
             activity:
               type: array
-              maxItems: 50
+              maxItems: 20
               items:
                 $ref: "#/components/schemas/SiwaActivityEntry"
+            next:
+              description: The cursor for the following 20 requests, or null when there are no more.
+              oneOf:
+                - type: string
+                  minLength: 1
+                - type: "null"
             agentRegistration:
               description: The wallet's newest listing in the Base agent registry made through this server, or null.
               oneOf:

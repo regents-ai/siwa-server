@@ -10,7 +10,7 @@ defmodule SiwaServer.Siwa.ActivityStore do
   alias SiwaServer.Repo
 
   @kept_days 30
-  @recent 50
+  @page_size 20
   @default_cleanup_limit 1_000
 
   @spec record(String.t(), String.t(), String.t(), String.t()) :: :ok | {:error, term()}
@@ -35,24 +35,64 @@ defmodule SiwaServer.Siwa.ActivityStore do
     end
   end
 
-  @spec recent(String.t(), DateTime.t()) :: [map()]
-  def recent(wallet_address, since) do
+  @doc """
+  One page of the wallet's entries at or after `since`, newest first, and the
+  cursor for the next page, or nil when this page is the last. `start` is the
+  cursor a previous page returned, or nil for the first page.
+  """
+  @spec page(String.t(), DateTime.t(), String.t() | nil) ::
+          {:ok, [map()], String.t() | nil} | :error
+  def page(wallet_address, since, start) do
+    with {:ok, query} <- after_cursor(entries(wallet_address, since), start) do
+      rows = Repo.all(from(entry in query, limit: @page_size + 1))
+      {page, rest} = Enum.split(rows, @page_size)
+      next = if rest == [], do: nil, else: page |> List.last() |> cursor()
+      {:ok, Enum.map(page, &Map.delete(&1, :id)), next}
+    end
+  end
+
+  defp entries(wallet_address, since) do
     from(entry in "siwa_request_activity",
       where:
         entry.wallet_address == ^String.downcase(wallet_address) and
           entry.occurred_at >= ^since and
           entry.occurred_at > ^kept_since(DateTime.utc_now()),
-      order_by: [desc: entry.occurred_at],
-      limit: @recent,
+      order_by: [desc: entry.occurred_at, desc: entry.id],
       select: %{
+        id: type(entry.id, :binary_id),
         audience: entry.audience,
         method: entry.method,
         path: entry.path,
         occurred_at: type(entry.occurred_at, :utc_datetime_usec)
       }
     )
-    |> Repo.all()
   end
+
+  defp after_cursor(query, nil), do: {:ok, query}
+
+  defp after_cursor(query, cursor) do
+    with {:ok, text} <- Base.url_decode64(cursor, padding: false),
+         [at, id] <- String.split(text, "~"),
+         {:ok, at, 0} <- DateTime.from_iso8601(at),
+         {:ok, id} <- Ecto.UUID.dump(id) do
+      {:ok,
+       from(entry in query,
+         where:
+           fragment(
+             "(?, ?) < (?, ?)",
+             entry.occurred_at,
+             entry.id,
+             type(^at, :utc_datetime_usec),
+             ^id
+           )
+       )}
+    else
+      _invalid -> :error
+    end
+  end
+
+  defp cursor(%{occurred_at: at, id: id}),
+    do: Base.url_encode64(DateTime.to_iso8601(at) <> "~" <> id, padding: false)
 
   def cleanup_expired(now \\ DateTime.utc_now(), limit \\ @default_cleanup_limit) do
     case Repo.query(
