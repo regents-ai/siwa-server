@@ -13,6 +13,7 @@ defmodule SiwaServerWeb.Router do
         :siwa_http_verify,
         :siwa_activity,
         :siwa_register,
+        :agent_book,
         :agent_profile
       ] do
     pipeline name do
@@ -54,6 +55,12 @@ defmodule SiwaServerWeb.Router do
     pipe_through :siwa_register
     post "/register-step", AgentRegistrationController, :register_step
     post "/registered", AgentRegistrationController, :registered
+  end
+
+  scope "/api/shared/siwa/agent-book", SiwaServerWeb do
+    pipe_through :agent_book
+    post "/challenge", AgentBookController, :challenge
+    post "/accept", AgentBookController, :accept
   end
 
   scope "/", SiwaServerWeb do

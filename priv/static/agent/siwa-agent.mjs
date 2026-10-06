@@ -16,6 +16,9 @@
 // Optional, once: list yourself in the agent registry on Base (your wallet pays the gas):
 //   node siwa-agent.mjs register-agent --name Astra --description "What I do"
 //
+// Optional, once your person has vouched for you with World ID (see the guide):
+//   node siwa-agent.mjs accept-world-id
+//
 // Environment:
 //   SIWA_AGENT_HOME where the key and receipts are kept (default ~/.siwa-agent)
 //   SIWA_BROKER     the SIWA server (default https://siwa.regents.sh)
@@ -37,7 +40,7 @@ const REGISTRATION_WAIT_MS = 120_000;
 const RECEIPT_RENEW_MARGIN_SECONDS = 60;
 const REQUEST_SIGNATURE_LIFETIME_SECONDS = 120;
 const SIGNER_TIMEOUT_MS = 300_000;
-const USER_AGENT = "siwa-agent-client/2.4 (node)";
+const USER_AGENT = "siwa-agent-client/2.5 (node)";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const SIGNATURE_PATTERN = /0x[0-9a-fA-F]{130,}/g;
 
@@ -437,6 +440,36 @@ async function registerAgent(config, args) {
   return printResponse(await waitForRegistration(config, profile, await sendRegistration(config, key, step)));
 }
 
+async function acceptWorldId(config, args) {
+  const humanId = takeOption(args, "--human-id");
+  const key = requireKey(config);
+  const base = { wallet_address: key.address, chain_id: chainId(key) };
+  const result = await httpJson("POST", `${config.broker}/api/shared/siwa/agent-book/challenge`, JSON.stringify(base));
+  if (result.status !== 200 || result.body?.code !== "agent_book_challenge") return printResponse(result);
+  const challenge = result.body.data;
+  if (humanId === undefined) {
+    return console.log(
+      JSON.stringify(
+        {
+          humanId: challenge.humanId,
+          accepted: challenge.accepted,
+          note: "World's AgentBook names this person behind your address. Anyone with a World ID can put their number on any address, so ask your person to confirm they just vouched for you, then run the `then` command.",
+          then: `node siwa-agent.mjs accept-world-id --human-id ${challenge.humanId}`,
+        },
+        null,
+        2,
+      ),
+    );
+  }
+  if (humanId.toLowerCase() !== challenge.humanId) {
+    throw new SiwaError(`World's AgentBook names ${challenge.humanId} behind your address, not ${humanId}; ask your person before accepting`);
+  }
+  const proof = { ...base, nonce: challenge.nonce, message: challenge.message, signature: await signText(key, challenge.message) };
+  return printResponse(
+    await httpJson("POST", `${config.broker}/api/shared/siwa/agent-book/accept`, JSON.stringify(proof), { "x-agent-signer": signerName(key) }),
+  );
+}
+
 async function main(argv) {
   const [command, ...args] = argv;
   const config = settings();
@@ -474,6 +507,8 @@ async function main(argv) {
     }
     case "register-agent":
       return registerAgent(config, args);
+    case "accept-world-id":
+      return acceptWorldId(config, args);
     case "headers": {
       const request = parseRequestArgs(args);
       const key = requireKey(config);
@@ -482,7 +517,7 @@ async function main(argv) {
     }
     default:
       throw new SiwaError(
-        "commands: keygen [--force], use-wallet <address> --signer <command> [--chain base|ethereum], whoami, sites, sign-in <site>, pair <site> <code> --name NAME --harness HARNESS, me <site>, request <method> <url>, headers <method> <url>, register-agent --name NAME --description TEXT [--image URL] [--tx-hash HASH]",
+        "commands: keygen [--force], use-wallet <address> --signer <command> [--chain base|ethereum], whoami, sites, sign-in <site>, pair <site> <code> --name NAME --harness HARNESS, me <site>, request <method> <url>, headers <method> <url>, register-agent --name NAME --description TEXT [--image URL] [--tx-hash HASH], accept-world-id [--human-id NUMBER]",
       );
   }
 }

@@ -85,6 +85,8 @@ mix phx.server
 | `/api/shared/siwa/http-verify` | POST | Verify a signed HTTP request. |
 | `/api/shared/siwa/agent/register-step` | POST | Build the optional agent registry listing transaction. |
 | `/api/shared/siwa/agent/registered` | POST | Read that transaction and keep the listing once it lands. |
+| `/api/shared/siwa/agent-book/challenge` | POST | Read the person World's AgentBook names behind a wallet and issue the message accepting them. |
+| `/api/shared/siwa/agent-book/accept` | POST | Keep that person once the wallet has signed the message. |
 | `/agent-profiles/{profile_id}` | GET | A listed agent's public registration file. |
 | `/healthz` | GET | Liveness. |
 | `/readyz` | GET | Readiness. |
@@ -233,7 +235,8 @@ HTTP verification returns an explicit `principal` of kind `wallet` and
 `agentRegistration`: the wallet's newest listing in the agent registry made through
 this server, or null. Sites link to `agentRegistration.registryUrl` when it is set.
 It also returns `agentBook`: `{humanId}` when World's AgentBook names a World
-ID-verified person behind the wallet, or null (see below).
+ID-verified person behind the wallet and the wallet accepted that person, or null
+(see below).
 Product consumers check product ownership themselves. Payment and human accounts
 remain separate. Both nonce consumption and request replay use database-clock
 expiration checks; invalid proof cannot consume a valid challenge.
@@ -257,11 +260,21 @@ A person can vouch for their agent with World ID: World's own tool,
 `npx @worldcoin/agentkit-cli register <address>`, records the wallet in World's
 AgentBook on World Chain, `0xA23aB2712eA7BBa896930544C7d6636a96b944dA`, under the
 person's anonymous World ID number (the nullifier hash), and World pays the gas.
-Each wallet sign-in queues an Oban job that reads `lookupHuman(wallet)` at the latest
-World Chain block through `WORLD_RPC_URL` and saves the answer in
-`agent_book_humans`. http-verify returns the saved entry as
-`agentBook: {humanId}`, or null. Sites decide when to show `humanId`; the same person's
-agents share it. Sign-in never waits for World Chain.
+AgentBook takes no signature from the agent's wallet, so anyone with a World ID can
+put their number on any wallet, or replace the one already there. The wallet
+therefore accepts its person once: `agent-book/challenge` reads `lookupHuman(wallet)`
+at the latest World Chain block through `WORLD_RPC_URL` and issues a single-use,
+five-minute message naming the wallet and that number; `agent-book/accept` checks
+the wallet's signature (an ordinary wallet, or a smart wallet on Ethereum or Base),
+reads AgentBook again and, when it still names the same number, keeps the number in
+`agent_book_acceptances`. The client command is `accept-world-id`.
+
+Each wallet sign-in also queues an Oban job that reads `lookupHuman(wallet)` and
+saves the answer in `agent_book_humans`. http-verify returns `agentBook: {humanId}`
+only while that saved answer is the number the wallet accepted; otherwise null.
+When someone replaces the number in AgentBook, the mark goes away at the wallet's
+next sign-in until the wallet accepts the new number. Sites decide when to show
+`humanId`; the same person's agents share it. Sign-in never waits for World Chain.
 
 For an isolated checkout, set `REGENT_ELIXIR_UTILS_ROOT` to a frozen `elixir-utils`
 export. `REGENT_RELEASE_CONTEXT` identifies the matching Docker input directory

@@ -159,10 +159,21 @@ npx @worldcoin/agentkit-cli register <your address>
 
 It shows a QR code for your person to scan in the World App. World pays the gas and records
 your address in its AgentBook on World Chain. `npx @worldcoin/agentkit-cli status <your
-address>` shows whether it is done. The next time you sign in to a Regent site, the site sees
-it. Sites also receive your person's anonymous World ID number, which is the same for every
-agent they vouch for; each site decides when to show it. This step needs Node and World's
-servers, not this client.
+address>` shows whether it is done. This step needs Node and World's servers, not this client.
+
+Then accept your person, once. Anyone with a World ID can put their number on any address, so
+sites show it only after you have signed for it:
+
+```bash
+uv run siwa_agent.py accept-world-id
+```
+
+It prints the World ID number that AgentBook names behind your address and the command to run
+next. Ask your person to confirm they just vouched for you, then run that command, which
+carries the number with `--human-id`: it signs only if AgentBook still names that number.
+Sites see it straight away. They also receive your person's anonymous World ID number, which
+is the same for every agent they vouch for; each site decides when to show it. If the number
+in AgentBook ever changes, sites stop showing it until you accept again.
 
 ## Report what happens
 
@@ -188,3 +199,6 @@ retrying will not help. The hosts you need are listed under "If your harness lim
 | `502 signature_lookup_failed` | Your smart wallet could not be checked on its chain just now. | Try again shortly. |
 | `422 transaction_not_registration` | That hash is not your registration with this name, description and picture. | Send the hash of the transaction `register-agent` printed, with the same details. |
 | `422 registration_reverted` | The registration failed on Base, so nothing was listed. | Run `register-agent` again. |
+| `404 not_in_agent_book` | World's AgentBook lists no person behind your address yet. | Ask your person to run World's tool, then `accept-world-id` again. |
+| `409 agent_book_changed` | AgentBook now names a different person than the one you were about to accept. | Ask your person before you accept again. |
+| `502 agent_book_unavailable` | World Chain could not be read just now. | Try again shortly. |

@@ -15,6 +15,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
     siwa_http_verify: [limit: 600, window_ms: 60_000],
     siwa_activity: [limit: 600, window_ms: 60_000],
     siwa_register: [limit: 60, window_ms: 60_000],
+    agent_book: [limit: 60, window_ms: 60_000],
     agent_profile: [limit: 600, window_ms: 60_000],
     keyring_internal: [limit: 600, window_ms: 60_000]
   }

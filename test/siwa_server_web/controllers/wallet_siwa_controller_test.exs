@@ -321,6 +321,10 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
 
     Repo.insert!(AgentBook.Human.changeset(%{wallet_address: signer.address, human_id: human_id}))
 
+    Repo.insert!(
+      AgentBook.Acceptance.changeset(%{wallet_address: signer.address, human_id: human_id})
+    )
+
     response = http_verify(request, "patchbay") |> json_response(200)
     assert response["data"]["verificationMethod"] == "eoa_recovery"
 

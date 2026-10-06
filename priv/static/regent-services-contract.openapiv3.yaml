@@ -315,7 +315,8 @@ paths:
         kept. agentRegistration is the wallet's newest agent registry listing made
         through this server, or null, the same as http-verify returns. agentBook is
         the World ID-verified person World's AgentBook last named behind the wallet,
-        or null, the same as http-verify returns.
+        when the wallet accepted that same person, or null, the same as http-verify
+        returns.
       tags: [internal]
       security:
         - ActivityReadToken: []
@@ -462,6 +463,125 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /api/shared/siwa/agent-book/challenge:
+    post:
+      operationId: createAgentBookChallenge
+      tags: [auth]
+      description: Read the person World's AgentBook names behind the wallet now and issue a single-use message, valid for five minutes, for the wallet to sign to accept that person. accepted says whether the wallet already accepted this person. Sites show the person only while AgentBook still names the person the wallet accepted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentBookChallengeRequest"
+      responses:
+        "200":
+          description: The person AgentBook names now and the message to sign
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentBookChallengeResponse"
+        "400":
+          description: Malformed request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: World's AgentBook names no person behind this wallet (not_in_agent_book)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          description: Request body too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "415":
+          description: Unsupported content type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "502":
+          description: World's AgentBook could not be read (agent_book_unavailable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
+  /api/shared/siwa/agent-book/accept:
+    post:
+      operationId: acceptAgentBookHuman
+      tags: [auth]
+      description: Accept the person named in a challenge from /api/shared/siwa/agent-book/challenge. The wallet signs the exact message; ordinary wallets, and smart wallets on Ethereum or Base, can sign it. The person is kept only when World's AgentBook still names them. No private key is accepted.
+      parameters:
+        - in: header
+          name: x-agent-signer
+          required: false
+          schema:
+            type: string
+          description: How the agent signs, used only to word the hint on a refusal. `own-key` when the agent client keeps the key, or the name of the agent's own signer command, such as `cast`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentBookAcceptRequest"
+      responses:
+        "200":
+          description: The wallet accepted the person
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentBookAcceptResponse"
+        "400":
+          description: Malformed request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Invalid signature, changed message or expired challenge
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Challenge absent or already used, or AgentBook names no person behind the wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: AgentBook names a different person than the challenge did (agent_book_changed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          description: Request body too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "415":
+          description: Unsupported content type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "502":
+          description: World's AgentBook, or a smart wallet's signature on the chain it signed on, could not be read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
   /agent-profiles/{profile_id}:
     get:
       operationId: readAgentProfile
@@ -1089,7 +1209,7 @@ components:
                 - $ref: "#/components/schemas/AgentRegistration"
                 - type: "null"
             agentBook:
-              description: The person World's AgentBook on World Chain last named behind this wallet, read at each sign-in, or null. Each site decides when to show humanId.
+              description: The person World's AgentBook on World Chain last named behind this wallet, read at each sign-in, when the wallet accepted that same person; otherwise null. Each site decides when to show humanId.
               oneOf:
                 - $ref: "#/components/schemas/AgentBookHuman"
                 - type: "null"
@@ -1207,13 +1327,96 @@ components:
       additionalProperties: false
     AgentBookHuman:
       type: object
-      description: A World ID-verified person stands behind this agent wallet in World's AgentBook (World Chain, 0xA23aB2712eA7BBa896930544C7d6636a96b944dA).
+      description: A World ID-verified person stands behind this agent wallet in World's AgentBook (World Chain, 0xA23aB2712eA7BBa896930544C7d6636a96b944dA), and the wallet accepted that person through /api/shared/siwa/agent-book/accept.
       required: [humanId]
       properties:
         humanId:
           type: string
           pattern: "^0x[0-9a-f]{64}$"
           description: The person's anonymous World ID number (nullifier hash). The same person's agents share it.
+      additionalProperties: false
+    AgentBookChallengeRequest:
+      type: object
+      required: [wallet_address, chain_id]
+      properties:
+        wallet_address:
+          $ref: "#/components/schemas/Address"
+        chain_id:
+          $ref: "#/components/schemas/WalletChainId"
+      additionalProperties: false
+    AgentBookChallengeResponse:
+      type: object
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [agent_book_challenge]
+        data:
+          type: object
+          required: [walletAddress, chainId, humanId, accepted, nonce, message, issuedAt, expiresAt]
+          properties:
+            walletAddress:
+              $ref: "#/components/schemas/Address"
+            chainId:
+              $ref: "#/components/schemas/WalletChainId"
+            humanId:
+              type: string
+              pattern: "^0x[0-9a-f]{64}$"
+              description: The person World's AgentBook names behind the wallet now. Check it is your person's number before signing.
+            accepted:
+              type: boolean
+              description: Whether the wallet already accepted this person.
+            nonce:
+              type: string
+            message:
+              type: string
+              description: Server-issued message naming the wallet and the person, to review and sign unchanged.
+            issuedAt:
+              type: string
+              format: date-time
+            expiresAt:
+              type: string
+              format: date-time
+          additionalProperties: false
+      additionalProperties: false
+    AgentBookAcceptRequest:
+      type: object
+      required: [wallet_address, chain_id, nonce, message, signature]
+      properties:
+        wallet_address:
+          $ref: "#/components/schemas/Address"
+        chain_id:
+          $ref: "#/components/schemas/WalletChainId"
+        nonce:
+          type: string
+          pattern: '^[a-f0-9]{32}$'
+        message:
+          type: string
+          maxLength: 2048
+          description: Exact server-issued challenge message.
+        signature:
+          type: string
+          pattern: '^0x([a-fA-F0-9]{2})+$'
+          maxLength: 8194
+          description: ERC-191 personal signature from the wallet, or a smart wallet's ERC-1271 signature (ERC-6492-wrapped before deployment); never a private key.
+      additionalProperties: false
+    AgentBookAcceptResponse:
+      type: object
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [agent_book_accepted]
+        data:
+          type: object
+          required: [walletAddress, humanId]
+          properties:
+            walletAddress:
+              $ref: "#/components/schemas/Address"
+            humanId:
+              type: string
+              pattern: "^0x[0-9a-f]{64}$"
+          additionalProperties: false
       additionalProperties: false
     AgentRegisteredResponse:
       oneOf:
@@ -1532,7 +1735,7 @@ components:
                 - $ref: "#/components/schemas/AgentRegistration"
                 - type: "null"
             agentBook:
-              description: The World ID-verified person World's AgentBook last named behind the wallet, or null.
+              description: The World ID-verified person World's AgentBook last named behind the wallet, when the wallet accepted that same person; otherwise null.
               oneOf:
                 - $ref: "#/components/schemas/AgentBookHuman"
                 - type: "null"

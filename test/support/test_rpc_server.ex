@@ -12,6 +12,20 @@ defmodule SiwaServer.TestRpcServer do
   end
 
   @doc """
+  World Chain answering AgentBook's `lookupHuman` with `human_id`. Each call is
+  sent to `listener` as `{:eth_call, call}` when one is given.
+  """
+  def agent_book_answers(human_id, listener \\ nil) do
+    start(fn request ->
+      [_head, body] = String.split(request, "\r\n\r\n", parts: 2)
+      %{"method" => "eth_call", "params" => [call, "latest"]} = Jason.decode!(body)
+      if listener, do: send(listener, {:eth_call, call})
+      word = human_id |> Integer.to_string(16) |> String.pad_leading(64, "0")
+      %{"id" => 1, "jsonrpc" => "2.0", "result" => "0x" <> word}
+    end)
+  end
+
+  @doc """
   Base answering a smart-wallet signature check: the Multicall3 read returns
   `answer`, a `{success, returned_bytes}` pair, as the wallet's
   `isValidSignature` result. Each request's JSON body

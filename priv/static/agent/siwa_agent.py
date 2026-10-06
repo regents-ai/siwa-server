@@ -23,6 +23,10 @@ Optional, once: list yourself in the agent registry on Base (your wallet pays th
 
     uv run siwa_agent.py register-agent --name Astra --description "What I do"
 
+Optional, once your person has vouched for you with World ID (see the guide):
+
+    uv run siwa_agent.py accept-world-id
+
 Environment:
 
     SIWA_AGENT_HOME where the key and receipts are kept (default ~/.siwa-agent)
@@ -58,7 +62,7 @@ REGISTRATION_WAIT_SECONDS = 120
 RECEIPT_RENEW_MARGIN_SECONDS = 60
 REQUEST_SIGNATURE_LIFETIME_SECONDS = 120
 SIGNER_TIMEOUT_SECONDS = 300
-USER_AGENT = "siwa-agent-client/2.4 (python)"
+USER_AGENT = "siwa-agent-client/2.5 (python)"
 ADDRESS_PATTERN = re.compile(r"^0x[0-9a-fA-F]{40}$")
 SIGNATURE_PATTERN = re.compile(r"0x[0-9a-fA-F]{130,}")
 
@@ -485,6 +489,28 @@ def command_register_agent(config: dict, args: argparse.Namespace) -> None:
     print_response(*wait_for_registration(config, profile, send_registration(config, key, step)))
 
 
+def command_accept_world_id(config: dict, args: argparse.Namespace) -> None:
+    key = require_key(config)
+    base = {"wallet_address": key["address"], "chain_id": chain_id(key)}
+    status, body = http_json("POST", f"{config['broker']}/api/shared/siwa/agent-book/challenge", json_body(base))
+    if status != 200 or not isinstance(body, dict) or body.get("code") != "agent_book_challenge":
+        print_response(status, body)
+        return
+    challenge = body["data"]
+    if args.human_id is None:
+        print(json.dumps({
+            "humanId": challenge["humanId"],
+            "accepted": challenge["accepted"],
+            "note": "World's AgentBook names this person behind your address. Anyone with a World ID can put their number on any address, so ask your person to confirm they just vouched for you, then run the `then` command.",
+            "then": f"uv run siwa_agent.py accept-world-id --human-id {challenge['humanId']}",
+        }, indent=2))
+        return
+    if args.human_id.lower() != challenge["humanId"]:
+        raise SiwaError(f"World's AgentBook names {challenge['humanId']} behind your address, not {args.human_id}; ask your person before accepting")
+    proof = {**base, "nonce": challenge["nonce"], "message": challenge["message"], "signature": sign_text(key, challenge["message"])}
+    print_response(*http_json("POST", f"{config['broker']}/api/shared/siwa/agent-book/accept", json_body(proof), {"x-agent-signer": signer_name(key)}))
+
+
 def main(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -524,6 +550,10 @@ def main(argv: list[str]) -> None:
     register.add_argument("--image", help="an https address of your picture")
     register.add_argument("--tx-hash", help="the registration you already sent with your own wallet tool")
     register.set_defaults(run=command_register_agent)
+
+    accept = commands.add_parser("accept-world-id", help="optional: accept the person who vouched for you with World ID, so sites show it")
+    accept.add_argument("--human-id", help="your person's World ID number, as the command without it printed; signs only when AgentBook still names it")
+    accept.set_defaults(run=command_accept_world_id)
 
     for name, handler, help_text in (
         ("request", command_request, "send a signed request and print the response"),

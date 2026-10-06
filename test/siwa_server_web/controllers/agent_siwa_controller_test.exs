@@ -154,6 +154,8 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/api/shared/siwa/activity",
                "/api/shared/siwa/agent/register-step",
                "/api/shared/siwa/agent/registered",
+               "/api/shared/siwa/agent-book/challenge",
+               "/api/shared/siwa/agent-book/accept",
                "/agent-profiles/{profile_id}",
                "/api/shared/keyring/health",
                "/api/shared/keyring/create-wallet",

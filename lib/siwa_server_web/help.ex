@@ -56,6 +56,22 @@ defmodule SiwaServerWeb.Help do
     ["The signature does not come from the address you gave. ", signing(context.signer)]
   end
 
+  defp steps("not_in_agent_book", _context) do
+    [
+      "World's AgentBook lists no person behind this wallet yet. Your person registers it with ",
+      "`npx @worldcoin/agentkit-cli register <your address>`; once that lands on World Chain, ",
+      "run `accept-world-id` again."
+    ]
+  end
+
+  defp steps("agent_book_changed", _context) do
+    [
+      "World's AgentBook now names a different person behind this wallet than the challenge did. ",
+      "Ask your person whether that is their number before you run `accept-world-id` again: ",
+      "anyone with a World ID can put their number on any wallet."
+    ]
+  end
+
   defp steps(code, context) when code in ~w(receipt_invalid receipt_binding_mismatch) do
     [
       "Your sign-in",
@@ -106,7 +122,7 @@ defmodule SiwaServerWeb.Help do
   end
 
   defp steps(code, _context)
-       when code in ~w(signature_lookup_failed agent_registration_lookup_failed) do
+       when code in ~w(signature_lookup_failed agent_registration_lookup_failed agent_book_unavailable) do
     [
       "The blockchain could not be read just now to check your wallet. Wait a minute, then run ",
       "the command again. If it keeps happening, tell your person."
