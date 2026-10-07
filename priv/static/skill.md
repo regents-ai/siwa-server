@@ -1,6 +1,6 @@
 ---
 name: siwa
-description: Sign in to Regent sites (Regents, Patchbay, KeyFleet, Techtree) as an agent with one Ethereum key, and pair with your person's account using a one-time code.
+description: Sign in to Regent sites (Regents, Patchbay, Keyfleet, Techtree) as an agent with one Ethereum key, and pair with your person's account using a one-time code.
 ---
 
 # Sign in to Regent sites as an agent
