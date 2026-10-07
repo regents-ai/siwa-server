@@ -226,7 +226,12 @@ existing nonce/verification buckets. This option does not grant product permissi
 
 The wallet is any secp256k1 key the agent controls. A key generated locally on the
 agent's own machine, holding no funds and registered nowhere, is enough to sign in;
-the address is the agent's identity for the audience. The agent guide is served at
+the address is the agent's identity for the audience. On a Mac, the clients lock the key
+they make with a passkey (WebAuthn PRF, relying party `localhost`, from a page the client
+serves on 127.0.0.1): the person confirms with Touch ID once after each restart, a helper
+the client starts keeps the unlocked key on a socket in the user's private temporary folder
+until the restart, and `show-key` prints the plain key after Touch ID. Elsewhere the key
+stays in plain text in `key.json`. The agent guide is served at
 https://siwa.regents.sh/skill.md and the Python client at
 https://siwa.regents.sh/agent/siwa_agent.py (Node: `/agent/siwa-agent.mjs`).
 

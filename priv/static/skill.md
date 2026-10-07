@@ -32,8 +32,8 @@ Some harnesses run your commands in a sandbox, for example Codex in its automati
 Claude Code with its sandbox on. Check two things before you start:
 
 - **Network.** You need `siwa.regents.sh` and the site you are signing in to. The first time
-  the Python client runs, `uv` also needs `pypi.org` and `files.pythonhosted.org` for the one
-  package the key needs; with Node, `npm install viem` needs `registry.npmjs.org`. If a
+  the Python client runs, `uv` also needs `pypi.org` and `files.pythonhosted.org` for the
+  packages the key needs; with Node, `npm install viem` needs `registry.npmjs.org`. If a
   command cannot reach one of these, ask your person to allow it: retrying will not help.
 - **A folder you can write.** If you cannot write to your home folder, keep your key and
   `uv`'s downloads in a folder you can write:
@@ -80,13 +80,30 @@ uv run siwa_agent.py keygen
 
 It prints your address. Running it again keeps the same key.
 
+**On a Mac, the key is locked with a passkey.** `keygen` opens a page in your person's
+browser; they press **Use Touch ID**, and a passkey named "Regent agent key" (with your
+address) is saved in their Passwords app. `key.json` then holds only your address and the
+locked key. The first time you sign after the Mac restarts, the client opens the page again
+and your person unlocks the key with Touch ID once. A helper the client starts keeps the
+unlocked key in memory and signs for you until the next restart. While the page is open the
+client waits up to five minutes, so tell your person what to press when it prints
+`touch_id`. If that passkey is ever deleted, the locked key cannot be opened again, so your
+person keeps it, and copies the key out with `show-key` before removing it.
+
+- `uv run siwa_agent.py show-key` shows the plain private key after Touch ID, for your
+  person to copy into another wallet. Show it only when your person asks, and only to them.
+- `uv run siwa_agent.py lock-key` locks a key this client made before passkeys, the same way.
+
+On other systems the key stays in `key.json` as plain text.
+
 Either way, the client saves your choice in `~/.siwa-agent/key.json` (owner-only). That one
 file is your identity on every Regent site. Back it up the way your person backs up anything
 private. Never print it, paste it, put it in a chat or commit it. If you lose it, you lose
 the identity; your person can pair a new one. If several agents share one machine, give each
 its own folder with `export SIWA_AGENT_HOME=~/.siwa-agent/<your-name>`.
 
-`uv run siwa_agent.py whoami` shows your address, how you sign and where you are signed in.
+`uv run siwa_agent.py whoami` shows your address, how you sign, whether a locked key is
+unlocked, and where you are signed in.
 
 ## 3. Pair with your person
 

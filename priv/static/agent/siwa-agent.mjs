@@ -4,7 +4,7 @@
 // Guide: https://siwa.regents.sh/skill.md
 //
 // Pick how you sign, once:
-//   npm install viem && node siwa-agent.mjs keygen       # this client makes and keeps a key
+//   npm install viem && node siwa-agent.mjs keygen       # this client makes and keeps a key (on a Mac, locked with a passkey)
 //   node siwa-agent.mjs use-wallet 0xADDRESS --signer 'cast wallet sign --account agent "$SIWA_MESSAGE"'
 //
 // Then, for any Regent site:
@@ -24,14 +24,19 @@
 //   SIWA_BROKER     the SIWA server (default https://siwa.regents.sh)
 //   SIWA_BASE_RPC   the Base node register-agent sends through (default https://mainnet.base.org)
 //
-// A private key made by keygen never leaves this machine. With use-wallet, this
-// client never sees a private key at all: it hands each text to your signer.
+// A private key made by keygen never leaves this machine. On a Mac it is locked
+// with a passkey: your person confirms with Touch ID once after each restart, and
+// `show-key` shows the plain key to copy. With use-wallet, this client never sees
+// a private key at all: it hands each text to your signer.
 
-import { execSync } from "node:child_process";
-import { createHash, randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { execFile, execFileSync, execSync, spawn } from "node:child_process";
+import { createHash, randomBytes, webcrypto } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
+import { createConnection, createServer as createSocketServer } from "node:net";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const CHAINS = { base: 8453, ethereum: 1 };
 const DEFAULT_BROKER = "https://siwa.regents.sh";
@@ -40,9 +45,109 @@ const REGISTRATION_WAIT_MS = 120_000;
 const RECEIPT_RENEW_MARGIN_SECONDS = 60;
 const REQUEST_SIGNATURE_LIFETIME_SECONDS = 120;
 const SIGNER_TIMEOUT_MS = 300_000;
-const USER_AGENT = "siwa-agent-client/2.6 (node)";
+const PASSKEY_WAIT_MS = 300_000;
+const HELPER_START_MS = 10_000;
+const USER_AGENT = "siwa-agent-client/2.7 (node)";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const SIGNATURE_PATTERN = /0x[0-9a-fA-F]{130,}/g;
+const BOX_INFO = "agent key box";
+const PASSKEY_ASKS = {
+  lock: "Ask your person to lock your new key: they press Use Touch ID on the page that just opened on this Mac.",
+  unlock: "Ask your person to unlock your key: they press Use Touch ID on the page that just opened on this Mac. They are asked once after each restart.",
+  show: "Ask your person to confirm with Touch ID on the page that just opened on this Mac.",
+};
+
+// The page where the person confirms with Touch ID. The passkey belongs to
+// localhost, so only a page served on this Mac can use it.
+const PASSKEY_PAGE = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent key</title>
+<style>
+  :root { --bg: #fafaf9; --fg: #1c1917; --muted: #78716c; --bad: #b91c1c; --btn: #1c1917; --btn-fg: #fafaf9; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1c1917; --fg: #fafaf9; --muted: #a8a29e; --bad: #f87171; --btn: #fafaf9; --btn-fg: #1c1917; } }
+  body { background: var(--bg); color: var(--fg); font: 16px/1.5 -apple-system, system-ui, sans-serif; margin: 0; padding: 48px 16px; }
+  main { max-width: 480px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p { color: var(--muted); margin: 0 0 20px; }
+  code { font-size: 13px; word-break: break-all; }
+  button { background: var(--btn); color: var(--btn-fg); border: 0; border-radius: 8px; padding: 10px 18px; font: inherit; cursor: pointer; }
+  #note { color: var(--bad); margin-top: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title"></h1>
+  <p id="lead"></p>
+  <p><code id="address"></code></p>
+  <button id="go">Use Touch ID</button>
+  <p id="note"></p>
+</main>
+<script>
+const setup = __SETUP__;
+const words = {
+  lock: ["Lock your agent's key", "A passkey on this Mac locks it. Touch ID opens it."],
+  unlock: ["Unlock your agent's key", "Asked once after each restart."],
+  show: ["Show your agent's key", "It appears where your agent asked for it."],
+}[setup.mode];
+const $ = (id) => document.getElementById(id);
+document.title = words[0];
+$("title").textContent = words[0];
+$("lead").textContent = words[1];
+$("address").textContent = setup.address;
+const hex = (bytes) => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, "0")).join("");
+const unhex = (text) => new Uint8Array(text.match(/../g).map((h) => parseInt(h, 16)));
+const random = (size) => crypto.getRandomValues(new Uint8Array(size));
+const salt = () => crypto.subtle.digest("SHA-256", new TextEncoder().encode("regent agent key"));
+
+async function secretOf(credentialId) {
+  const credential = await navigator.credentials.get({ publicKey: {
+    challenge: random(32),
+    rpId: "localhost",
+    allowCredentials: [{ type: "public-key", id: unhex(credentialId) }],
+    userVerification: "required",
+    extensions: { prf: { eval: { first: await salt() } } },
+  } });
+  const first = credential.getClientExtensionResults().prf?.results?.first;
+  if (!first) throw new Error("This browser can't open the passkey. Open this page in Safari or Chrome.");
+  return { credential_id: credentialId, secret: hex(first) };
+}
+
+async function makePasskey() {
+  const credential = await navigator.credentials.create({ publicKey: {
+    rp: { name: "Regent agent key", id: "localhost" },
+    user: { id: random(16), name: setup.address, displayName: "Regent agent key" },
+    challenge: random(32),
+    pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+    authenticatorSelection: { residentKey: "required", userVerification: "required" },
+    extensions: { prf: { eval: { first: await salt() } } },
+  } });
+  // A passkey store may give the secret only when the passkey is next used.
+  const first = credential.getClientExtensionResults().prf?.results?.first;
+  return first ? { credential_id: hex(credential.rawId), secret: hex(first) } : secretOf(hex(credential.rawId));
+}
+
+$("go").onclick = async () => {
+  $("go").disabled = true;
+  $("note").textContent = "";
+  try {
+    const answer = setup.mode === "lock" ? await makePasskey() : await secretOf(setup.credentialId);
+    const sent = await fetch(location.pathname, { method: "POST", body: JSON.stringify(answer) }).catch(() => null);
+    if (!sent?.ok) throw new Error("Your agent stopped waiting. Run its command again.");
+    $("title").textContent = "Done";
+    $("lead").textContent = "You can close this tab.";
+    $("go").hidden = true;
+  } catch (error) {
+    $("note").textContent = error.message;
+    $("go").disabled = false;
+  }
+};
+</script>
+</body>
+</html>
+`;
 
 class SiwaError extends Error {}
 
@@ -150,17 +255,166 @@ async function audienceFor(config, url) {
   throw new SiwaError(`${origin} does not accept agent sign-in; sites that do: ${known}`);
 }
 
-async function signText(key, text) {
-  if (key.private_key) {
-    const { privateKeyToAccount } = await import("viem/accounts");
-    return privateKeyToAccount(key.private_key).signMessage({ message: text });
+// The AES-GCM key a passkey's secret opens, the same in the Python and Node clients.
+async function boxKey(secret) {
+  const base = await webcrypto.subtle.importKey("raw", Buffer.from(secret, "hex"), "HKDF", false, ["deriveKey"]);
+  return webcrypto.subtle.deriveKey(
+    { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(32), info: Buffer.from(BOX_INFO) },
+    base,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+
+// Open a page on this Mac where the person confirms with Touch ID; resolve to the passkey's id and secret.
+function passkeySecret(mode, address, credentialId) {
+  const token = randomBytes(18).toString("base64url");
+  const page = PASSKEY_PAGE.replace("__SETUP__", JSON.stringify({ mode, address, credentialId }));
+  return new Promise((resolve, reject) => {
+    let answered = false;
+    const finish = () => {
+      clearTimeout(timer);
+      server.close();
+      server.closeAllConnections();
+    };
+    const server = createServer((request, response) => {
+      if (request.url !== `/${token}`) return response.writeHead(404).end();
+      if (request.method === "GET") {
+        return response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" }).end(page);
+      }
+      if (request.method !== "POST" || answered) return response.writeHead(404).end();
+      let body = "";
+      request.on("data", (chunk) => (body += chunk));
+      request.on("end", () => {
+        answered = true;
+        response.writeHead(204).end(() => {
+          finish();
+          resolve(JSON.parse(body));
+        });
+      });
+    });
+    const timer = setTimeout(() => {
+      finish();
+      reject(new SiwaError(`no Touch ID within ${PASSKEY_WAIT_MS / 60_000} minutes; run the command again and ask your person to confirm on the page it opens`));
+    }, PASSKEY_WAIT_MS);
+    server.listen(0, "127.0.0.1", () => {
+      const url = `http://localhost:${server.address().port}/${token}`;
+      console.error(JSON.stringify({ touch_id: PASSKEY_ASKS[mode], page: url }));
+      execFile("open", [url], () => {});
+    });
+  });
+}
+
+// Make a passkey for this key and seal the key with the passkey's secret.
+async function lock(address, privateKey) {
+  const answer = await passkeySecret("lock", address, null);
+  const iv = randomBytes(12);
+  const box = await webcrypto.subtle.encrypt(
+    { name: "AES-GCM", iv, additionalData: Buffer.from(address) },
+    await boxKey(answer.secret),
+    Buffer.from(privateKey),
+  );
+  return { credential_id: answer.credential_id, iv: iv.toString("hex"), box: Buffer.from(box).toString("hex") };
+}
+
+async function openBox(key, mode) {
+  const answer = await passkeySecret(mode, key.address, key.locked.credential_id);
+  const privateKey = await webcrypto.subtle.decrypt(
+    { name: "AES-GCM", iv: Buffer.from(key.locked.iv, "hex"), additionalData: Buffer.from(key.address) },
+    await boxKey(answer.secret),
+    Buffer.from(key.locked.box, "hex"),
+  );
+  return Buffer.from(privateKey).toString("utf8");
+}
+
+// Where the helper holding this unlocked key listens, shared by the Python and Node clients:
+// the Mac's own private folder for this user, whatever TMPDIR a harness sets.
+function helperSocket(key) {
+  const folder = execFileSync("getconf", ["DARWIN_USER_TEMP_DIR"], { encoding: "utf8" }).trim();
+  return join(folder, `siwa-agent-${createHash("sha256").update(key.address).digest("hex").slice(0, 16)}.sock`);
+}
+
+// One request to the helper; null when no helper is listening.
+function askHelper(path, request) {
+  return new Promise((resolve, reject) => {
+    let reply = "";
+    const connection = createConnection(path, () => connection.write(`${JSON.stringify(request)}\n`));
+    connection.on("data", (chunk) => (reply += chunk));
+    connection.on("end", () => {
+      const answer = JSON.parse(reply);
+      if (answer.error) reject(new SiwaError(answer.error));
+      else resolve(answer);
+    });
+    connection.on("error", (error) => (["ENOENT", "ECONNREFUSED"].includes(error.code) ? resolve(null) : reject(error)));
+  });
+}
+
+// Hand the unlocked key to a helper that keeps it until this Mac restarts.
+async function startHelper(key, privateKey) {
+  const path = helperSocket(key);
+  const helper = spawn(process.execPath, [fileURLToPath(import.meta.url), "key-helper", path], {
+    detached: true,
+    stdio: ["pipe", "ignore", "ignore"],
+  });
+  helper.stdin.end(privateKey);
+  helper.unref();
+  const deadline = Date.now() + HELPER_START_MS;
+  while ((await askHelper(path, { op: "address" })) === null) {
+    if (Date.now() > deadline) {
+      throw new SiwaError(`the helper that keeps your unlocked key did not start within ${HELPER_START_MS / 1000} seconds`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
+}
+
+// Ask the helper holding the unlocked key; unlock it with Touch ID first when none is running.
+async function unlocked(key, request) {
+  const answer = await askHelper(helperSocket(key), request);
+  if (answer !== null) return answer;
+  await startHelper(key, await openBox(key, "unlock"));
+  return askHelper(helperSocket(key), request);
+}
+
+function stopHelper(key) {
+  return askHelper(helperSocket(key), { op: "stop" });
+}
+
+async function signMessageWith(privateKey, text) {
+  const { privateKeyToAccount } = await import("viem/accounts");
+  return privateKeyToAccount(privateKey).signMessage({ message: text });
+}
+
+// Sign a Base transaction given as 0x quantities (chainId, nonce, gas, fees, value) and 0x hex (to, data).
+async function signTransactionWith(privateKey, transaction) {
+  const { privateKeyToAccount } = await import("viem/accounts");
+  return privateKeyToAccount(privateKey).signTransaction({
+    type: "eip1559",
+    chainId: Number(BigInt(transaction.chainId)),
+    nonce: Number(BigInt(transaction.nonce)),
+    to: transaction.to,
+    data: transaction.data,
+    value: BigInt(transaction.value),
+    gas: BigInt(transaction.gas),
+    maxFeePerGas: BigInt(transaction.maxFeePerGas),
+    maxPriorityFeePerGas: BigInt(transaction.maxPriorityFeePerGas),
+  });
+}
+
+async function signText(key, text) {
+  if (key.private_key) return signMessageWith(key.private_key, text);
+  if (key.locked) return (await unlocked(key, { op: "sign_message", text })).signature;
   return runSigner(key.signer, text);
+}
+
+async function signTransaction(key, transaction) {
+  if (key.locked) return (await unlocked(key, { op: "sign_transaction", transaction })).raw;
+  return signTransactionWith(key.private_key, transaction);
 }
 
 // How this client signs, so the sign-in service can word its advice on a refusal.
 function signerName(key) {
-  return key.private_key ? "own-key" : basename(key.signer.trim().split(/\s+/)[0]);
+  return key.signer ? basename(key.signer.trim().split(/\s+/)[0]) : "own-key";
 }
 
 // Hand the exact text to the wallet's own signing command and read back its signature.
@@ -328,11 +582,93 @@ async function keygen(config, args) {
   const { generatePrivateKey, privateKeyToAccount } = await import("viem/accounts");
   const privateKey = generatePrivateKey();
   const address = privateKeyToAccount(privateKey).address.toLowerCase();
-  saveJson(config.keyPath, { address, private_key: privateKey });
-  return console.log(JSON.stringify({ address, key: config.keyPath, created: true }));
+  const mac = process.platform === "darwin";
+  if (mac) {
+    const key = { address, locked: await lock(address, privateKey) };
+    saveJson(config.keyPath, key);
+    await startHelper(key, privateKey);
+  } else {
+    saveJson(config.keyPath, { address, private_key: privateKey });
+  }
+  if (existing?.locked) await stopHelper(existing);
+  return console.log(JSON.stringify({ address, key: config.keyPath, created: true, locked: mac }));
 }
 
-function useWallet(config, args) {
+async function lockKey(config) {
+  const key = requireKey(config);
+  if (process.platform !== "darwin") throw new SiwaError("lock-key needs a Mac: the key is locked with a Mac passkey");
+  if (!key.private_key) {
+    throw new SiwaError(key.locked ? "this key is already locked" : "your wallet tool keeps this key; lock-key locks a key this client keeps");
+  }
+  const locked = { address: key.address, locked: await lock(key.address, key.private_key) };
+  saveJson(config.keyPath, locked);
+  await startHelper(locked, key.private_key);
+  console.log(
+    JSON.stringify(
+      { address: key.address, key: config.keyPath, locked: true, note: "key.json no longer holds the plain key. Any copy made elsewhere still does." },
+      null,
+      2,
+    ),
+  );
+}
+
+async function showKey(config) {
+  const key = requireKey(config);
+  if (key.signer) throw new SiwaError("your wallet tool keeps this key; show it with that tool");
+  const privateKey = key.locked ? await openBox(key, "show") : key.private_key;
+  console.log(
+    JSON.stringify(
+      {
+        address: key.address,
+        private_key: privateKey,
+        note: "Anyone with this key controls this wallet and everything in it. Give it only to your person, never to a chat, a log or a commit.",
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+// Keep an unlocked key in memory and sign with it for this user's clients until the Mac restarts.
+async function keyHelper(args) {
+  const path = required(args[0], "key-helper <socket>");
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const privateKey = readFileSync(0, "utf8").trim();
+  const address = privateKeyToAccount(privateKey).address.toLowerCase();
+  if ((await askHelper(path, { op: "address" })) !== null) return;
+  if (existsSync(path)) unlinkSync(path);
+  const answer = async (request) => {
+    switch (request.op) {
+      case "address":
+        return { address };
+      case "sign_message":
+        return { signature: await signMessageWith(privateKey, request.text) };
+      case "sign_transaction":
+        return { raw: await signTransactionWith(privateKey, request.transaction) };
+      case "stop":
+        return { stopped: true };
+      default:
+        return { error: `the key helper does not know ${request.op}` };
+    }
+  };
+  const server = createSocketServer((connection) => {
+    let received = "";
+    connection.on("data", (chunk) => {
+      received += chunk;
+      if (!received.includes("\n")) return;
+      answer(JSON.parse(received.slice(0, received.indexOf("\n"))))
+        .catch((error) => ({ error: `the key helper could not sign: ${error.message}` }))
+        .then((reply) => {
+          connection.end(`${JSON.stringify(reply)}\n`);
+          if (reply.stopped) server.close();
+        });
+    });
+  });
+  process.umask(0o077);
+  server.listen(path);
+}
+
+async function useWallet(config, args) {
   const usage = "use-wallet <address> --signer <command> [--chain base|ethereum] [--force]";
   const signer = required(takeOption(args, "--signer"), usage);
   const chainName = takeOption(args, "--chain") ?? "base";
@@ -344,10 +680,11 @@ function useWallet(config, args) {
   if (existing && !force) throw new SiwaError(`${config.keyPath} already holds ${existing.address}; add --force to replace it`);
   const chain = CHAINS[chainName];
   saveJson(config.keyPath, { address: address.toLowerCase(), signer, chain_id: chain });
+  if (existing?.locked) await stopHelper(existing);
   console.log(JSON.stringify({ address: address.toLowerCase(), key: config.keyPath, signer, chain_id: chain }));
 }
 
-function whoami(config) {
+async function whoami(config) {
   const key = requireKey(config);
   const receiptsDir = join(config.home, "receipts");
   const signedIn = existsSync(receiptsDir)
@@ -357,11 +694,19 @@ function whoami(config) {
         .filter(receiptIsFresh)
         .map((receipt) => ({ site: receipt.audience, until: receipt.receipt_expires_at }))
     : [];
+  const signsWith = key.private_key
+    ? { signs_with: "this client's key" }
+    : key.locked
+      ? {
+          signs_with: "this client's key, locked with a Mac passkey",
+          unlocked_until_restart: (await askHelper(helperSocket(key), { op: "address" })) !== null,
+        }
+      : { signs_with: key.signer };
   console.log(
     JSON.stringify(
       {
         address: key.address,
-        signs_with: key.private_key ? "this client's key" : key.signer,
+        ...signsWith,
         chain_id: chainId(key),
         broker: config.broker,
         signed_in: signedIn,
@@ -374,12 +719,9 @@ function whoami(config) {
 
 // Sign the registration with this client's key and send it on Base; the wallet pays the gas.
 async function sendRegistration(config, key, step) {
-  const { createPublicClient, createWalletClient, http } = await import("viem");
-  const { privateKeyToAccount } = await import("viem/accounts");
+  const { createPublicClient, http } = await import("viem");
   const { base } = await import("viem/chains");
-  const transport = http(config.baseRpc);
-  const account = privateKeyToAccount(key.private_key);
-  const chain = createPublicClient({ chain: base, transport });
+  const chain = createPublicClient({ chain: base, transport: http(config.baseRpc) });
   const call = { account: step.from, to: step.to, data: step.data, value: BigInt(step.value) };
   const gas = ((await chain.estimateGas(call)) * 6n) / 5n;
   const { maxFeePerGas, maxPriorityFeePerGas } = await chain.estimateFeesPerGas();
@@ -390,14 +732,18 @@ async function sendRegistration(config, key, step) {
         "Ask your person to send a little ETH on Base to that address, then run this again.",
     );
   }
-  return createWalletClient({ account, chain: base, transport }).sendTransaction({
+  const quantity = (value) => `0x${BigInt(value).toString(16)}`;
+  const transaction = {
+    chainId: quantity(step.chainId),
+    nonce: quantity(await chain.getTransactionCount({ address: step.from, blockTag: "pending" })),
     to: step.to,
     data: step.data,
-    value: BigInt(step.value),
-    gas,
-    maxFeePerGas,
-    maxPriorityFeePerGas,
-  });
+    value: step.value,
+    gas: quantity(gas),
+    maxFeePerGas: quantity(maxFeePerGas),
+    maxPriorityFeePerGas: quantity(maxPriorityFeePerGas),
+  };
+  return chain.sendRawTransaction({ serializedTransaction: await signTransaction(key, transaction) });
 }
 
 async function waitForRegistration(config, profile, txHash) {
@@ -422,7 +768,7 @@ async function registerAgent(config, args) {
   const result = await httpJson("POST", `${config.broker}/api/shared/siwa/agent/register-step`, JSON.stringify(profile));
   if (result.status !== 200 || result.body?.code !== "registration_step") return printResponse(result);
   const step = result.body.data;
-  if (!key.private_key) {
+  if (key.signer) {
     const same = `--name ${JSON.stringify(name)} --description ${JSON.stringify(description)}${image ? ` --image ${JSON.stringify(image)}` : ""}`;
     return console.log(
       JSON.stringify(
@@ -475,6 +821,12 @@ async function main(argv) {
   switch (command) {
     case "keygen":
       return keygen(config, args);
+    case "lock-key":
+      return lockKey(config);
+    case "show-key":
+      return showKey(config);
+    case "key-helper":
+      return keyHelper(args);
     case "use-wallet":
       return useWallet(config, args);
     case "whoami":
@@ -516,7 +868,7 @@ async function main(argv) {
     }
     default:
       throw new SiwaError(
-        "commands: keygen [--force], use-wallet <address> --signer <command> [--chain base|ethereum], whoami, sites, sign-in <site>, pair <site> <code> --name NAME --harness HARNESS, me <site>, request <method> <url>, headers <method> <url>, register-agent --name NAME --description TEXT [--image URL] [--tx-hash HASH], accept-world-id [--human-id NUMBER]",
+        "commands: keygen [--force], lock-key, show-key, use-wallet <address> --signer <command> [--chain base|ethereum], whoami, sites, sign-in <site>, pair <site> <code> --name NAME --harness HARNESS, me <site>, request <method> <url>, headers <method> <url>, register-agent --name NAME --description TEXT [--image URL] [--tx-hash HASH], accept-world-id [--human-id NUMBER]",
       );
   }
 }
