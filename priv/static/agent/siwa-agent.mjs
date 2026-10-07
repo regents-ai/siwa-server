@@ -31,7 +31,7 @@
 
 import { execFile, execFileSync, execSync, spawn } from "node:child_process";
 import { createHash, randomBytes, webcrypto } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { createConnection, createServer as createSocketServer } from "node:net";
 import { homedir } from "node:os";
@@ -342,11 +342,15 @@ function askHelper(path, request) {
     const connection = createConnection(path, () => connection.write(`${JSON.stringify(request)}\n`));
     connection.on("data", (chunk) => (reply += chunk));
     connection.on("end", () => {
+      // A helper that is stopping can take the connection and close it unanswered.
+      if (reply === "") return resolve(null);
       const answer = JSON.parse(reply);
       if (answer.error) reject(new SiwaError(answer.error));
       else resolve(answer);
     });
-    connection.on("error", (error) => (["ENOENT", "ECONNREFUSED"].includes(error.code) ? resolve(null) : reject(error)));
+    connection.on("error", (error) =>
+      ["ENOENT", "ECONNREFUSED", "ECONNRESET", "EPIPE"].includes(error.code) ? resolve(null) : reject(error),
+    );
   });
 }
 
@@ -658,14 +662,22 @@ async function keyHelper(args) {
       if (!received.includes("\n")) return;
       answer(JSON.parse(received.slice(0, received.indexOf("\n"))))
         .catch((error) => ({ error: `the key helper could not sign: ${error.message}` }))
-        .then((reply) => {
-          connection.end(`${JSON.stringify(reply)}\n`);
-          if (reply.stopped) server.close();
-        });
+        .then((reply) => connection.end(`${JSON.stringify(reply)}\n`, () => reply.stopped && stop()));
     });
   });
+  // Closing the server would remove whatever socket sits at the path, so the
+  // helper removes only its own, in case a newer helper already listens there.
+  let bound;
+  const stop = () => {
+    try {
+      if (statSync(path).ino === bound) unlinkSync(path);
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    process.exit(0);
+  };
   process.umask(0o077);
-  server.listen(path);
+  server.listen(path, () => (bound = statSync(path).ino));
 }
 
 async function useWallet(config, args) {

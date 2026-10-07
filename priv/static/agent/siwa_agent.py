@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import hashlib
 import http.server
 import json
@@ -385,7 +386,10 @@ def ask_helper(path: str, request: dict) -> dict | None:
             connection.connect(path)
             connection.sendall(json_body(request) + b"\n")
             reply = connection.makefile("rb").readline()
-    except (FileNotFoundError, ConnectionRefusedError):
+    except (FileNotFoundError, ConnectionRefusedError, ConnectionResetError, BrokenPipeError):
+        return None
+    # A helper that is stopping can take the connection and close it unanswered.
+    if not reply:
         return None
     answer = json.loads(reply)
     if "error" in answer:
@@ -685,8 +689,12 @@ def command_key_helper(_config: dict, args: argparse.Namespace) -> None:
 
     os.umask(0o077)
     with socketserver.ThreadingUnixStreamServer(args.socket, Helper) as server:
+        bound = os.stat(args.socket).st_ino
         server.serve_forever()
-    os.unlink(args.socket)
+    # A newer helper may already listen at the same path; its socket stays.
+    with contextlib.suppress(FileNotFoundError):
+        if os.stat(args.socket).st_ino == bound:
+            os.unlink(args.socket)
 
 
 def command_use_wallet(config: dict, args: argparse.Namespace) -> None:
