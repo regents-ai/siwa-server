@@ -1328,12 +1328,16 @@ components:
     AgentBookHuman:
       type: object
       description: A World ID-verified person stands behind this agent wallet in World's AgentBook (World Chain, 0xA23aB2712eA7BBa896930544C7d6636a96b944dA), and the wallet accepted that person through /api/shared/siwa/agent-book/accept.
-      required: [humanId]
+      required: [humanId, agentCount]
       properties:
         humanId:
           type: string
           pattern: "^0x[0-9a-f]{64}$"
           description: The person's anonymous World ID number (nullifier hash). The same person's agents share it.
+        agentCount:
+          type: integer
+          minimum: 1
+          description: How many agent wallets, this one included, have accepted this same person while World's AgentBook still names them. Counts only wallets that have signed in through this server.
       additionalProperties: false
     AgentBookChallengeRequest:
       type: object

@@ -30,7 +30,7 @@ defmodule SiwaServer.AgentBookTest do
                     %{"to" => "0xa23ab2712ea7bba896930544c7d6636a96b944da", "data" => data}}
 
     assert data == "0x451a02f4" <> String.pad_leading(String.trim_leading(@wallet, "0x"), 64, "0")
-    assert AgentBook.human(@wallet) == %{"humanId" => @number}
+    assert AgentBook.human(@wallet) == %{"humanId" => @number, "agentCount" => 1}
 
     world_answers(@human + 1)
     assert :ok = perform_job(AgentBook.Refresh, %{wallet_address: @wallet})
@@ -41,13 +41,27 @@ defmodule SiwaServer.AgentBookTest do
     assert AgentBook.human(@wallet) == nil
   end
 
+  test "counts the agent wallets that accepted the same person while AgentBook still names them" do
+    other = "0x" <> String.duplicate("7", 40)
+    Repo.insert!(AgentBook.Acceptance.changeset(%{wallet_address: other, human_id: @number}))
+    world_answers(@human)
+    assert :ok = AgentBook.refresh(@wallet)
+    assert :ok = AgentBook.refresh(other)
+
+    assert AgentBook.human(@wallet) == %{"humanId" => @number, "agentCount" => 2}
+
+    world_answers(@human + 1)
+    assert :ok = AgentBook.refresh(other)
+    assert AgentBook.human(@wallet) == %{"humanId" => @number, "agentCount" => 1}
+  end
+
   test "a failed read retries and keeps what was saved" do
     world_answers(@human)
     assert :ok = AgentBook.refresh(@wallet)
 
     System.put_env("WORLD_RPC_URL", TestRpcServer.rpc_error())
     assert {:error, "provider error"} = perform_job(AgentBook.Refresh, %{wallet_address: @wallet})
-    assert AgentBook.human(@wallet) == %{"humanId" => @number}
+    assert AgentBook.human(@wallet) == %{"humanId" => @number, "agentCount" => 1}
   end
 
   defp world_answers(human_id),

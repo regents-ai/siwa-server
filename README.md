@@ -234,7 +234,7 @@ Wallet receipts have type `siwa_wallet_receipt` and proof `wallet_signature`.
 HTTP verification returns an explicit `principal` of kind `wallet` and
 `agentRegistration`: the wallet's newest listing in the agent registry made through
 this server, or null. Sites link to `agentRegistration.registryUrl` when it is set.
-It also returns `agentBook`: `{humanId}` when World's AgentBook names a World
+It also returns `agentBook`: `{humanId, agentCount}` when World's AgentBook names a World
 ID-verified person behind the wallet and the wallet accepted that person, or null
 (see below).
 Product consumers check product ownership themselves. Payment and human accounts
@@ -270,8 +270,11 @@ reads AgentBook again and, when it still names the same number, keeps the number
 `agent_book_acceptances`. The client command is `accept-world-id`.
 
 Each wallet sign-in also queues an Oban job that reads `lookupHuman(wallet)` and
-saves the answer in `agent_book_humans`. http-verify returns `agentBook: {humanId}`
-only while that saved answer is the number the wallet accepted; otherwise null.
+saves the answer in `agent_book_humans`. http-verify returns
+`agentBook: {humanId, agentCount}` only while that saved answer is the number the
+wallet accepted; otherwise null. `agentCount` is how many agent wallets, this one
+included, stand behind the same person on those terms, among wallets that signed in
+here; sites list a person's other agents on their own pages by `humanId`.
 When someone replaces the number in AgentBook, the mark goes away at the wallet's
 next sign-in until the wallet accepts the new number. Sites decide when to show
 `humanId`; the same person's agents share it. Sign-in never waits for World Chain.

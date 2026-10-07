@@ -14,6 +14,7 @@ defmodule SiwaServer.AgentBook do
   Each sign-in queues `SiwaServer.AgentBook.Refresh`, which reads the wallet's
   entry and saves it. Sites receive the person with every verified request
   (`human/1`) only while AgentBook still names the number the wallet accepted,
+  with how many agent wallets the same person stands behind on those terms,
   and each site decides when to show the person number.
   """
 
@@ -52,22 +53,34 @@ defmodule SiwaServer.AgentBook do
 
   @doc """
   The person AgentBook last named for the wallet, when the wallet accepted
-  that same person, or nil.
+  that same person, with how many agent wallets stand on that footing for
+  the same person; or nil.
   """
-  @spec human(String.t()) :: %{String.t() => String.t()} | nil
+  @spec human(String.t()) :: %{String.t() => String.t() | pos_integer()} | nil
   def human(wallet_address) do
-    from(h in Human,
-      join: a in Acceptance,
-      on: a.wallet_address == h.wallet_address and a.human_id == h.human_id,
-      where: h.wallet_address == ^String.downcase(wallet_address),
-      select: h.human_id
-    )
+    from(h in accepted(), where: h.wallet_address == ^String.downcase(wallet_address))
+    |> select([h], h.human_id)
     |> Repo.one()
     |> case do
-      nil -> nil
-      human_id -> %{"humanId" => human_id}
+      nil ->
+        nil
+
+      human_id ->
+        %{
+          "humanId" => human_id,
+          "agentCount" =>
+            Repo.aggregate(from(h in accepted(), where: h.human_id == ^human_id), :count)
+        }
     end
   end
+
+  # Wallets whose last AgentBook answer is the person they accepted.
+  defp accepted,
+    do:
+      from(h in Human,
+        join: a in Acceptance,
+        on: a.wallet_address == h.wallet_address and a.human_id == h.human_id
+      )
 
   @doc """
   A single-use message, valid for the sign-in challenge lifetime, for the

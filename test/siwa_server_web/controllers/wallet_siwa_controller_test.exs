@@ -336,7 +336,7 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
            }
 
     assert response["data"]["agentRegistration"] == nil
-    assert response["data"]["agentBook"] == %{"humanId" => human_id}
+    assert response["data"]["agentBook"] == %{"humanId" => human_id, "agentCount" => 1}
     assert http_verify(request, "patchbay") |> json_response(409)
 
     assert [

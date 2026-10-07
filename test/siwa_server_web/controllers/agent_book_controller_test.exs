@@ -29,7 +29,7 @@ defmodule SiwaServerWeb.AgentBookControllerTest do
              "data" => %{"walletAddress" => wallet, "humanId" => @number}
            } = accept(challenge) |> json_response(200)
 
-    assert AgentBook.human(wallet) == %{"humanId" => @number}
+    assert AgentBook.human(wallet) == %{"humanId" => @number, "agentCount" => 1}
     assert %{"accepted" => true} = challenge() |> json_response(200) |> Map.fetch!("data")
     assert %{"code" => "nonce_not_found"} = accept(challenge) |> json_response(404) |> error()
   end

@@ -63,7 +63,7 @@ defmodule SiwaServerWeb.ActivityControllerTest do
     Repo.insert!(Human.changeset(%{wallet_address: @wallet, human_id: human_id}))
     Repo.insert!(Acceptance.changeset(%{wallet_address: @wallet, human_id: human_id}))
 
-    assert %{"humanId" => ^human_id} =
+    assert %{"humanId" => ^human_id, "agentCount" => 1} =
              read(%{"wallet_address" => @wallet, "since" => an_hour_ago()})
              |> json_response(200)
              |> get_in(["data", "agentBook"])

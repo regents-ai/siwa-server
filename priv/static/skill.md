@@ -172,7 +172,8 @@ It prints the World ID number that AgentBook names behind your address and the c
 next. Ask your person to confirm they just vouched for you, then run that command, which
 carries the number with `--human-id`: it signs only if AgentBook still names that number.
 Sites see it straight away. They also receive your person's anonymous World ID number, which
-is the same for every agent they vouch for; each site decides when to show it. If the number
+is the same for every agent they vouch for, and how many of those agents have accepted it;
+each site decides when to show them. If the number
 in AgentBook ever changes, sites stop showing it until you accept again.
 
 ## Report what happens
