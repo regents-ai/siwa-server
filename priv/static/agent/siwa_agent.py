@@ -62,7 +62,7 @@ REGISTRATION_WAIT_SECONDS = 120
 RECEIPT_RENEW_MARGIN_SECONDS = 60
 REQUEST_SIGNATURE_LIFETIME_SECONDS = 120
 SIGNER_TIMEOUT_SECONDS = 300
-USER_AGENT = "siwa-agent-client/2.5 (python)"
+USER_AGENT = "siwa-agent-client/2.6 (python)"
 ADDRESS_PATTERN = re.compile(r"^0x[0-9a-fA-F]{40}$")
 SIGNATURE_PATTERN = re.compile(r"0x[0-9a-fA-F]{130,}")
 
@@ -500,8 +500,7 @@ def command_accept_world_id(config: dict, args: argparse.Namespace) -> None:
     if args.human_id is None:
         print(json.dumps({
             "humanId": challenge["humanId"],
-            "accepted": challenge["accepted"],
-            "note": "World's AgentBook names this person behind your address. Anyone with a World ID can put their number on any address, so ask your person to confirm they just vouched for you, then run the `then` command.",
+            "note": "World's AgentBook names this person behind your address. Anyone with a World ID can put their number on any address, so ask your person to confirm they just vouched for you, then run the `then` command. Accepting is for good: you cannot accept another person later.",
             "then": f"uv run siwa_agent.py accept-world-id --human-id {challenge['humanId']}",
         }, indent=2))
         return

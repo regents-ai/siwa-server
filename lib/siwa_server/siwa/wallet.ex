@@ -1,7 +1,7 @@
 defmodule SiwaServer.Siwa.Wallet do
   @moduledoc "Wallet proof, distinct from registered-agent and human identity."
 
-  alias SiwaServer.{AgentBook, Ethereum, Repo, RuntimeConfig}
+  alias SiwaServer.{Ethereum, RuntimeConfig}
   alias SiwaServer.Siwa.NonceStore
 
   @nonce_fields ~w(wallet_address chain_id audience)
@@ -56,7 +56,7 @@ defmodule SiwaServer.Siwa.Wallet do
          {:ok, record} <- NonceStore.get(nonce_key(fields), fields["nonce"]),
          :ok <- validate_challenge(fields, origin, record),
          {:ok, verification_method} <- verify_signature(record, fields),
-         {:ok, _job} <- consume_and_refresh_agent_book(record),
+         :ok <- NonceStore.consume(record),
          {:ok, receipt} <-
            Siwa.create_receipt(
              %{
@@ -100,16 +100,6 @@ defmodule SiwaServer.Siwa.Wallet do
     end
   rescue
     _error in [Postgrex.Error, DBConnection.ConnectionError] -> unavailable()
-  end
-
-  # Each sign-in re-reads the wallet's AgentBook entry, queued with the
-  # challenge it uses up so a rolled-back sign-in queues nothing.
-  defp consume_and_refresh_agent_book(record) do
-    Repo.transact(fn ->
-      with :ok <- NonceStore.consume(record) do
-        Oban.insert(AgentBook.Refresh.new(%{wallet_address: record.address}))
-      end
-    end)
   end
 
   defp verify_signature(record, fields) do

@@ -1,7 +1,7 @@
 defmodule SiwaServerWeb.ActivityControllerTest do
   use SiwaServerWeb.ConnCase, async: false
 
-  alias SiwaServer.AgentBook.{Acceptance, Human}
+  alias SiwaServer.AgentBook.Acceptance
   alias SiwaServer.AgentRegistration.Record
   alias SiwaServer.Repo
   alias SiwaServer.Siwa.ActivityStore
@@ -58,9 +58,8 @@ defmodule SiwaServerWeb.ActivityControllerTest do
     assert String.ends_with?(profile_url, "/agent-profiles/" <> String.duplicate("c0", 16))
   end
 
-  test "names the World ID-verified person AgentBook last named behind the wallet" do
+  test "names the World ID-verified person the wallet accepted" do
     human_id = "0x" <> String.duplicate("24", 32)
-    Repo.insert!(Human.changeset(%{wallet_address: @wallet, human_id: human_id}))
     Repo.insert!(Acceptance.changeset(%{wallet_address: @wallet, human_id: human_id}))
 
     assert %{"humanId" => ^human_id, "agentCount" => 1} =

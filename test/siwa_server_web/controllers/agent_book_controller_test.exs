@@ -16,12 +16,20 @@ defmodule SiwaServerWeb.AgentBookControllerTest do
     end)
   end
 
-  test "the wallet accepts the person AgentBook names, with one signature used once" do
-    world_answers(@human)
+  test "the wallet accepts the person AgentBook names once, and keeps them for good" do
+    world_answers(@human, self())
 
     challenge = challenge() |> json_response(200) |> Map.fetch!("data")
-    assert %{"humanId" => @number, "accepted" => false, "chainId" => 8453} = challenge
+    assert %{"humanId" => @number, "chainId" => 8453} = challenge
     assert challenge["message"] =~ "Wallet: #{TestWallet.address()}\nPerson: #{@number}"
+
+    assert_receive {:eth_call,
+                    %{"to" => "0xa23ab2712ea7bba896930544c7d6636a96b944da", "data" => data}}
+
+    assert data ==
+             "0x451a02f4" <>
+               String.pad_leading(String.trim_leading(TestWallet.address(), "0x"), 64, "0")
+
     assert AgentBook.human(TestWallet.address()) == nil
 
     assert %{
@@ -30,8 +38,26 @@ defmodule SiwaServerWeb.AgentBookControllerTest do
            } = accept(challenge) |> json_response(200)
 
     assert AgentBook.human(wallet) == %{"humanId" => @number, "agentCount" => 1}
-    assert %{"accepted" => true} = challenge() |> json_response(200) |> Map.fetch!("data")
     assert %{"code" => "nonce_not_found"} = accept(challenge) |> json_response(404) |> error()
+
+    world_answers(@human + 1)
+
+    assert %{"code" => "agent_book_already_accepted", "hint" => hint} =
+             challenge() |> json_response(409) |> error()
+
+    assert hint =~ "for good"
+    assert AgentBook.human(wallet) == %{"humanId" => @number, "agentCount" => 1}
+  end
+
+  test "of two open challenges, only the first accepted counts" do
+    world_answers(@human)
+    first = challenge() |> json_response(200) |> Map.fetch!("data")
+    second = challenge() |> json_response(200) |> Map.fetch!("data")
+
+    assert accept(first) |> json_response(200)
+
+    assert %{"code" => "agent_book_already_accepted"} =
+             accept(second) |> json_response(409) |> error()
   end
 
   test "keeps nothing when AgentBook names someone else before the wallet signs" do
@@ -56,8 +82,8 @@ defmodule SiwaServerWeb.AgentBookControllerTest do
     assert hint =~ "npx @worldcoin/agentkit-cli register"
   end
 
-  defp world_answers(human_id),
-    do: System.put_env("WORLD_RPC_URL", TestRpcServer.agent_book_answers(human_id))
+  defp world_answers(human_id, listener \\ nil),
+    do: System.put_env("WORLD_RPC_URL", TestRpcServer.agent_book_answers(human_id, listener))
 
   defp params, do: %{"wallet_address" => TestWallet.address(), "chain_id" => 8453}
 

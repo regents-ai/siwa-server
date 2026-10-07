@@ -314,9 +314,8 @@ paths:
         verification. Request bodies, headers, receipts and signatures are never
         kept. agentRegistration is the wallet's newest agent registry listing made
         through this server, or null, the same as http-verify returns. agentBook is
-        the World ID-verified person World's AgentBook last named behind the wallet,
-        when the wallet accepted that same person, or null, the same as http-verify
-        returns.
+        the World ID-verified person the wallet accepted, for good, or null, the
+        same as http-verify returns.
       tags: [internal]
       security:
         - ActivityReadToken: []
@@ -467,7 +466,7 @@ paths:
     post:
       operationId: createAgentBookChallenge
       tags: [auth]
-      description: Read the person World's AgentBook names behind the wallet now and issue a single-use message, valid for five minutes, for the wallet to sign to accept that person. accepted says whether the wallet already accepted this person. Sites show the person only while AgentBook still names the person the wallet accepted.
+      description: Read the person World's AgentBook names behind the wallet now and issue a single-use message, valid for five minutes, for the wallet to sign to accept that person. A wallet accepts once: sites show the accepted person for good, whatever AgentBook names later.
       requestBody:
         required: true
         content:
@@ -489,6 +488,12 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "404":
           description: World's AgentBook names no person behind this wallet (not_in_agent_book)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The wallet has already accepted its person, for good (agent_book_already_accepted)
           content:
             application/json:
               schema:
@@ -517,7 +522,7 @@ paths:
     post:
       operationId: acceptAgentBookHuman
       tags: [auth]
-      description: Accept the person named in a challenge from /api/shared/siwa/agent-book/challenge. The wallet signs the exact message; ordinary wallets, and smart wallets on Ethereum or Base, can sign it. The person is kept only when World's AgentBook still names them. No private key is accepted.
+      description: Accept the person named in a challenge from /api/shared/siwa/agent-book/challenge. The wallet signs the exact message; ordinary wallets, and smart wallets on Ethereum or Base, can sign it. The person is kept, for good, only when World's AgentBook still names them and the wallet has not accepted a person before. No private key is accepted.
       parameters:
         - in: header
           name: x-agent-signer
@@ -557,7 +562,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "409":
-          description: AgentBook names a different person than the challenge did (agent_book_changed)
+          description: AgentBook names a different person than the challenge did (agent_book_changed), or the wallet has already accepted its person (agent_book_already_accepted)
           content:
             application/json:
               schema:
@@ -1209,7 +1214,7 @@ components:
                 - $ref: "#/components/schemas/AgentRegistration"
                 - type: "null"
             agentBook:
-              description: The person World's AgentBook on World Chain last named behind this wallet, read at each sign-in, when the wallet accepted that same person; otherwise null. Each site decides when to show humanId.
+              description: The World ID-verified person this wallet accepted, for good; otherwise null. Each site decides when to show humanId.
               oneOf:
                 - $ref: "#/components/schemas/AgentBookHuman"
                 - type: "null"
@@ -1327,7 +1332,7 @@ components:
       additionalProperties: false
     AgentBookHuman:
       type: object
-      description: A World ID-verified person stands behind this agent wallet in World's AgentBook (World Chain, 0xA23aB2712eA7BBa896930544C7d6636a96b944dA), and the wallet accepted that person through /api/shared/siwa/agent-book/accept.
+      description: A World ID-verified person stands behind this agent wallet in World's AgentBook (World Chain, 0xA23aB2712eA7BBa896930544C7d6636a96b944dA), and the wallet accepted that person, for good, through /api/shared/siwa/agent-book/accept.
       required: [humanId, agentCount]
       properties:
         humanId:
@@ -1337,7 +1342,7 @@ components:
         agentCount:
           type: integer
           minimum: 1
-          description: How many agent wallets, this one included, have accepted this same person while World's AgentBook still names them. Counts only wallets that have signed in through this server.
+          description: How many agent wallets, this one included, have accepted this same person. Counts only wallets that have signed in through this server.
       additionalProperties: false
     AgentBookChallengeRequest:
       type: object
@@ -1357,7 +1362,7 @@ components:
           enum: [agent_book_challenge]
         data:
           type: object
-          required: [walletAddress, chainId, humanId, accepted, nonce, message, issuedAt, expiresAt]
+          required: [walletAddress, chainId, humanId, nonce, message, issuedAt, expiresAt]
           properties:
             walletAddress:
               $ref: "#/components/schemas/Address"
@@ -1367,9 +1372,6 @@ components:
               type: string
               pattern: "^0x[0-9a-f]{64}$"
               description: The person World's AgentBook names behind the wallet now. Check it is your person's number before signing.
-            accepted:
-              type: boolean
-              description: Whether the wallet already accepted this person.
             nonce:
               type: string
             message:

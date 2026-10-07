@@ -16,5 +16,6 @@ defmodule SiwaServer.AgentBook.Acceptance do
     %__MODULE__{}
     |> cast(attrs, [:wallet_address, :human_id])
     |> validate_required([:wallet_address, :human_id])
+    |> unique_constraint(:wallet_address, name: :agent_book_acceptances_pkey)
   end
 end

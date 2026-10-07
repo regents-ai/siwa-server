@@ -1,6 +1,5 @@
 defmodule SiwaServerWeb.WalletSiwaControllerTest do
   use SiwaServerWeb.ConnCase, async: false
-  use Oban.Testing, repo: SiwaServer.Repo
 
   alias SiwaServer.{AgentBook, Repo, TestRpcServer, TestWallet}
   alias SiwaServer.Siwa.{ActivityStore, NonceRecord, NonceStore, ReplayStore, Wallet}
@@ -57,11 +56,6 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     {:ok, claims} = Siwa.verify_receipt(data["receipt"], secret: secret(), audience: "patchbay")
     assert claims["typ"] == "siwa_wallet_receipt"
     assert claims["verified"] == "wallet_signature"
-
-    assert_enqueued(
-      worker: AgentBook.Refresh,
-      args: %{wallet_address: String.downcase(TestWallet.address())}
-    )
 
     assert json_post("/api/shared/siwa/wallet/verify", proof(nonce)) |> json_response(404)
   end
@@ -318,8 +312,6 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
 
     assert hint =~ "Your sign-in for techtree has ended or was made for another site."
     human_id = "0x" <> String.duplicate("ab", 32)
-
-    Repo.insert!(AgentBook.Human.changeset(%{wallet_address: signer.address, human_id: human_id}))
 
     Repo.insert!(
       AgentBook.Acceptance.changeset(%{wallet_address: signer.address, human_id: human_id})

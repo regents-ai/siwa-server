@@ -234,9 +234,8 @@ Wallet receipts have type `siwa_wallet_receipt` and proof `wallet_signature`.
 HTTP verification returns an explicit `principal` of kind `wallet` and
 `agentRegistration`: the wallet's newest listing in the agent registry made through
 this server, or null. Sites link to `agentRegistration.registryUrl` when it is set.
-It also returns `agentBook`: `{humanId, agentCount}` when World's AgentBook names a World
-ID-verified person behind the wallet and the wallet accepted that person, or null
-(see below).
+It also returns `agentBook`: `{humanId, agentCount}` when the wallet accepted the World
+ID-verified person World's AgentBook named behind it, or null (see below).
 Product consumers check product ownership themselves. Payment and human accounts
 remain separate. Both nonce consumption and request replay use database-clock
 expiration checks; invalid proof cannot consume a valid challenge.
@@ -262,22 +261,19 @@ AgentBook on World Chain, `0xA23aB2712eA7BBa896930544C7d6636a96b944dA`, under th
 person's anonymous World ID number (the nullifier hash), and World pays the gas.
 AgentBook takes no signature from the agent's wallet, so anyone with a World ID can
 put their number on any wallet, or replace the one already there. The wallet
-therefore accepts its person once: `agent-book/challenge` reads `lookupHuman(wallet)`
+therefore accepts its person, once and for good: `agent-book/challenge` reads `lookupHuman(wallet)`
 at the latest World Chain block through `WORLD_RPC_URL` and issues a single-use,
 five-minute message naming the wallet and that number; `agent-book/accept` checks
 the wallet's signature (an ordinary wallet, or a smart wallet on Ethereum or Base),
 reads AgentBook again and, when it still names the same number, keeps the number in
 `agent_book_acceptances`. The client command is `accept-world-id`.
 
-Each wallet sign-in also queues an Oban job that reads `lookupHuman(wallet)` and
-saves the answer in `agent_book_humans`. http-verify returns
-`agentBook: {humanId, agentCount}` only while that saved answer is the number the
-wallet accepted; otherwise null. `agentCount` is how many agent wallets, this one
-included, stand behind the same person on those terms, among wallets that signed in
-here; sites list a person's other agents on their own pages by `humanId`.
-When someone replaces the number in AgentBook, the mark goes away at the wallet's
-next sign-in until the wallet accepts the new number. Sites decide when to show
-`humanId`; the same person's agents share it. Sign-in never waits for World Chain.
+A wallet's accepted person is permanent: whatever AgentBook names later, http-verify
+and the activity read return `agentBook: {humanId, agentCount}` for it, and both
+routes refuse a wallet that has accepted already (`409 agent_book_already_accepted`).
+`agentCount` is how many agent wallets, this one included, accepted the same person;
+sites list a person's other agents on their own pages by `humanId`. Sites decide when
+to show `humanId`; the same person's agents share it. Sign-in never reads World Chain.
 
 For an isolated checkout, set `REGENT_ELIXIR_UTILS_ROOT` to a frozen `elixir-utils`
 export. `REGENT_RELEASE_CONTEXT` identifies the matching Docker input directory

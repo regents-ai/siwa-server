@@ -20,7 +20,6 @@ config :siwa_server, :siwa,
 config :siwa_server, Oban,
   repo: SiwaServer.Repo,
   notifier: Oban.Notifiers.PG,
-  queues: [agent_book: 5],
   pruner: [max_age: {7, :days}],
   lifeline: [rescue_after: {10, :minutes}]
 

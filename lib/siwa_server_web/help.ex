@@ -72,6 +72,13 @@ defmodule SiwaServerWeb.Help do
     ]
   end
 
+  defp steps("agent_book_already_accepted", _context) do
+    [
+      "This wallet has already accepted its World ID person, and that is for good: sites show ",
+      "that person behind it whatever AgentBook names later. Nothing more to do."
+    ]
+  end
+
   defp steps(code, context) when code in ~w(receipt_invalid receipt_binding_mismatch) do
     [
       "Your sign-in",

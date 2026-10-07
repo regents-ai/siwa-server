@@ -40,7 +40,7 @@ const REGISTRATION_WAIT_MS = 120_000;
 const RECEIPT_RENEW_MARGIN_SECONDS = 60;
 const REQUEST_SIGNATURE_LIFETIME_SECONDS = 120;
 const SIGNER_TIMEOUT_MS = 300_000;
-const USER_AGENT = "siwa-agent-client/2.5 (node)";
+const USER_AGENT = "siwa-agent-client/2.6 (node)";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const SIGNATURE_PATTERN = /0x[0-9a-fA-F]{130,}/g;
 
@@ -452,8 +452,7 @@ async function acceptWorldId(config, args) {
       JSON.stringify(
         {
           humanId: challenge.humanId,
-          accepted: challenge.accepted,
-          note: "World's AgentBook names this person behind your address. Anyone with a World ID can put their number on any address, so ask your person to confirm they just vouched for you, then run the `then` command.",
+          note: "World's AgentBook names this person behind your address. Anyone with a World ID can put their number on any address, so ask your person to confirm they just vouched for you, then run the `then` command. Accepting is for good: you cannot accept another person later.",
           then: `node siwa-agent.mjs accept-world-id --human-id ${challenge.humanId}`,
         },
         null,

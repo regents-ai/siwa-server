@@ -7,21 +7,20 @@ defmodule SiwaServer.AgentBook do
 
   AgentBook takes no signature from the agent's wallet, so anyone with a World
   ID can put their number on any wallet, or replace the number already there.
-  The wallet therefore accepts its number once: `challenge/1` reads AgentBook
-  and gives the wallet a single-use message naming that number, and `accept/1`
+  The wallet therefore accepts its number: `challenge/1` reads AgentBook and
+  gives the wallet a single-use message naming that number, and `accept/1`
   keeps the number once the wallet has signed it and AgentBook still names it.
 
-  Each sign-in queues `SiwaServer.AgentBook.Refresh`, which reads the wallet's
-  entry and saves it. Sites receive the person with every verified request
-  (`human/1`) only while AgentBook still names the number the wallet accepted,
-  with how many agent wallets the same person stands behind on those terms,
-  and each site decides when to show the person number.
+  Accepting is once and for good. Sites receive the accepted person with every
+  verified request (`human/1`), whatever AgentBook names later, with how many
+  agent wallets accepted the same person; a wallet that has accepted cannot
+  accept another.
   """
 
   import Ecto.Query
 
   alias RegentChain.Call
-  alias SiwaServer.AgentBook.{Acceptance, Human}
+  alias SiwaServer.AgentBook.Acceptance
   alias SiwaServer.{Ethereum, Repo, RuntimeConfig}
   alias SiwaServer.Siwa.NonceStore
 
@@ -41,54 +40,34 @@ defmodule SiwaServer.AgentBook do
   @spec address() :: String.t()
   def address, do: @address
 
-  @doc "Reads the wallet's AgentBook entry at the latest World Chain block and saves it."
-  @spec refresh(String.t()) :: :ok | {:error, String.t()}
-  def refresh(wallet_address) do
-    wallet_address = String.downcase(wallet_address)
-
-    with {:ok, human_id} <- lookup(wallet_address) do
-      save(wallet_address, human_id)
-    end
-  end
-
   @doc """
-  The person AgentBook last named for the wallet, when the wallet accepted
-  that same person, with how many agent wallets stand on that footing for
-  the same person; or nil.
+  The person the wallet accepted, with how many agent wallets accepted the
+  same person; or nil.
   """
   @spec human(String.t()) :: %{String.t() => String.t() | pos_integer()} | nil
   def human(wallet_address) do
-    from(h in accepted(), where: h.wallet_address == ^String.downcase(wallet_address))
-    |> select([h], h.human_id)
-    |> Repo.one()
-    |> case do
+    case Repo.get(Acceptance, String.downcase(wallet_address)) do
       nil ->
         nil
 
-      human_id ->
+      %Acceptance{human_id: human_id} ->
         %{
           "humanId" => human_id,
           "agentCount" =>
-            Repo.aggregate(from(h in accepted(), where: h.human_id == ^human_id), :count)
+            Repo.aggregate(from(a in Acceptance, where: a.human_id == ^human_id), :count)
         }
     end
   end
 
-  # Wallets whose last AgentBook answer is the person they accepted.
-  defp accepted,
-    do:
-      from(h in Human,
-        join: a in Acceptance,
-        on: a.wallet_address == h.wallet_address and a.human_id == h.human_id
-      )
-
   @doc """
-  A single-use message, valid for the sign-in challenge lifetime, for the
-  wallet to sign to accept the person AgentBook names behind it now.
+  A single-use message, valid for the sign-in challenge lifetime, for a
+  wallet that has not accepted a person yet to sign to accept the person
+  AgentBook names behind it now.
   """
   @spec challenge(map()) :: {:ok, map()} | error()
   def challenge(params) do
     with {:ok, fields} <- validate(params, @challenge_fields),
+         :ok <- unaccepted(fields["wallet_address"]),
          {:ok, human_id} <- named(fields["wallet_address"]) do
       now = DateTime.utc_now() |> DateTime.truncate(:second)
       expires = DateTime.add(now, RuntimeConfig.siwa_nonce_ttl_seconds())
@@ -115,7 +94,6 @@ defmodule SiwaServer.AgentBook do
            "walletAddress" => fields["wallet_address"],
            "chainId" => fields["chain_id"],
            "humanId" => human_id,
-           "accepted" => accepted?(fields["wallet_address"], human_id),
            "nonce" => nonce,
            "message" => message,
            "issuedAt" => DateTime.to_iso8601(now),
@@ -126,8 +104,8 @@ defmodule SiwaServer.AgentBook do
   end
 
   @doc """
-  Keeps the person the wallet signed for, once the signature holds, the
-  challenge is unused and AgentBook still names that person.
+  Keeps the person the wallet signed for, for good, once the signature holds,
+  the challenge is unused and AgentBook still names that person.
   """
   @spec accept(map()) :: {:ok, map()} | error()
   def accept(params) do
@@ -146,6 +124,9 @@ defmodule SiwaServer.AgentBook do
     else
       {:error, :unknown_nonce} ->
         {:error, {404, "nonce_not_found", "challenge absent, expired or consumed"}}
+
+      {:error, %Ecto.Changeset{}} ->
+        already_accepted()
 
       {:error, {_status, _code, _message}} = error ->
         error
@@ -178,30 +159,17 @@ defmodule SiwaServer.AgentBook do
     end
   end
 
-  defp save(wallet_address, 0) do
-    Repo.delete_all(Human.for_wallet(wallet_address))
-    :ok
+  defp unaccepted(wallet_address) do
+    if Repo.exists?(from a in Acceptance, where: a.wallet_address == ^wallet_address),
+      do: already_accepted(),
+      else: :ok
   end
 
-  defp save(wallet_address, human_id) when is_integer(human_id),
-    do: save(wallet_address, number(human_id))
-
-  defp save(wallet_address, human_id) when is_binary(human_id) do
-    Repo.insert!(
-      Human.changeset(%{wallet_address: wallet_address, human_id: human_id}),
-      on_conflict: {:replace, [:human_id, :updated_at]},
-      conflict_target: :wallet_address
-    )
-
-    :ok
-  end
-
-  defp accepted?(wallet_address, human_id),
+  defp already_accepted,
     do:
-      Repo.exists?(
-        from a in Acceptance,
-          where: a.wallet_address == ^wallet_address and a.human_id == ^human_id
-      )
+      {:error,
+       {409, "agent_book_already_accepted",
+        "this wallet has already accepted its World ID person, for good"}}
 
   defp current(fields, record) do
     cond do
@@ -247,17 +215,14 @@ defmodule SiwaServer.AgentBook do
     end
   end
 
-  # Uses the challenge up and keeps the person, with what AgentBook names now.
+  # Uses the challenge up and keeps the person. The wallet's row is unique, so
+  # a second acceptance fails here even when two challenges raced.
   defp keep(record, human_id) do
     Repo.transact(fn ->
-      with :ok <- NonceStore.consume(record),
-           :ok <- save(record.address, human_id) do
-        {:ok,
-         Repo.insert!(
-           Acceptance.changeset(%{wallet_address: record.address, human_id: human_id}),
-           on_conflict: {:replace, [:human_id, :updated_at]},
-           conflict_target: :wallet_address
-         )}
+      with :ok <- NonceStore.consume(record) do
+        %{wallet_address: record.address, human_id: human_id}
+        |> Acceptance.changeset()
+        |> Repo.insert()
       end
     end)
   end
@@ -308,7 +273,7 @@ defmodule SiwaServer.AgentBook do
         "Person: #{human_id}",
         "",
         "World's AgentBook names this person behind the wallet. Regent sites show",
-        "them only while AgentBook still names this person.",
+        "this person behind the wallet for good; it cannot accept another.",
         "",
         "Chain ID: #{fields["chain_id"]}",
         "Nonce: #{nonce}",

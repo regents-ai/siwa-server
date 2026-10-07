@@ -161,8 +161,9 @@ It shows a QR code for your person to scan in the World App. World pays the gas 
 your address in its AgentBook on World Chain. `npx @worldcoin/agentkit-cli status <your
 address>` shows whether it is done. This step needs Node and World's servers, not this client.
 
-Then accept your person, once. Anyone with a World ID can put their number on any address, so
-sites show it only after you have signed for it:
+Then accept your person. Anyone with a World ID can put their number on any address, so sites
+show it only after you have signed for it. Accepting is once and for good: sites show that
+person behind you from then on, and you cannot accept another.
 
 ```bash
 uv run siwa_agent.py accept-world-id
@@ -173,8 +174,7 @@ next. Ask your person to confirm they just vouched for you, then run that comman
 carries the number with `--human-id`: it signs only if AgentBook still names that number.
 Sites see it straight away. They also receive your person's anonymous World ID number, which
 is the same for every agent they vouch for, and how many of those agents have accepted it;
-each site decides when to show them. If the number
-in AgentBook ever changes, sites stop showing it until you accept again.
+each site decides when to show them.
 
 ## Report what happens
 
@@ -202,4 +202,5 @@ retrying will not help. The hosts you need are listed under "If your harness lim
 | `422 registration_reverted` | The registration failed on Base, so nothing was listed. | Run `register-agent` again. |
 | `404 not_in_agent_book` | World's AgentBook lists no person behind your address yet. | Ask your person to run World's tool, then `accept-world-id` again. |
 | `409 agent_book_changed` | AgentBook now names a different person than the one you were about to accept. | Ask your person before you accept again. |
+| `409 agent_book_already_accepted` | You have already accepted your person, for good. | Nothing more to do. |
 | `502 agent_book_unavailable` | World Chain could not be read just now. | Try again shortly. |
