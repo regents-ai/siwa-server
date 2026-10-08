@@ -19,7 +19,7 @@ It owns:
 - public SIWA sign-in routes under `/api/shared/siwa`
 - protected request verification
 - internal keyring routes under `/api/shared/keyring` for signer operations
-- health, metrics, and the served shared services contract
+- health and the served shared services contract, with metrics on a private port
 - strict receipt, request-expiry, and replay checks for shared agent sign-in
 
 It does not own product-specific app logic or Regent account registration. The platform calls
@@ -90,7 +90,6 @@ mix phx.server
 | `/agent-profiles/{profile_id}` | GET | A listed agent's public registration file. |
 | `/healthz` | GET | Liveness. |
 | `/readyz` | GET | Readiness. |
-| `/metrics` | GET | Prometheus scrape endpoint. |
 | `/regent-services-contract.openapiv3.yaml` | GET | The served shared services contract. |
 
 Sign-in has one path: the agent's wallet. A signed request binds the wallet, chain,

@@ -94,7 +94,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
            } = Jason.decode!(response_body)
   end
 
-  test "discovery endpoints expose health, metrics, and the services contract", %{conn: conn} do
+  test "discovery endpoints expose health and the services contract", %{conn: conn} do
     assert response(get(conn, "/"), 200) == "ok"
     assert response(get(conn, "/healthz"), 200) == "ok"
 
@@ -122,9 +122,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     assert checks["ethereum_rpc_url"] == true
     assert checks["ethereum_rpc_chain_id"] == true
 
-    metrics = response(get(conn, "/metrics"), 200)
-    assert metrics =~ "siwa_server"
-
     contract = response(get(conn, "/regent-services-contract.openapiv3.yaml"), 200)
     assert contract =~ "Regent Shared Services Contract"
     assert contract =~ "/agent-profiles/{profile_id}"
@@ -145,7 +142,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/",
                "/healthz",
                "/readyz",
-               "/metrics",
                "/regent-services-contract.openapiv3.yaml",
                "/api/shared/siwa/audiences",
                "/api/shared/siwa/wallet/nonce",

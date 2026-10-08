@@ -5,7 +5,7 @@ info:
   description: >
     Source-of-truth contract for shared Regent HTTP services. Shared SIWA routes
     own signed identity proof, agent registration on Base, request verification,
-    health, metrics, contract discovery, and the internal keyring routes.
+    health, contract discovery, and the internal keyring routes.
 x-regent-capability:
   status: beta
   owner: shared-services
@@ -62,17 +62,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReadinessResponse"
-  /metrics:
-    get:
-      operationId: siwaServerMetrics
-      tags: [auth]
-      responses:
-        "200":
-          description: Prometheus scrape payload for the shared SIWA server
-          content:
-            text/plain:
-              schema:
-                type: string
   /regent-services-contract.openapiv3.yaml:
     get:
       operationId: regentServicesContractSource

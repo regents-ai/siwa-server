@@ -12,6 +12,9 @@ config :siwa_server, SiwaServerWeb.Endpoint,
     ]
   ]
 
+# The private port fly.toml names under [metrics]; Fly routes no public traffic to it.
+config :siwa_server, :metrics_listener, ip: {0, 0, 0, 0, 0, 0, 0, 0}, port: 9091
+
 # Do not print debug messages in production
 config :logger, level: :info
 

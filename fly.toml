@@ -16,6 +16,10 @@ kill_timeout = "5s"
   PORT = "8080"
   SIWA_WALLET_ORIGINS = "patchbay=https://patchbay.help,regents=https://regents.sh,keyfleet=https://keyfleet.ai,techtree=https://techtree.sh,ash-template=https://template.regents.sh"
 
+[metrics]
+  port = 9091
+  path = "/metrics"
+
 [http_service]
   internal_port = 8080
   force_https = true

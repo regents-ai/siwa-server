@@ -19,16 +19,6 @@ defmodule SiwaServerWeb.DiscoveryController do
     |> json(readiness)
   end
 
-  def metrics(conn, _params) do
-    conn
-    |> put_resp_header("cache-control", "no-store")
-    |> put_resp_content_type("text/plain")
-    |> send_resp(
-      200,
-      TelemetryMetricsPrometheus.Core.scrape(SiwaServerWeb.Telemetry.prometheus_reporter())
-    )
-  end
-
   # The path is a fixed application asset; nothing from the request reaches File.read!.
   # sobelow_skip ["Traversal.FileModule"]
   def services_contract(conn, _params) do
