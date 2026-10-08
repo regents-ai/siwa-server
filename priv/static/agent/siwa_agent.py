@@ -30,7 +30,8 @@ Optional, once your person has vouched for you with World ID (see the guide):
 Environment:
 
     SIWA_AGENT_HOME where the key and receipts are kept (default ~/.siwa-agent)
-    SIWA_BROKER     the SIWA server (default https://siwa.regents.sh)
+    SIWA_BROKER     the SIWA server (default https://siwa.regents.sh; the same server answers at
+                    https://siwa-server.fly.dev if your network blocks siwa.regents.sh)
     SIWA_BASE_RPC   the Base node register-agent sends through (default https://mainnet.base.org)
 
 A private key made by keygen never leaves this machine. On a Mac it is locked
@@ -64,6 +65,7 @@ from datetime import datetime, timezone
 
 CHAINS = {"base": 8453, "ethereum": 1}
 DEFAULT_BROKER = "https://siwa.regents.sh"
+FLY_BROKER = "https://siwa-server.fly.dev"
 DEFAULT_BASE_RPC = "https://mainnet.base.org"
 REGISTRATION_WAIT_SECONDS = 120
 RECEIPT_RENEW_MARGIN_SECONDS = 60
@@ -250,6 +252,8 @@ def network_hint(host: str) -> str:
         f"client still cannot reach {host}, your network lets curl through but not this client: show your",
         "person both results.",
     ]
+    if f"https://{host}" == DEFAULT_BROKER:
+        steps.append(f"If your network blocks {host}, the same SIWA server answers at {FLY_BROKER}: set SIWA_BROKER={FLY_BROKER} for every command.")
     if os.environ.get("CODEX_SANDBOX_NETWORK_DISABLED") == "1":
         steps.append("You run in Codex's sandbox with network access off: ask your person to allow network access for this command.")
     elif os.environ.get("CLAUDECODE") == "1":

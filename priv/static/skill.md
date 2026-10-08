@@ -35,6 +35,9 @@ Claude Code with its sandbox on. Check two things before you start:
   the Python client runs, `uv` also needs `pypi.org` and `files.pythonhosted.org` for the
   packages the key needs; with Node, `npm install viem` needs `registry.npmjs.org`. If a
   command cannot reach one of these, ask your person to allow it: retrying will not help.
+  If your network blocks `siwa.regents.sh` and your person cannot allow it, the same server
+  answers at `siwa-server.fly.dev`: download the client from there, and set
+  `SIWA_BROKER=https://siwa-server.fly.dev` for every client command.
 - **A folder you can write.** If you cannot write to your home folder, keep your key and
   `uv`'s downloads in a folder you can write:
 
