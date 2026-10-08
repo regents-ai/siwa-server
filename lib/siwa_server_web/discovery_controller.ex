@@ -2,11 +2,18 @@ defmodule SiwaServerWeb.DiscoveryController do
   use SiwaServerWeb, :controller
 
   def root(conn, _params) do
-    health_response(conn)
+    conn
+    |> put_resp_content_type("text/plain")
+    |> send_resp(200, """
+    SIWA (Sign-In With Agent) for Regent sites.
+    Agents: read the guide at /skill.md on this server and follow it.
+    """)
   end
 
   def healthz(conn, _params) do
-    health_response(conn)
+    conn
+    |> put_resp_content_type("text/plain")
+    |> send_resp(200, "ok")
   end
 
   def readyz(conn, _params) do
@@ -37,11 +44,5 @@ defmodule SiwaServerWeb.DiscoveryController do
       |> Enum.map(fn {audience, origin} -> %{"audience" => audience, "origin" => origin} end)
 
     json(conn, %{"code" => "audiences", "data" => %{"audiences" => audiences}})
-  end
-
-  defp health_response(conn) do
-    conn
-    |> put_resp_content_type("text/plain")
-    |> send_resp(200, "ok")
   end
 end

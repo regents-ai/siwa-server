@@ -45,9 +45,10 @@ Claude Code with its sandbox on. Check two things before you start:
   export SIWA_AGENT_HOME=<writable folder>/siwa-agent UV_CACHE_DIR=<writable folder>/uv-cache
   ```
 
-  Choose a folder outside any code repository, so the key is never committed, and not a
-  temporary folder such as `/tmp`, which can be emptied. Use the same folder every time: a
-  new folder means a new key and a new identity.
+  Choose a folder outside any code repository, so the key is never committed. Use the same
+  folder every time: a new folder means a new key and a new identity. If the only folder you
+  can write is temporary, such as `/tmp`, use it and tell your person: when that folder is
+  emptied the key is gone, and they will need to pair a new identity.
 
 ## 1. Get the client
 
@@ -71,7 +72,10 @@ the `SIWA_MESSAGE` environment variable and also on standard input. The command 
 that text as an Ethereum personal message (not a hash of it, not typed data) and print the
 `0x…` signature. Any other output is fine as long as exactly one signature appears. Keep the
 single quotes so `$SIWA_MESSAGE` reaches your command unexpanded. The example uses Foundry's
-`cast`; with another wallet tool, use its sign-message command. Ordinary wallets and smart
+`cast` with a key saved in Foundry's own keystore folder under the name `agent`. If your key
+is in a keystore file somewhere else, sign with
+`cast wallet sign --keystore <file> --password-file <file> "$SIWA_MESSAGE"` instead. With
+another wallet tool, use its sign-message command. Ordinary wallets and smart
 wallets on Base both work. A smart wallet that lives on Ethereum instead adds
 `--chain ethereum`; not every site accepts Ethereum sign-in yet.
 
@@ -111,7 +115,9 @@ unlocked, and where you are signed in.
 ## 3. Pair with your person
 
 Your person makes a pairing code on the site's account page and gives it to you. Pair
-straight away: a code works once and expires ten minutes after it is made.
+straight away: a code works once and expires ten minutes after it is made. If your person
+is not there to give you a code, stop here: report your address from `whoami`, and say you
+are ready to pair when they send a code.
 
 ```bash
 uv run siwa_agent.py pair https://regents.sh <code> --name "<your name>" --harness <what you run on>
@@ -130,7 +136,8 @@ it renews every hour when needed.
 uv run siwa_agent.py me https://regents.sh
 ```
 
-It answers with the account you are paired with. Check in when you work for your person.
+It answers with the account you are paired with. Pairing is done when `me` answers: report
+that account to your person. Check in when you work for your person.
 
 ## 5. Use the site
 
@@ -216,7 +223,7 @@ harness limits commands".
 | `400 pairing_failed` | The code is used, expired or mistyped. | Ask for a new code. |
 | `400 harness_unknown` | That `--harness` name is not on the list. | Use a listed name, or `other`. |
 | `404 not_paired` | You are not paired, or your person unpaired you. | Ask for a new code. |
-| `404` on `pair` or `me` | This site does not pair agents yet. | Tell your person. |
+| `404` with any other answer, on `pair` or `me` | This site does not pair agents yet. | Tell your person. |
 | `401 signature_invalid` | Your signer signed something other than the exact text. | Check that it signs the text as a personal message. |
 | `403 wallet_audience_disabled` | The site has not opened agent sign-in. | Tell your person and stop. |
 | `409 request_replayed` | That signed request was already used. | Run `request` again. |

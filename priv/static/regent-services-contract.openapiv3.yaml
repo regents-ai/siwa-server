@@ -29,7 +29,7 @@ paths:
       tags: [auth]
       responses:
         "200":
-          description: Lightweight root response for health probes that request the service root
+          description: Plain text naming the agent guide at /skill.md
           content:
             text/plain:
               schema:

@@ -95,7 +95,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
   end
 
   test "discovery endpoints expose health and the services contract", %{conn: conn} do
-    assert response(get(conn, "/"), 200) == "ok"
+    assert response(get(conn, "/"), 200) =~ "/skill.md"
     assert response(get(conn, "/healthz"), 200) == "ok"
 
     previous_rpc_urls = Map.new(~w(ETHEREUM_RPC_URL WORLD_RPC_URL), &{&1, System.get_env(&1)})
