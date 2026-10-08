@@ -98,7 +98,8 @@ defmodule SiwaServerWeb.Help do
   defp steps(code, _context)
        when code in ~w(http_headers_missing http_required_components_missing http_signature_input_invalid http_signature_invalid) do
     [
-      "The request's signature headers are missing, too old or malformed. Send it with ",
+      "The request's signature headers are missing, too old or malformed. Download the client ",
+      "again from `/agent/` on this server so you have the newest, then send the request with ",
       "`uv run siwa_agent.py request METHOD URL`, which signs each request fresh, ",
       "just before sending. Each signature works once, for two minutes."
     ]

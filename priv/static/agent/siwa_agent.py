@@ -73,7 +73,7 @@ REQUEST_SIGNATURE_LIFETIME_SECONDS = 120
 SIGNER_TIMEOUT_SECONDS = 300
 PASSKEY_WAIT_SECONDS = 300
 HELPER_START_SECONDS = 10
-USER_AGENT = "siwa-agent-client/2.8 (python)"
+USER_AGENT = "siwa-agent-client/2.9 (python)"
 ADDRESS_PATTERN = re.compile(r"^0x[0-9a-fA-F]{40}$")
 SIGNATURE_PATTERN = re.compile(r"0x[0-9a-fA-F]{130,}")
 BOX_INFO = b"agent key box"
@@ -584,8 +584,8 @@ def signed_headers(key: dict, receipt: dict, method: str, url: str, body: bytes 
         lines.append(f'"{component}": {value}')
     lines.append(f'"@signature-params": {params}')
     signature = sign_text(key, "\n".join(lines))
-    headers["signature-input"] = "sig1=" + params
-    headers["signature"] = "sig1=:" + base64.b64encode(bytes.fromhex(signature[2:])).decode("ascii") + ":"
+    headers["x-siwa-signature-input"] = "sig1=" + params
+    headers["x-siwa-signature"] = "sig1=:" + base64.b64encode(bytes.fromhex(signature[2:])).decode("ascii") + ":"
     return headers
 
 

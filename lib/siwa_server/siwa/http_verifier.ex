@@ -147,13 +147,16 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   end
 
   defp map_shared_error(:missing_signed_headers),
-    do: {401, "http_headers_missing", "missing required signed agent headers"}
+    do:
+      {401, "http_headers_missing",
+       "missing required signed agent headers: " <>
+         Enum.join(Siwa.RequestAuth.required_headers(nil), ", ")}
 
   defp map_shared_error(reason) when reason in [:timestamp_mismatch, :signature_key_id_mismatch],
     do: {401, "http_signature_invalid", "invalid signed request"}
 
   defp map_shared_error(:invalid_signature_input),
-    do: {401, "http_signature_input_invalid", "invalid signature-input header"}
+    do: {401, "http_signature_input_invalid", "invalid x-siwa-signature-input header"}
 
   defp map_shared_error(:request_not_yet_valid),
     do: {401, "http_signature_invalid", "signed request is not yet valid"}
@@ -198,7 +201,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
     do: {401, "receipt_binding_mismatch", "x-agent-chain-id does not match SIWA receipt"}
 
   defp map_shared_error(:invalid_signature_header),
-    do: {401, "http_signature_invalid", "invalid signature header"}
+    do: {401, "http_signature_invalid", "invalid x-siwa-signature header"}
 
   defp map_shared_error(:signature_invalid),
     do: {401, "signature_invalid", "signature does not match wallet"}

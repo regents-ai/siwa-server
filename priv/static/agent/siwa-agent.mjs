@@ -49,7 +49,7 @@ const REQUEST_SIGNATURE_LIFETIME_SECONDS = 120;
 const SIGNER_TIMEOUT_MS = 300_000;
 const PASSKEY_WAIT_MS = 300_000;
 const HELPER_START_MS = 10_000;
-const USER_AGENT = "siwa-agent-client/2.8 (node)";
+const USER_AGENT = "siwa-agent-client/2.9 (node)";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const SIGNATURE_PATTERN = /0x[0-9a-fA-F]{130,}/g;
 const BOX_INFO = "agent key box";
@@ -523,8 +523,8 @@ async function signedHeaders(key, receipt, method, url, body) {
   });
   lines.push(`"@signature-params": ${params}`);
   const signature = await signText(key, lines.join("\n"));
-  headers["signature-input"] = `sig1=${params}`;
-  headers["signature"] = `sig1=:${Buffer.from(signature.slice(2), "hex").toString("base64")}:`;
+  headers["x-siwa-signature-input"] = `sig1=${params}`;
+  headers["x-siwa-signature"] = `sig1=:${Buffer.from(signature.slice(2), "hex").toString("base64")}:`;
   return headers;
 }
 

@@ -117,7 +117,7 @@ defmodule SiwaServer.HttpVerifierTest do
              verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
-               "headers" => Map.put(headers, "signature", smart_wallet_signature()),
+               "headers" => Map.put(headers, "x-siwa-signature", smart_wallet_signature()),
                "body" => body
              })
   end
@@ -131,7 +131,7 @@ defmodule SiwaServer.HttpVerifierTest do
 
     System.put_env("BASE_RPC_URL", TestRpcServer.rpc_error())
 
-    smart_wallet_headers = Map.put(headers, "signature", smart_wallet_signature())
+    smart_wallet_headers = Map.put(headers, "x-siwa-signature", smart_wallet_signature())
 
     assert {:error, {502, "signature_lookup_failed", _message}} =
              verify_http_request(Map.put(request, "headers", smart_wallet_headers))
@@ -327,7 +327,7 @@ defmodule SiwaServer.HttpVerifierTest do
              verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
-               "headers" => Map.put(headers, "signature", bad_signature),
+               "headers" => Map.put(headers, "x-siwa-signature", bad_signature),
                "body" => body
              })
 
@@ -392,7 +392,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "body" => body
              })
 
-    assert message =~ "signature-input"
+    assert message =~ "x-siwa-signature-input"
   end
 
   test "signed requests reject unknown covered components" do
@@ -431,7 +431,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "body" => body
              })
 
-    assert message =~ "signature-input"
+    assert message =~ "x-siwa-signature-input"
   end
 
   test "signed requests reject missing covered components" do
@@ -480,7 +480,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "body" => body
              })
 
-    assert message =~ "missing"
+    assert message =~ "x-siwa-signature-input"
   end
 
   test "signed requests reject malformed signature payloads" do
@@ -492,7 +492,7 @@ defmodule SiwaServer.HttpVerifierTest do
     headers =
       receipt
       |> signed_headers(body, created, expires)
-      |> Map.put("signature", "sig1=:!!!!:")
+      |> Map.put("x-siwa-signature", "sig1=:!!!!:")
 
     assert {:error, {401, "http_signature_invalid", message}} =
              verify_http_request(%{
@@ -502,7 +502,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "body" => body
              })
 
-    assert message =~ "signature header"
+    assert message =~ "x-siwa-signature header"
   end
 
   test "signed requests reject reordered covered components when the signature is not rebuilt" do
@@ -517,7 +517,7 @@ defmodule SiwaServer.HttpVerifierTest do
       ~s|("@path" "@method" "x-siwa-receipt" "x-key-id" "x-timestamp" "x-agent-wallet-address" "x-agent-chain-id" "content-digest")|
 
     headers =
-      Map.update!(headers, "signature-input", fn signature_input ->
+      Map.update!(headers, "x-siwa-signature-input", fn signature_input ->
         Regex.replace(~r/^sig1=\([^)]*\)/, signature_input, "sig1=#{reordered_components}")
       end)
 
@@ -529,7 +529,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "body" => body
              })
 
-    assert message =~ "signature"
+    assert message =~ "signature does not match"
   end
 
   test "json rpc rejects invalid responses cleanly" do
@@ -703,12 +703,12 @@ defmodule SiwaServer.HttpVerifierTest do
       |> signature_payload()
 
     headers
-    |> Map.put("signature-input", "sig1=#{signature_params}")
-    |> Map.put("signature", "sig1=:#{signature}:")
+    |> Map.put("x-siwa-signature-input", "sig1=#{signature_params}")
+    |> Map.put("x-siwa-signature", "sig1=:#{signature}:")
   end
 
   defp request_nonce(headers) do
-    [_, nonce] = Regex.run(~r/;nonce="([^"]+)"/, Map.fetch!(headers, "signature-input"))
+    [_, nonce] = Regex.run(~r/;nonce="([^"]+)"/, Map.fetch!(headers, "x-siwa-signature-input"))
     nonce
   end
 
