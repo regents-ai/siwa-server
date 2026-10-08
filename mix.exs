@@ -99,6 +99,9 @@ defmodule SiwaServer.MixProject do
       "check.release_packaging": [
         "siwa_server.release_packaging_check"
       ],
+      "check.agent_clients": [
+        "siwa_server.agent_clients --check"
+      ],
       precommit: [
         "compile --warnings-as-errors",
         "deps.unlock --check-unused",
@@ -108,6 +111,7 @@ defmodule SiwaServer.MixProject do
         "usage_rules.sync --check",
         "check.services_contract",
         "check.release_packaging",
+        "check.agent_clients",
         "xref graph --label compile-connected --fail-above 0",
         "test --warnings-as-errors"
       ]

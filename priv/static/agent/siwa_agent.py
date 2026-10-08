@@ -69,12 +69,87 @@ FLY_BROKER = "https://siwa-server.fly.dev"
 DEFAULT_BASE_RPC = "https://mainnet.base.org"
 REGISTRATION_WAIT_SECONDS = 120
 RECEIPT_RENEW_MARGIN_SECONDS = 60
-REQUEST_SIGNATURE_LIFETIME_SECONDS = 120
 SIGNER_TIMEOUT_SECONDS = 300
 PASSKEY_WAIT_SECONDS = 300
 HELPER_ANSWER_SECONDS = 10
 HELPER_START_SECONDS = 10
 USER_AGENT = "siwa-agent-client/2.9 (python)"
+# BEGIN SIWA CONTRACT
+# Contract 517e597b931ea89b77e9cbc4aa688c5cedb2c1d7408ffe35aab84ab8648f4d4f, written by `mix siwa_server.agent_clients` from the siwa library; do not edit.
+SIWA_CONTRACT = json.loads(
+    r"""
+{
+  "version": 1,
+  "label": "sig1",
+  "signature_header": "x-siwa-signature",
+  "signature_input_header": "x-siwa-signature-input",
+  "components": [
+    {
+      "name": "@method",
+      "from": "method"
+    },
+    {
+      "name": "@path",
+      "from": "path"
+    },
+    {
+      "name": "x-siwa-receipt",
+      "from": "receipt"
+    },
+    {
+      "name": "x-key-id",
+      "from": "key_id"
+    },
+    {
+      "name": "x-timestamp",
+      "from": "created"
+    },
+    {
+      "name": "x-agent-wallet-address",
+      "from": "wallet_address"
+    },
+    {
+      "name": "x-agent-chain-id",
+      "from": "chain_id"
+    }
+  ],
+  "body": {
+    "component": "content-digest",
+    "algorithm": "sha-256"
+  },
+  "params": [
+    {
+      "name": "created",
+      "from": "created"
+    },
+    {
+      "name": "expires",
+      "from": "expires"
+    },
+    {
+      "name": "nonce",
+      "from": "nonce"
+    },
+    {
+      "name": "keyid",
+      "from": "key_id"
+    }
+  ],
+  "lifetime_seconds": 120,
+  "forwarded_headers": [
+    "x-siwa-signature",
+    "x-siwa-signature-input",
+    "x-siwa-receipt",
+    "x-key-id",
+    "x-timestamp",
+    "x-agent-wallet-address",
+    "x-agent-chain-id",
+    "content-digest"
+  ]
+}
+"""
+)
+# END SIWA CONTRACT
 ADDRESS_PATTERN = re.compile(r"^0x[0-9a-fA-F]{40}$")
 SIGNATURE_PATTERN = re.compile(r"0x[0-9a-fA-F]{130,}")
 BOX_INFO = b"agent key box"
@@ -557,46 +632,47 @@ def fresh_receipt(config: dict, key: dict, audience: str) -> dict:
 
 
 def content_digest(body: bytes) -> str:
-    return "sha-256=:" + base64.b64encode(hashlib.sha256(body).digest()).decode("ascii") + ":"
+    algorithm = SIWA_CONTRACT["body"]["algorithm"]
+    digest = hashlib.new(algorithm.replace("-", ""), body).digest()
+    return algorithm + "=:" + base64.b64encode(digest).decode("ascii") + ":"
+
+
+def signature_param(value: int | str) -> str:
+    """Integers are bare; strings are quoted."""
+    return str(value) if isinstance(value, int) else f'"{value}"'
 
 
 def signed_headers(key: dict, receipt: dict, method: str, url: str, body: bytes | None) -> dict:
-    """Build the SIWA signed-request headers for one request. Each call signs fresh."""
+    """Build the SIWA signed-request headers for one request from SIWA_CONTRACT. Each call signs fresh."""
     parsed = urllib.parse.urlsplit(url)
     path = parsed.path or "/"
     if parsed.query:
         path += "?" + parsed.query
     created = int(time.time())
-    expires = created + REQUEST_SIGNATURE_LIFETIME_SECONDS
-    nonce = "sig-nonce-" + secrets.token_hex(16)
-    headers = {
-        "x-siwa-receipt": receipt["receipt"],
-        "x-key-id": receipt["key_id"],
-        "x-timestamp": str(created),
-        "x-agent-wallet-address": key["address"],
-        "x-agent-chain-id": str(chain_id(key)),
+    sources = {
+        "method": method.lower(),
+        "path": path,
+        "receipt": receipt["receipt"],
+        "key_id": receipt["key_id"],
+        "created": created,
+        "expires": created + SIWA_CONTRACT["lifetime_seconds"],
+        "nonce": "sig-nonce-" + secrets.token_hex(16),
+        "wallet_address": key["address"],
+        "chain_id": chain_id(key),
     }
-    components = ["@method", "@path", "x-siwa-receipt", "x-key-id", "x-timestamp", "x-agent-wallet-address", "x-agent-chain-id"]
+    covered = [(component["name"], str(sources[component["from"]])) for component in SIWA_CONTRACT["components"]]
     if body is not None:
-        headers["content-digest"] = content_digest(body)
-        components.append("content-digest")
-    params = (
-        "(" + " ".join(f'"{component}"' for component in components) + ")"
-        f";created={created};expires={expires};nonce=\"{nonce}\";keyid=\"{receipt['key_id']}\""
+        covered.append((SIWA_CONTRACT["body"]["component"], content_digest(body)))
+    params = "(" + " ".join(f'"{name}"' for name, _ in covered) + ")" + "".join(
+        f";{param['name']}={signature_param(sources[param['from']])}" for param in SIWA_CONTRACT["params"]
     )
-    lines = []
-    for component in components:
-        if component == "@method":
-            value = method.lower()
-        elif component == "@path":
-            value = path
-        else:
-            value = headers[component]
-        lines.append(f'"{component}": {value}')
+    lines = [f'"{name}": {value}' for name, value in covered]
     lines.append(f'"@signature-params": {params}')
     signature = sign_text(key, "\n".join(lines))
-    headers["x-siwa-signature-input"] = "sig1=" + params
-    headers["x-siwa-signature"] = "sig1=:" + base64.b64encode(bytes.fromhex(signature[2:])).decode("ascii") + ":"
+    label = SIWA_CONTRACT["label"]
+    headers = {name: value for name, value in covered if not name.startswith("@")}
+    headers[SIWA_CONTRACT["signature_input_header"]] = f"{label}={params}"
+    headers[SIWA_CONTRACT["signature_header"]] = f"{label}=:" + base64.b64encode(bytes.fromhex(signature[2:])).decode("ascii") + ":"
     return headers
 
 

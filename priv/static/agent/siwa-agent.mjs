@@ -45,11 +45,82 @@ const FLY_BROKER = "https://siwa-server.fly.dev";
 const DEFAULT_BASE_RPC = "https://mainnet.base.org";
 const REGISTRATION_WAIT_MS = 120_000;
 const RECEIPT_RENEW_MARGIN_SECONDS = 60;
-const REQUEST_SIGNATURE_LIFETIME_SECONDS = 120;
 const SIGNER_TIMEOUT_MS = 300_000;
 const PASSKEY_WAIT_MS = 300_000;
 const HELPER_ANSWER_MS = 10_000;
 const HELPER_START_MS = 10_000;
+// BEGIN SIWA CONTRACT
+// Contract 517e597b931ea89b77e9cbc4aa688c5cedb2c1d7408ffe35aab84ab8648f4d4f, written by `mix siwa_server.agent_clients` from the siwa library; do not edit.
+const SIWA_CONTRACT = {
+  "version": 1,
+  "label": "sig1",
+  "signature_header": "x-siwa-signature",
+  "signature_input_header": "x-siwa-signature-input",
+  "components": [
+    {
+      "name": "@method",
+      "from": "method"
+    },
+    {
+      "name": "@path",
+      "from": "path"
+    },
+    {
+      "name": "x-siwa-receipt",
+      "from": "receipt"
+    },
+    {
+      "name": "x-key-id",
+      "from": "key_id"
+    },
+    {
+      "name": "x-timestamp",
+      "from": "created"
+    },
+    {
+      "name": "x-agent-wallet-address",
+      "from": "wallet_address"
+    },
+    {
+      "name": "x-agent-chain-id",
+      "from": "chain_id"
+    }
+  ],
+  "body": {
+    "component": "content-digest",
+    "algorithm": "sha-256"
+  },
+  "params": [
+    {
+      "name": "created",
+      "from": "created"
+    },
+    {
+      "name": "expires",
+      "from": "expires"
+    },
+    {
+      "name": "nonce",
+      "from": "nonce"
+    },
+    {
+      "name": "keyid",
+      "from": "key_id"
+    }
+  ],
+  "lifetime_seconds": 120,
+  "forwarded_headers": [
+    "x-siwa-signature",
+    "x-siwa-signature-input",
+    "x-siwa-receipt",
+    "x-key-id",
+    "x-timestamp",
+    "x-agent-wallet-address",
+    "x-agent-chain-id",
+    "content-digest"
+  ]
+};
+// END SIWA CONTRACT
 const USER_AGENT = "siwa-agent-client/2.9 (node)";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const SIGNATURE_PATTERN = /0x[0-9a-fA-F]{130,}/g;
@@ -505,39 +576,44 @@ async function freshReceipt(config, key, audience) {
 }
 
 function contentDigest(body) {
-  return `sha-256=:${createHash("sha256").update(body).digest("base64")}:`;
+  const algorithm = SIWA_CONTRACT.body.algorithm;
+  return `${algorithm}=:${createHash(algorithm.replace("-", "")).update(body).digest("base64")}:`;
 }
 
-// Build the SIWA signed-request headers for one request. Each call signs fresh.
+// Integers are bare; strings are quoted.
+function signatureParam(value) {
+  return typeof value === "number" ? String(value) : `"${value}"`;
+}
+
+// Build the SIWA signed-request headers for one request from SIWA_CONTRACT. Each call signs fresh.
 async function signedHeaders(key, receipt, method, url, body) {
   const parsed = new URL(url);
-  const path = (parsed.pathname || "/") + parsed.search;
   const created = Math.floor(Date.now() / 1000);
-  const expires = created + REQUEST_SIGNATURE_LIFETIME_SECONDS;
-  const nonce = `sig-nonce-${randomBytes(16).toString("hex")}`;
-  const headers = {
-    "x-siwa-receipt": receipt.receipt,
-    "x-key-id": receipt.key_id,
-    "x-timestamp": String(created),
-    "x-agent-wallet-address": key.address,
-    "x-agent-chain-id": String(chainId(key)),
+  const sources = {
+    method: method.toLowerCase(),
+    path: (parsed.pathname || "/") + parsed.search,
+    receipt: receipt.receipt,
+    key_id: receipt.key_id,
+    created,
+    expires: created + SIWA_CONTRACT.lifetime_seconds,
+    nonce: `sig-nonce-${randomBytes(16).toString("hex")}`,
+    wallet_address: key.address,
+    chain_id: chainId(key),
   };
-  const components = ["@method", "@path", "x-siwa-receipt", "x-key-id", "x-timestamp", "x-agent-wallet-address", "x-agent-chain-id"];
+  const covered = SIWA_CONTRACT.components.map((component) => [component.name, String(sources[component.from])]);
   if (body !== undefined) {
-    headers["content-digest"] = contentDigest(body);
-    components.push("content-digest");
+    covered.push([SIWA_CONTRACT.body.component, contentDigest(body)]);
   }
   const params =
-    `(${components.map((component) => `"${component}"`).join(" ")})` +
-    `;created=${created};expires=${expires};nonce="${nonce}";keyid="${receipt.key_id}"`;
-  const lines = components.map((component) => {
-    const value = component === "@method" ? method.toLowerCase() : component === "@path" ? path : headers[component];
-    return `"${component}": ${value}`;
-  });
+    `(${covered.map(([name]) => `"${name}"`).join(" ")})` +
+    SIWA_CONTRACT.params.map((param) => `;${param.name}=${signatureParam(sources[param.from])}`).join("");
+  const lines = covered.map(([name, value]) => `"${name}": ${value}`);
   lines.push(`"@signature-params": ${params}`);
   const signature = await signText(key, lines.join("\n"));
-  headers["x-siwa-signature-input"] = `sig1=${params}`;
-  headers["x-siwa-signature"] = `sig1=:${Buffer.from(signature.slice(2), "hex").toString("base64")}:`;
+  const label = SIWA_CONTRACT.label;
+  const headers = Object.fromEntries(covered.filter(([name]) => !name.startsWith("@")));
+  headers[SIWA_CONTRACT.signature_input_header] = `${label}=${params}`;
+  headers[SIWA_CONTRACT.signature_header] = `${label}=:${Buffer.from(signature.slice(2), "hex").toString("base64")}:`;
   return headers;
 }
 
