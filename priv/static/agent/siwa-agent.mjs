@@ -48,6 +48,7 @@ const RECEIPT_RENEW_MARGIN_SECONDS = 60;
 const REQUEST_SIGNATURE_LIFETIME_SECONDS = 120;
 const SIGNER_TIMEOUT_MS = 300_000;
 const PASSKEY_WAIT_MS = 300_000;
+const HELPER_ANSWER_MS = 10_000;
 const HELPER_START_MS = 10_000;
 const USER_AGENT = "siwa-agent-client/2.9 (node)";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
@@ -347,6 +348,16 @@ function askHelper(path, request) {
   return new Promise((resolve, reject) => {
     let reply = "";
     const connection = createConnection(path, () => connection.write(`${JSON.stringify(request)}\n`));
+    // A stuck helper is still there: unlocking again would start a second one behind it.
+    connection.setTimeout(HELPER_ANSWER_MS, () =>
+      connection.destroy(
+        new SiwaError(
+          `the key helper at ${path} did not answer within ${HELPER_ANSWER_MS / 1000} seconds, so nothing was signed or sent. ` +
+            "Stop the stuck key helper (a background siwa-agent or regents process) or restart this Mac, " +
+            "then run this again; Touch ID asks once",
+        ),
+      ),
+    );
     connection.on("data", (chunk) => (reply += chunk));
     connection.on("end", () => {
       // A helper that is stopping can take the connection and close it unanswered.
@@ -384,7 +395,9 @@ async function unlocked(key, request) {
   const answer = await askHelper(helperSocket(key), request);
   if (answer !== null) return answer;
   await startHelper(key, await openBox(key, "unlock"));
-  return askHelper(helperSocket(key), request);
+  const started = await askHelper(helperSocket(key), request);
+  if (started === null) throw new SiwaError("the key helper closed without answering; run this again");
+  return started;
 }
 
 function stopHelper(key) {

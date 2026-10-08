@@ -72,6 +72,7 @@ RECEIPT_RENEW_MARGIN_SECONDS = 60
 REQUEST_SIGNATURE_LIFETIME_SECONDS = 120
 SIGNER_TIMEOUT_SECONDS = 300
 PASSKEY_WAIT_SECONDS = 300
+HELPER_ANSWER_SECONDS = 10
 HELPER_START_SECONDS = 10
 USER_AGENT = "siwa-agent-client/2.9 (python)"
 ADDRESS_PATTERN = re.compile(r"^0x[0-9a-fA-F]{40}$")
@@ -389,9 +390,17 @@ def ask_helper(path: str, request: dict) -> dict | None:
     """One request to the helper; None when no helper is listening."""
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+            connection.settimeout(HELPER_ANSWER_SECONDS)
             connection.connect(path)
             connection.sendall(json_body(request) + b"\n")
             reply = connection.makefile("rb").readline()
+    except TimeoutError:
+        # A stuck helper is still there: unlocking again would start a second one behind it.
+        raise SiwaError(
+            f"the key helper at {path} did not answer within {HELPER_ANSWER_SECONDS} seconds, so nothing was signed or sent. "
+            "Stop the stuck key helper (a background siwa-agent or regents process) or restart this Mac, "
+            "then run this again; Touch ID asks once"
+        ) from None
     except (FileNotFoundError, ConnectionRefusedError, ConnectionResetError, BrokenPipeError):
         return None
     # A helper that is stopping can take the connection and close it unanswered.
@@ -428,6 +437,8 @@ def unlocked(key: dict, request: dict) -> dict:
     if answer is None:
         start_helper(key, open_box(key, "unlock"))
         answer = ask_helper(helper_socket(key), request)
+    if answer is None:
+        raise SiwaError("the key helper closed without answering; run this again")
     return answer
 
 
