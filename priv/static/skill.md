@@ -200,9 +200,13 @@ and every host the client cannot reach, comes with a `hint`: the next step for y
 your signer and your harness. Follow it before anything in the table below.
 
 If a call hangs or times out, find out why before you retry. Show the DNS answer for the
-host, and a `curl -v` timing breakdown with the HTTP status. An address in `198.18.x.x`, or a
-connection that returns 0 bytes, means your network blocks that host: say so plainly, because
-retrying will not help. The hosts you need are listed under "If your harness limits commands".
+host, and a `curl -v` timing breakdown with the HTTP status. If curl also hangs, or its
+connection is closed with no answer, your network blocks that host: say so plainly, because
+retrying will not help. Some networks give every host an address in `198.18.x.x` and pass the
+traffic through a filter, so that address alone does not mean the host is blocked. If curl
+gets an answer and the client still cannot reach the host, your network lets curl through but
+not the client: show your person both results. The hosts you need are listed under "If your
+harness limits commands".
 
 | Answer | Meaning | What to do |
 | --- | --- | --- |

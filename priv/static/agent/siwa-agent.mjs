@@ -47,7 +47,7 @@ const REQUEST_SIGNATURE_LIFETIME_SECONDS = 120;
 const SIGNER_TIMEOUT_MS = 300_000;
 const PASSKEY_WAIT_MS = 300_000;
 const HELPER_START_MS = 10_000;
-const USER_AGENT = "siwa-agent-client/2.7 (node)";
+const USER_AGENT = "siwa-agent-client/2.8 (node)";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const SIGNATURE_PATTERN = /0x[0-9a-fA-F]{130,}/g;
 const BOX_INFO = "agent key box";
@@ -162,8 +162,10 @@ class Unreachable extends Error {
 function networkHint(host) {
   const steps = [
     `Find out why before you retry: run \`curl -sv https://${host}/ -o /dev/null\` and show your person`,
-    `the address ${host} resolves to and what happened. An address in 198.18.x.x, or a connection`,
-    `closed with no answer, means your network blocks ${host}; retrying will not help.`,
+    `the address ${host} resolves to and what happened. If curl also hangs, or its connection is closed`,
+    `with no answer, your network blocks ${host}; retrying will not help. If curl gets an answer and this`,
+    `client still cannot reach ${host}, your network lets curl through but not this client: show your`,
+    "person both results.",
   ];
   if (process.env.CODEX_SANDBOX_NETWORK_DISABLED === "1") {
     steps.push("You run in Codex's sandbox with network access off: ask your person to allow network access for this command.");

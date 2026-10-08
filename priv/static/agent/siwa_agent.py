@@ -71,7 +71,7 @@ REQUEST_SIGNATURE_LIFETIME_SECONDS = 120
 SIGNER_TIMEOUT_SECONDS = 300
 PASSKEY_WAIT_SECONDS = 300
 HELPER_START_SECONDS = 10
-USER_AGENT = "siwa-agent-client/2.7 (python)"
+USER_AGENT = "siwa-agent-client/2.8 (python)"
 ADDRESS_PATTERN = re.compile(r"^0x[0-9a-fA-F]{40}$")
 SIGNATURE_PATTERN = re.compile(r"0x[0-9a-fA-F]{130,}")
 BOX_INFO = b"agent key box"
@@ -245,8 +245,10 @@ def network_hint(host: str) -> str:
     """What to do when a host cannot be reached, shaped by the harness this runs in."""
     steps = [
         f"Find out why before you retry: run `curl -sv https://{host}/ -o /dev/null` and show your person",
-        f"the address {host} resolves to and what happened. An address in 198.18.x.x, or a connection",
-        f"closed with no answer, means your network blocks {host}; retrying will not help.",
+        f"the address {host} resolves to and what happened. If curl also hangs, or its connection is closed",
+        f"with no answer, your network blocks {host}; retrying will not help. If curl gets an answer and this",
+        f"client still cannot reach {host}, your network lets curl through but not this client: show your",
+        "person both results.",
     ]
     if os.environ.get("CODEX_SANDBOX_NETWORK_DISABLED") == "1":
         steps.append("You run in Codex's sandbox with network access off: ask your person to allow network access for this command.")
