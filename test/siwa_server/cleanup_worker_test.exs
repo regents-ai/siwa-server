@@ -1,9 +1,10 @@
 defmodule SiwaServer.Siwa.CleanupWorkerTest do
   use SiwaServer.DataCase, async: false
+  use Oban.Testing, repo: SiwaServer.Repo
 
   alias SiwaServer.Siwa.{CleanupWorker, NonceRecord}
 
-  test "periodically removes expired nonce and replay rows" do
+  test "the cron job removes expired nonce and replay rows and keeps active ones" do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
     _handler_id = attach_cleanup_handler()
 
@@ -11,22 +12,9 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
     insert_nonce!("active-nonce", DateTime.add(now, 60, :second))
     insert_replay!("expired-replay", DateTime.add(now, -60, :second))
     insert_replay!("active-replay", DateTime.add(now, 60, :second))
-    task_supervisor = start_task_supervisor!()
 
-    pid =
-      start_supervised!(
-        {CleanupWorker,
-         enabled: true,
-         interval_ms: 10,
-         batch_size: 10,
-         name: nil,
-         task_supervisor: task_supervisor}
-      )
-
-    assert is_pid(pid)
-
-    assert_receive {:cleanup_telemetry, %{nonce_count: 1, replay_count: 1}, %{result: :ok}},
-                   1_000
+    assert :ok = perform_job(CleanupWorker, %{})
+    assert_receive {:cleanup_telemetry, %{nonce_count: 1, replay_count: 1}, %{result: :ok}}
 
     assert nonce_count("expired-nonce") == 0
     assert replay_count("expired-replay") == 0
@@ -116,11 +104,5 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
       Repo.query!("SELECT COUNT(*) FROM siwa_request_replays WHERE replay_key = $1", [replay_key])
 
     count
-  end
-
-  defp start_task_supervisor! do
-    name = :"#{__MODULE__}.TaskSupervisor.#{System.unique_integer([:positive])}"
-    start_supervised!({Task.Supervisor, name: name})
-    name
   end
 end

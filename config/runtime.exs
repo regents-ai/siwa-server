@@ -134,13 +134,6 @@ config :siwa_server, :siwa,
   activity_readers: activity_readers
 
 config :siwa_server, :siwa_cleanup,
-  enabled:
-    env_boolean.("SIWA_CLEANUP_ENABLED", Keyword.get(current_siwa_cleanup, :enabled, true)),
-  interval_ms:
-    env_integer.(
-      "SIWA_CLEANUP_INTERVAL_MS",
-      Keyword.get(current_siwa_cleanup, :interval_ms, 60_000)
-    ),
   batch_size:
     env_integer.("SIWA_CLEANUP_BATCH_SIZE", Keyword.get(current_siwa_cleanup, :batch_size, 1_000))
 

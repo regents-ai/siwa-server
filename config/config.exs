@@ -20,13 +20,12 @@ config :siwa_server, :siwa,
 config :siwa_server, Oban,
   repo: SiwaServer.Repo,
   notifier: Oban.Notifiers.PG,
+  queues: [cleanup: 1],
+  cron: [crontab: [{"* * * * *", SiwaServer.Siwa.CleanupWorker}]],
   pruner: [max_age: {7, :days}],
   lifeline: [rescue_after: {10, :minutes}]
 
-config :siwa_server, :siwa_cleanup,
-  enabled: true,
-  interval_ms: 60_000,
-  batch_size: 1_000
+config :siwa_server, :siwa_cleanup, batch_size: 1_000
 
 # Configure the endpoint
 config :siwa_server, SiwaServerWeb.Endpoint,

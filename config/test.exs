@@ -37,8 +37,6 @@ config :siwa_server, :siwa,
 
 config :siwa_server, Oban, testing: :manual
 
-config :siwa_server, :siwa_cleanup, enabled: false, interval_ms: 60_000, batch_size: 1_000
-
 config :siwa_keyring,
   backend: "encrypted_file",
   password: "siwa-server-test-password",

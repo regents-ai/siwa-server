@@ -12,8 +12,6 @@ defmodule SiwaServer.Application do
         {Oban, Application.fetch_env!(:siwa_server, Oban)},
         SiwaServer.RateLimiter,
         {Finch, name: SiwaServer.Finch},
-        {Task.Supervisor, name: SiwaServer.Siwa.CleanupTaskSupervisor},
-        {SiwaServer.Siwa.CleanupWorker, [task_supervisor: SiwaServer.Siwa.CleanupTaskSupervisor]},
         {DNSCluster, query: SiwaServer.Config.dns_cluster_query() || :ignore},
         {Phoenix.PubSub, name: SiwaServer.PubSub},
         SiwaServerWeb.Endpoint,

@@ -16,7 +16,7 @@ defmodule SiwaServer.Config do
   @doc "SIWA settings (`:nonce_ttl_seconds`, `:receipt_ttl_seconds`, `:receipt_secret`, `:activity_readers`)."
   def siwa, do: Application.get_env(@app, :siwa, [])
 
-  @doc "Nonce/replay cleanup worker settings (`:enabled`, `:interval_ms`, `:batch_size`)."
+  @doc "Cleanup job settings (`:batch_size`)."
   def siwa_cleanup, do: Application.get_env(@app, :siwa_cleanup, [])
 
   @doc "Per-pipeline rate limit overrides (`:limit`, `:window_ms`)."

@@ -145,9 +145,7 @@ must fail closed. The SIWA library and the service tests cover these cases.
 | `SIWA_RECEIPT_TTL_SECONDS` | `3600` | How long a receipt stays valid. |
 | `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS` | `300` | Clock skew allowed on a signed HTTP request. |
 | `SIWA_WALLET_ORIGINS` | unset | Approved `audience=origin` pairs for wallet sign-in, comma separated. Unset disables it. |
-| `SIWA_CLEANUP_ENABLED` | `true` | Whether expired nonce and replay rows are swept. |
-| `SIWA_CLEANUP_INTERVAL_MS` | `60000` | How often that sweep runs. |
-| `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Rows removed per sweep. |
+| `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Expired nonce, replay and activity rows removed per sweep, once a minute. |
 | `KEYSTORE_BACKEND` | `encrypted_file` | Key store backend. `encrypted_file` is the only accepted value; anything else stops the boot. |
 | `KEYSTORE_PATH` | `/data/siwa-server-keystore.bin` | Where the encrypted key store lives. |
 
