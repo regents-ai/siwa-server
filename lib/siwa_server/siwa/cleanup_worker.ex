@@ -2,10 +2,11 @@ defmodule SiwaServer.Siwa.CleanupWorker do
   @moduledoc """
   Removes expired nonce, replay and activity rows. Oban's cron queues it once a
   minute on the `cleanup` queue, which runs one at a time; a failed run is left
-  to the next minute.
+  to the next minute. A change of cron leader can insert one minute's job twice,
+  so a second job within 30 seconds is dropped.
   """
 
-  use Oban.Worker, queue: :cleanup, max_attempts: 1
+  use Oban.Worker, queue: :cleanup, max_attempts: 1, unique: [period: 30]
 
   alias SiwaServer.Siwa.{ActivityStore, NonceStore, ReplayStore}
 
