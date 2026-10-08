@@ -14,7 +14,7 @@ kill_timeout = "5s"
   PHX_HOST = "siwa.regents.sh"
   PHX_SERVER = "true"
   PORT = "8080"
-  SIWA_WALLET_ORIGINS = "patchbay=https://patchbay.help,regents=https://regents.sh,keyfleet=https://keyfleet.ai,techtree=https://techtree.sh,ash-template=https://template.regents.sh"
+  SIWA_WALLET_ORIGINS = "patchbay=https://patchbay.help,regents=https://regents.sh,keyfleet=https://keyfleet.ai,techtree=https://techtree.sh,ash-template=https://template.regents.sh,regents-mobile=https://regents-mobile-server.fly.dev"
 
 [metrics]
   port = 9091
