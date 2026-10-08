@@ -20,7 +20,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   World's AgentBook last named behind the wallet (see `SiwaServer.AgentBook`).
 
   Library error reasons are mapped to stable client-facing status/code
-  tuples by `map_shared_error/1`.
+  tuples by the shared contract's `refusals` (`Siwa.Contract.refusal/1`).
   """
 
   alias SiwaServer.{AgentBook, AgentRegistration, Ethereum, RuntimeConfig}
@@ -146,79 +146,12 @@ defmodule SiwaServer.Siwa.HttpVerifier do
     end
   end
 
-  defp map_shared_error(:missing_signed_headers),
-    do:
-      {401, "http_headers_missing",
-       "missing required signed agent headers: " <>
-         Enum.join(Siwa.RequestAuth.required_headers(nil), ", ")}
-
-  defp map_shared_error(reason) when reason in [:timestamp_mismatch, :signature_key_id_mismatch],
-    do: {401, "http_signature_invalid", "invalid signed request"}
-
-  defp map_shared_error(:invalid_signature_input),
-    do: {401, "http_signature_input_invalid", "invalid x-siwa-signature-input header"}
-
-  defp map_shared_error(:request_not_yet_valid),
-    do: {401, "http_signature_invalid", "signed request is not yet valid"}
-
-  defp map_shared_error(:request_too_old),
-    do: {401, "http_signature_invalid", "signed request is too old"}
-
-  defp map_shared_error(:request_expired),
-    do: {401, "http_signature_invalid", "signed request has expired"}
-
-  defp map_shared_error(:invalid_timestamp),
-    do: {401, "http_signature_invalid", "invalid x-timestamp header"}
-
-  defp map_shared_error(:missing_covered_components),
-    do: {401, "http_required_components_missing", "missing required covered components"}
-
-  defp map_shared_error(:invalid_covered_components),
-    do: {401, "http_signature_input_invalid", "invalid covered components"}
-
-  defp map_shared_error(:request_body_required),
-    do:
-      {401, "http_body_binding_missing",
-       "request body is required when content-digest is present"}
-
-  defp map_shared_error(:missing_content_digest),
-    do: {401, "http_body_binding_missing", "missing content-digest header"}
-
-  defp map_shared_error(:content_digest_mismatch),
-    do: {401, "http_body_binding_invalid", "content-digest does not match the request body"}
-
-  defp map_shared_error(:invalid_content_digest),
-    do: {401, "http_body_binding_invalid", "content-digest is invalid"}
-
-  defp map_shared_error(reason) when reason in [:invalid_receipt, :receipt_audience_required],
-    do: {401, "receipt_invalid", "invalid SIWA receipt"}
-
-  defp map_shared_error(:receipt_binding_mismatch),
-    do:
-      {401, "receipt_binding_mismatch", "receipt audience or claims does not match this request"}
-
-  defp map_shared_error(:chain_binding_mismatch),
-    do: {401, "receipt_binding_mismatch", "x-agent-chain-id does not match SIWA receipt"}
-
-  defp map_shared_error(:invalid_signature_header),
-    do: {401, "http_signature_invalid", "invalid x-siwa-signature header"}
-
-  defp map_shared_error(:signature_invalid),
-    do: {401, "signature_invalid", "signature does not match wallet"}
-
-  defp map_shared_error(:signature_lookup_failed),
-    do:
-      {502, "signature_lookup_failed",
-       "could not check the wallet signature on the chain it signed in on"}
-
-  defp map_shared_error(:replayed_request),
-    do: {409, "request_replayed", "request replay detected"}
-
-  defp map_shared_error(:wallet_principal_not_allowed),
-    do: {401, "wallet_audience_disabled", "wallet principal is not enabled for this audience"}
-
-  defp map_shared_error(_reason),
-    do: {500, "request_replay_failed", "could not verify replay state"}
+  defp map_shared_error(reason) do
+    case Siwa.Contract.refusal(reason) do
+      nil -> {500, "request_replay_failed", "could not verify replay state"}
+      refusal -> refusal
+    end
+  end
 
   defp unix_ms_to_iso8601(unix_ms),
     do: unix_ms |> DateTime.from_unix!(:millisecond) |> DateTime.to_iso8601()
