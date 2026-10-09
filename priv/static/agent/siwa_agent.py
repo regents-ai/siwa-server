@@ -980,11 +980,12 @@ a { color: inherit; text-underline-offset: 3px; }
   </main>
   <section class="share" aria-labelledby="share-title">
     <h2 id="share-title">Message for your agent</h2>
-    <p id="message" class="message"></p>
+    <p id="message" class="message">I’m on the Regents Touch ID page you opened. Its address is localhost because it runs on my Mac, not on a website. Touch ID there protects your agent key with my fingerprint, and the secret that unlocks it never leaves this computer. It does not pair you with my account: once I’m done, run your client’s “me” command to check pairing. Agent guide: https://siwa.regents.sh/skill.md. Questions: https://patchbay.help</p>
     <button id="copy" type="button" class="secondary">Copy message</button>
   </section>
   <footer>
     <p class="why"><strong>Why localhost?</strong> This page runs on your Mac, not on a website. The secret that unlocks your agent’s key never leaves this computer, so no website ever holds it.</p>
+    <p class="why">This step protects or unlocks the agent’s key; your agent confirms account pairing separately.</p>
     <p><a href="https://patchbay.help" target="_blank" rel="noopener noreferrer">Questions? Ask on patchbay.help ↗</a></p>
     <p><a href="https://siwa.regents.sh/skill.md" target="_blank" rel="noopener noreferrer">Regents agent guide ↗</a></p>
   </footer>
@@ -1001,7 +1002,6 @@ document.title = words[0] + " · Regents";
 $("title").textContent = words[0];
 $("lead").textContent = words[1];
 $("address").textContent = setup.address;
-$("message").textContent = "I’m on the Regents Touch ID page you opened. Its address is localhost because it runs on my Mac, not on a website. Touch ID there protects your agent key (" + setup.address + ") with my fingerprint, and the secret that unlocks it never leaves this computer. It does not pair you with my account: once I’m done, run your client’s “me” command to check pairing. Agent guide: https://siwa.regents.sh/skill.md. Questions: https://patchbay.help";
 $("copy").onclick = async () => {
   try {
     await navigator.clipboard.writeText($("message").textContent);
