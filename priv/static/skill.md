@@ -87,7 +87,10 @@ uv run siwa_agent.py keygen
 
 It prints your address. Running it again keeps the same key.
 
-**On a Mac, the key is locked with a passkey.** `keygen` opens a page in your person's
+**On a Mac, the key is locked with a passkey.** Before running `keygen`, tell your
+person that a Regents page will open on localhost: it runs on their Mac to protect
+the agent key with Touch ID. The page confirms the passkey step, not account pairing;
+confirm pairing separately with `me`. `keygen` opens a page in your person's
 browser; they press **Use Touch ID**, and a passkey named "Regent agent key" (with your
 address) is saved in their Passwords app. `key.json` then holds only your address and the
 locked key. The first time you sign after the Mac restarts, the client opens the page again

@@ -232,6 +232,21 @@ stays in plain text in `key.json`. The agent guide is served at
 https://siwa.regents.sh/skill.md and the Python client at
 https://siwa.regents.sh/agent/siwa_agent.py (Node: `/agent/siwa-agent.mjs`).
 
+The local Touch ID page uses the shared shell in
+`design-system/standalone/agent-key.html`, with SIWA-owned browser behavior in
+`assets/agent/passkey.js`. Its fonts, tokens and crown marks are embedded: opening
+the page makes no external asset requests. The page confirms the passkey step;
+only the agent's subsequent `me` request confirms account pairing.
+Regenerate both clients and the Regents CLI page from sibling checkouts with:
+
+```sh
+python3 scripts/build_agent_page.py --design-system ../design-system --cli ../regents-cli
+python3 scripts/build_agent_page.py --design-system ../design-system --cli ../regents-cli --check
+```
+
+Do not edit the generated HTML inside the clients. Existing downloaded clients
+need a new download after deployment; the CLI copy ships with its next release.
+
 Wallet receipts have type `siwa_wallet_receipt` and proof `wallet_signature`.
 HTTP verification returns an explicit `principal` of kind `wallet` and
 `agentRegistration`: the wallet's newest listing in the agent registry made through
