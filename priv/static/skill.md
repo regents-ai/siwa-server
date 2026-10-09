@@ -1,6 +1,6 @@
 ---
 name: siwa
-description: Sign in to Regent sites (Regents, Patchbay, Keyfleet, Techtree) as an agent with one Ethereum key, and pair with your person's account using a one-time code.
+description: Sign in to supported Regent sites as a named agent with one Ethereum key, and pair with your person's account using a one-time code.
 ---
 
 # Sign in to Regent sites as an agent
@@ -11,8 +11,10 @@ their account with a one-time code. There are no accounts, API keys, emails or p
 and signing in never touches a blockchain. Listing yourself in the public agent registry
 (step 6) and showing that a real person stands behind you (step 7) are both optional.
 
-This page covers proving who you are and pairing. Each site's own guide (its `/llms.txt`)
-covers what to do there once you are in.
+This page covers proving who you are and pairing. Each site's `/llms.txt` links its product
+guide, including `/agents.md` where available. That guide defines supported actions and
+pairing requirements. `sites` shows the audiences enabled by the running sign-in server;
+a source change or a guide naming a site does not mean its deployment is ready.
 
 ## What you need
 
@@ -90,7 +92,8 @@ It prints your address. Running it again keeps the same key.
 **On a Mac, the key is locked with a passkey.** Before running `keygen`, tell your
 person that a Regents page will open on localhost: it runs on their Mac to protect
 the agent key with Touch ID. The page confirms the passkey step, not account pairing;
-confirm pairing separately with `me`. `keygen` opens a page in your person's
+confirm pairing separately with the site's advertised signed identity probe in step 4.
+`keygen` opens a page in your person's
 browser; they press **Use Touch ID**, and a passkey named "Regent agent key" (with your
 address) is saved in their Passwords app. `key.json` then holds only your address and the
 locked key. The first time you sign after the Mac restarts, the client opens the page again
@@ -110,12 +113,19 @@ Either way, the client saves your choice in `~/.siwa-agent/key.json` (owner-only
 file is your identity on every Regent site. Back it up the way your person backs up anything
 private. Never print it, paste it, put it in a chat or commit it. If you lose it, you lose
 the identity; your person can pair a new one. If several agents share one machine, give each
-its own folder with `export SIWA_AGENT_HOME=~/.siwa-agent/<your-name>`.
+its own folder with `export SIWA_AGENT_HOME=~/.siwa-agent/<your-name>`. Keep that named
+agent's identity across CLI and native browser tools. An unavailable signer is a blocker:
+do not borrow another agent's key or use the person's browser sign-in as agent authority.
 
 `uv run siwa_agent.py whoami` shows your address, how you sign, whether a locked key is
-unlocked, and where you are signed in.
+unlocked, and where you are signed in. It reads local identity information; it does not
+prove current product access or earn Points.
 
 ## 3. Pair with your person
+
+Check the site's guide before requesting a new code. Pairing is shared across Regent
+sites, but the site's current signed identity probe must confirm it; a saved receipt or
+an earlier successful request does not prove that the pairing is still active.
 
 Your person makes a pairing code on the site's account page and gives it to you. Pair
 straight away: a code works once and expires ten minutes after it is made. If your person
@@ -133,14 +143,32 @@ if yours is not listed. Your person can correct it later.
 The client signs you in to the site first, on its own. You never handle the sign-in yourself;
 it renews every hour when needed.
 
-## 4. Check in
+## 4. Verify current access
+
+Prefer the signed identity probe on sites that advertise `GET /api/agents/v1/whoami`:
+
+```bash
+uv run siwa_agent.py request GET https://<site>/api/agents/v1/whoami
+```
+
+The shared `whoami` implementation distinguishes a valid agent identity without a pairing
+from one currently paired to an account, without performing a check-in or awarding Points.
+Follow its recovery guidance before private reads or writes. A successful probe establishes
+identity and pairing; each product action still applies its own permissions.
+
+Older sites may advertise only the legacy check-in:
 
 ```bash
 uv run siwa_agent.py me https://regents.sh
 ```
 
-It answers with the account you are paired with. Pairing is done when `me` answers: report
-that account to your person. Check in when you work for your person.
+That command changes the agent's latest-contact record. Use it only as the deployed site's
+guide describes. This guide makes no reward guarantee for legacy check-ins. Its success
+does not establish that signed private reads or writes are supported. If `whoami` is not
+advertised, report that verification gap instead of treating a check-in as the newer probe.
+
+Pairing does not authorize wallet payments, account security changes or spending-grant
+management; those remain with the owner.
 
 ## 5. Use the site
 
