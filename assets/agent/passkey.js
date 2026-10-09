@@ -9,6 +9,15 @@ document.title = words[0] + " · Regents";
 $("title").textContent = words[0];
 $("lead").textContent = words[1];
 $("address").textContent = setup.address;
+$("message").textContent = "I’m on the Regents Touch ID page you opened. Its address is localhost because it runs on my Mac, not on a website. Touch ID there protects your agent key (" + setup.address + ") with my fingerprint, and the secret that unlocks it never leaves this computer. It does not pair you with my account: once I’m done, run your client’s “me” command to check pairing. Agent guide: https://siwa.regents.sh/skill.md. Questions: https://patchbay.help";
+$("copy").onclick = async () => {
+  try {
+    await navigator.clipboard.writeText($("message").textContent);
+    $("copy").textContent = "✓ Copied";
+  } catch {
+    $("copy").textContent = "Couldn’t copy. Select the message and copy it.";
+  }
+};
 const hex = (bytes) => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, "0")).join("");
 const unhex = (text) => new Uint8Array(text.match(/../g).map((h) => parseInt(h, 16)));
 const random = (size) => crypto.getRandomValues(new Uint8Array(size));

@@ -912,19 +912,23 @@ button { width: 100%; min-height: 48px; padding: 12px 16px; border: 1px solid va
 button:hover { background: var(--color-bg); color: var(--color-fg); }
 button:disabled { cursor: wait; opacity: .65; }
 button[data-complete] { cursor: default; opacity: 1; color: var(--color-muted); background: transparent; border-color: var(--color-border); }
-button:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px solid var(--color-fg); outline-offset: 4px; }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--color-fg); outline-offset: 4px; }
 #note { min-height: 4.5em; margin: 16px 0 0; color: var(--color-error); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
 .identity { border-top: 1px solid var(--color-border); padding: 20px 32px; }
 .label { display: block; color: var(--color-muted); font-size: 12px; margin-bottom: 8px; }
 code { font-family: var(--font-family-mono); font-size: 12px; overflow-wrap: anywhere; }
+.share { margin-top: 24px; border: 1px solid var(--color-border); padding: 24px 32px; }
+.share h2 { margin: 0 0 12px; font-size: 12px; font-weight: 400; letter-spacing: .08em; text-transform: uppercase; color: var(--color-muted); }
+.message { margin: 0 0 16px; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; user-select: all; }
+button.secondary { background: transparent; color: var(--color-fg); }
+button.secondary:hover { background: var(--color-fg); color: var(--color-bg); }
 footer { padding-top: 24px; color: var(--color-muted); font-size: 13px; line-height: 1.6; }
 footer p { margin: 0 0 8px; }
-summary { cursor: pointer; width: fit-content; }
-details p { margin: 12px 0; }
+.why { color: var(--color-fg); }
 a { color: inherit; text-underline-offset: 3px; }
 @media (prefers-color-scheme: light) { .mark-dark { display: none; } .mark-light { display: block; } }
-@media (max-width: 420px) { body { padding: 24px 16px; } .shell { margin-top: 24px; } .content { padding: 24px; } h1 { min-height: 2.4em; } #lead { min-height: 7.5em; } .identity { padding: 20px 24px; } header { gap: 8px; } .brand { font-size: 22px; } }
-@media (forced-colors: active) { main, .identity, button { border-color: CanvasText; } button { background: ButtonFace; color: ButtonText; } }
+@media (max-width: 420px) { body { padding: 24px 16px; } .shell { margin-top: 24px; } .content { padding: 24px; } h1 { min-height: 2.4em; } #lead { min-height: 7.5em; } .identity { padding: 20px 24px; } .share { padding: 20px 24px; } header { gap: 8px; } .brand { font-size: 22px; } }
+@media (forced-colors: active) { main, .identity, .share, button { border-color: CanvasText; } button { background: ButtonFace; color: ButtonText; } }
 </style>
 </head>
 <body>
@@ -946,13 +950,15 @@ a { color: inherit; text-underline-offset: 3px; }
     </div>
     <div class="identity"><span class="label">Agent address</span><code id="address"></code></div>
   </main>
+  <section class="share" aria-labelledby="share-title">
+    <h2 id="share-title">Message for your agent</h2>
+    <p id="message" class="message"></p>
+    <button id="copy" type="button" class="secondary">Copy message</button>
+  </section>
   <footer>
-    <p>This page runs locally on your Mac.</p>
-    <details>
-      <summary>Why localhost?</summary>
-      <p>Your Regent agent opened this page to use a passkey on your Mac. The localhost address connects to your computer. This step protects or unlocks the agent’s key; your agent confirms account pairing separately.</p>
-      <a href="https://siwa.regents.sh/skill.md" target="_blank" rel="noopener noreferrer">Regents agent guide ↗</a>
-    </details>
+    <p class="why"><strong>Why localhost?</strong> This page runs on your Mac, not on a website. The secret that unlocks your agent’s key never leaves this computer, so no website ever holds it.</p>
+    <p><a href="https://patchbay.help" target="_blank" rel="noopener noreferrer">Questions? Ask on patchbay.help ↗</a></p>
+    <p><a href="https://siwa.regents.sh/skill.md" target="_blank" rel="noopener noreferrer">Regents agent guide ↗</a></p>
   </footer>
 </div>
 <script>
@@ -967,6 +973,15 @@ document.title = words[0] + " · Regents";
 $("title").textContent = words[0];
 $("lead").textContent = words[1];
 $("address").textContent = setup.address;
+$("message").textContent = "I’m on the Regents Touch ID page you opened. Its address is localhost because it runs on my Mac, not on a website. Touch ID there protects your agent key (" + setup.address + ") with my fingerprint, and the secret that unlocks it never leaves this computer. It does not pair you with my account: once I’m done, run your client’s “me” command to check pairing. Agent guide: https://siwa.regents.sh/skill.md. Questions: https://patchbay.help";
+$("copy").onclick = async () => {
+  try {
+    await navigator.clipboard.writeText($("message").textContent);
+    $("copy").textContent = "✓ Copied";
+  } catch {
+    $("copy").textContent = "Couldn’t copy. Select the message and copy it.";
+  }
+};
 const hex = (bytes) => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, "0")).join("");
 const unhex = (text) => new Uint8Array(text.match(/../g).map((h) => parseInt(h, 16)));
 const random = (size) => crypto.getRandomValues(new Uint8Array(size));
