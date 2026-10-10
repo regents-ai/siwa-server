@@ -60,6 +60,28 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     assert %{"error" => %{"code" => "rate_limited"}} = json_response(conn, 429)
   end
 
+  test "a request without signed headers is told where to get the newest client", %{conn: conn} do
+    payload = %{
+      "method" => "GET",
+      "path" => "/api/agents/v1/me",
+      "headers" => %{
+        "x-agent-wallet-address" => @wallet_address,
+        "x-agent-chain-id" => Integer.to_string(@chain_id)
+      }
+    }
+
+    conn =
+      conn
+      |> put_req_header("x-siwa-audience", "regents")
+      |> json_post("/api/shared/siwa/http-verify", payload)
+
+    assert %{"error" => %{"code" => "http_headers_missing", "hint" => hint}} =
+             json_response(conn, 401)
+
+    assert hint =~ "curl -fsSO https://siwa.regents.sh/agent/siwa_agent.py"
+    assert hint =~ "uv tool upgrade regents-cli"
+  end
+
   test "public SIWA endpoints reject oversized JSON bodies", %{conn: conn} do
     body = Jason.encode!(%{"message" => String.duplicate("x", 70_000)})
 
