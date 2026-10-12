@@ -64,6 +64,8 @@ defmodule SiwaServer.MixProject do
       {:telemetry_metrics_prometheus_core, "~> 1.2"},
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.2"},
+      # 3.1.1 has the EEF-CVE-2026-97853 advisory in Decimal.round/3.
+      {:decimal, "== 3.1.2"},
       {:ex_keccak, "~> 0.7.8"},
       {:ex_secp256k1, "~> 0.8.0"},
       {:dns_cluster, "~> 0.2.0"},
