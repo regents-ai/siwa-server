@@ -28,6 +28,19 @@ kill_timeout = "5s"
   min_machines_running = 1
   processes = ["app"]
 
+# Fly's check reaches the machine over plain HTTP. It asks as localhost, which
+# force_ssl in config/prod.exs answers instead of redirecting.
+[[http_service.checks]]
+  grace_period = "30s"
+  interval = "10s"
+  method = "GET"
+  path = "/healthz"
+  protocol = "http"
+  timeout = "2s"
+
+  [http_service.checks.headers]
+    Host = "localhost"
+
 [[mounts]]
   source = "siwa_data"
   destination = "/data"
