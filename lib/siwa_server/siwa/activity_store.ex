@@ -1,8 +1,12 @@
 defmodule SiwaServer.Siwa.ActivityStore do
   @moduledoc """
-  What each wallet's verified requests were: the audience, method, path
-  without its query, and when the request was verified. Nothing else about a
-  request is kept. Entries last 30 days.
+  How much each wallet's agent was verified at each site on each day: one line
+  per wallet, audience and UTC day, with the number of verified requests and
+  when the first and the last of them was verified. Nothing else about a
+  request is kept. Lines last 30 days.
+
+  The lines say what arrived for a wallet at a site. Nothing grants, refuses or
+  limits on them.
   """
 
   import Ecto.Query
@@ -10,24 +14,36 @@ defmodule SiwaServer.Siwa.ActivityStore do
   alias SiwaServer.Repo
 
   @kept_days 30
-  @page_size 20
   @default_cleanup_limit 1_000
 
-  @spec record(String.t(), String.t(), String.t(), String.t()) :: :ok | {:error, term()}
-  def record(wallet_address, audience, method, path) do
+  # `synchronous_commit` is set for the transaction this statement runs in. Run on
+  # its own, as its one caller does, that is this one statement and nothing else on
+  # the connection. Never call `record/2` from inside a transaction that writes
+  # anything else: the setting would last to that transaction's end and cover those
+  # writes too.
+  #
+  # "off" answers before the database's disk has confirmed the count. A database
+  # crash can then lose the counts written since the disk last confirmed (about
+  # 600 ms normally, the whole pause while the disk is pausing). A lost count
+  # changes no decision anywhere, so a verification never waits on the disk for it.
+  @spec record(String.t(), String.t()) :: :ok | {:error, term()}
+  def record(wallet_address, audience) do
     case Repo.query(
            """
-           INSERT INTO siwa_request_activity (id, wallet_address, audience, method, path, occurred_at)
-           VALUES ($1, $2, $3, $4, $5, $6)
+           WITH commit_mode AS (
+             SELECT set_config('synchronous_commit', 'off', true)
+           ), seen AS (
+             SELECT clock_timestamp() AT TIME ZONE 'UTC' AS at FROM commit_mode
+           )
+           INSERT INTO siwa_agent_daily_activity
+             (wallet_address, audience, day, accepted, first_seen_at, last_seen_at)
+           SELECT $1, $2, seen.at::date, 1, seen.at, seen.at
+           FROM seen
+           ON CONFLICT (wallet_address, audience, day) DO UPDATE
+           SET accepted = siwa_agent_daily_activity.accepted + 1,
+               last_seen_at = GREATEST(siwa_agent_daily_activity.last_seen_at, EXCLUDED.last_seen_at)
            """,
-           [
-             Ecto.UUID.generate() |> Ecto.UUID.dump!(),
-             String.downcase(wallet_address),
-             audience,
-             String.upcase(method),
-             path |> String.split("?", parts: 2) |> hd(),
-             DateTime.utc_now()
-           ],
+           [String.downcase(wallet_address), audience],
            log: false
          ) do
       {:ok, _result} -> :ok
@@ -36,73 +52,38 @@ defmodule SiwaServer.Siwa.ActivityStore do
   end
 
   @doc """
-  One page of the wallet's entries at or after `since`, newest first, and the
-  cursor for the next page, or nil when this page is the last. `start` is the
-  cursor a previous page returned, or nil for the first page.
+  The wallet's lines whose last verified request was at or after `since`, newest
+  day first. At most 30 days for each site, so they are read in one answer.
   """
-  @spec page(String.t(), DateTime.t(), String.t() | nil) ::
-          {:ok, [map()], String.t() | nil} | :error
-  def page(wallet_address, since, start) do
-    with {:ok, query} <- after_cursor(entries(wallet_address, since), start) do
-      rows = Repo.all(from(entry in query, limit: @page_size + 1))
-      {page, rest} = Enum.split(rows, @page_size)
-      next = if rest == [], do: nil, else: page |> List.last() |> cursor()
-      {:ok, Enum.map(page, &Map.delete(&1, :id)), next}
-    end
-  end
-
-  defp entries(wallet_address, since) do
-    from(entry in "siwa_request_activity",
-      where:
-        entry.wallet_address == ^String.downcase(wallet_address) and
-          entry.occurred_at >= ^since and
-          entry.occurred_at > ^kept_since(DateTime.utc_now()),
-      order_by: [desc: entry.occurred_at, desc: entry.id],
-      select: %{
-        id: type(entry.id, :binary_id),
-        audience: entry.audience,
-        method: entry.method,
-        path: entry.path,
-        occurred_at: type(entry.occurred_at, :utc_datetime_usec)
-      }
+  @spec days(String.t(), DateTime.t()) :: [map()]
+  def days(wallet_address, since) do
+    Repo.all(
+      from(line in "siwa_agent_daily_activity",
+        where:
+          line.wallet_address == ^String.downcase(wallet_address) and
+            line.last_seen_at >= ^since and
+            line.day > ^kept_since(DateTime.utc_now()),
+        order_by: [desc: line.day, asc: line.audience],
+        select: %{
+          audience: line.audience,
+          day: line.day,
+          accepted: line.accepted,
+          first_seen_at: type(line.first_seen_at, :utc_datetime_usec),
+          last_seen_at: type(line.last_seen_at, :utc_datetime_usec)
+        }
+      )
     )
   end
-
-  defp after_cursor(query, nil), do: {:ok, query}
-
-  defp after_cursor(query, cursor) do
-    with {:ok, text} <- Base.url_decode64(cursor, padding: false),
-         [at, id] <- String.split(text, "~"),
-         {:ok, at, 0} <- DateTime.from_iso8601(at),
-         {:ok, id} <- Ecto.UUID.dump(id) do
-      {:ok,
-       from(entry in query,
-         where:
-           fragment(
-             "(?, ?) < (?, ?)",
-             entry.occurred_at,
-             entry.id,
-             type(^at, :utc_datetime_usec),
-             ^id
-           )
-       )}
-    else
-      _invalid -> :error
-    end
-  end
-
-  defp cursor(%{occurred_at: at, id: id}),
-    do: Base.url_encode64(DateTime.to_iso8601(at) <> "~" <> id, padding: false)
 
   def cleanup_expired(now \\ DateTime.utc_now(), limit \\ @default_cleanup_limit) do
     case Repo.query(
            """
-           DELETE FROM siwa_request_activity
-           WHERE id IN (
-             SELECT id
-             FROM siwa_request_activity
-             WHERE occurred_at <= $1
-             ORDER BY occurred_at
+           DELETE FROM siwa_agent_daily_activity
+           WHERE (wallet_address, audience, day) IN (
+             SELECT wallet_address, audience, day
+             FROM siwa_agent_daily_activity
+             WHERE day <= $1
+             ORDER BY day
              LIMIT $2
            )
            """,
@@ -114,5 +95,28 @@ defmodule SiwaServer.Siwa.ActivityStore do
     end
   end
 
-  defp kept_since(now), do: DateTime.add(now, -@kept_days, :day)
+  # The one-line-per-request record this module kept before the daily lines.
+  # Nothing writes or reads it any more; its rows still leave after 30 days,
+  # until the table itself is dropped.
+  def cleanup_expired_requests(now \\ DateTime.utc_now(), limit \\ @default_cleanup_limit) do
+    case Repo.query(
+           """
+           DELETE FROM siwa_request_activity
+           WHERE id IN (
+             SELECT id
+             FROM siwa_request_activity
+             WHERE occurred_at <= $1
+             ORDER BY occurred_at
+             LIMIT $2
+           )
+           """,
+           [DateTime.add(now, -@kept_days, :day), limit],
+           log: false
+         ) do
+      {:ok, %{num_rows: count}} -> {:ok, count}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp kept_since(now), do: now |> DateTime.add(-@kept_days, :day) |> DateTime.to_date()
 end

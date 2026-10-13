@@ -83,18 +83,23 @@ defmodule SiwaServerWeb.Telemetry do
         tags: [:reader],
         description: "Activity reads by the site whose key was presented, or refused"
       ),
+      counter("siwa_server.siwa.activity.count.failures.total",
+        event_name: [:siwa_server, :siwa, :activity, :count_failed],
+        measurement: fn _measurements, _metadata -> 1 end,
+        description: "Verified requests whose daily count could not be written"
+      ),
       counter("siwa_server.siwa.cleanup.runs.total",
         event_name: [:siwa_server, :siwa, :cleanup],
         measurement: fn _measurements, _metadata -> 1 end,
         tags: [:result],
         description: "The total number of SIWA cleanup runs"
       ),
-      counter("siwa_server.siwa.cleanup.nonces.deleted.total",
+      sum("siwa_server.siwa.cleanup.nonces.deleted.total",
         event_name: [:siwa_server, :siwa, :cleanup],
         measurement: :nonce_count,
         description: "The total number of expired SIWA nonces removed"
       ),
-      counter("siwa_server.siwa.cleanup.replays.deleted.total",
+      sum("siwa_server.siwa.cleanup.replays.deleted.total",
         event_name: [:siwa_server, :siwa, :cleanup],
         measurement: :replay_count,
         description: "The total number of expired SIWA replay records removed"

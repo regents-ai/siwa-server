@@ -293,15 +293,15 @@ paths:
   /api/shared/siwa/activity:
     post:
       operationId: readSharedSiwaActivity
-      summary: Read one wallet's recent verified requests across Regents sites
+      summary: Read how much one wallet's agent was verified at each Regents site each day
       description: >-
-        Returns the requests that /api/shared/siwa/http-verify verified for the
-        wallet over the last 30 days, newest first, 20 at a time. next is the
-        cursor for the following 20: send it back as after, and stop when next is
-        null. Each entry
-        names the audience, method, path without its query and the time of
-        verification. Request bodies, headers, receipts and signatures are never
-        kept. agentRegistration is the wallet's newest agent registry listing made
+        Returns one line for each site and UTC day on which
+        /api/shared/siwa/http-verify verified a request for the wallet over the
+        last 30 days, newest day first. Each line names the audience, the day,
+        how many requests were verified, and when the first and the last of them
+        was verified. The lines say what arrived for the wallet at a site.
+        Methods, paths, request bodies, headers, receipts and signatures are
+        never kept. agentRegistration is the wallet's newest agent registry listing made
         through this server, or null, the same as http-verify returns. agentBook is
         the World ID-verified person the wallet accepted, for good, or null, the
         same as http-verify returns.
@@ -1699,11 +1699,7 @@ components:
         since:
           type: string
           format: date-time
-          description: Only requests verified at or after this time are returned.
-        after:
-          type: string
-          minLength: 1
-          description: The next cursor from the previous page. Leave it out for the first page.
+          description: Only days whose last verified request was at or after this time are returned.
     SiwaActivityResponse:
       type: object
       additionalProperties: false
@@ -1712,19 +1708,12 @@ components:
         data:
           type: object
           additionalProperties: false
-          required: [activity, next, agentRegistration, agentBook]
+          required: [days, agentRegistration, agentBook]
           properties:
-            activity:
+            days:
               type: array
-              maxItems: 20
               items:
-                $ref: "#/components/schemas/SiwaActivityEntry"
-            next:
-              description: The cursor for the following 20 requests, or null when there are no more.
-              oneOf:
-                - type: string
-                  minLength: 1
-                - type: "null"
+                $ref: "#/components/schemas/SiwaActivityDay"
             agentRegistration:
               description: The wallet's newest listing in the Base agent registry made through this server, or null.
               oneOf:
@@ -1735,21 +1724,26 @@ components:
               oneOf:
                 - $ref: "#/components/schemas/AgentBookHuman"
                 - type: "null"
-    SiwaActivityEntry:
+    SiwaActivityDay:
       type: object
       additionalProperties: false
-      required: [audience, method, path, occurred_at]
+      required: [audience, day, accepted, first_seen_at, last_seen_at]
       properties:
         audience:
           type: string
           minLength: 1
-        method:
+        day:
           type: string
-          minLength: 1
-        path:
+          format: date
+          description: The UTC day.
+        accepted:
+          type: integer
+          minimum: 1
+          description: How many requests were verified for the wallet at this site on this day.
+        first_seen_at:
           type: string
-          pattern: "^/[^?]*$"
-        occurred_at:
+          format: date-time
+        last_seen_at:
           type: string
           format: date-time
     ErrorEnvelope:

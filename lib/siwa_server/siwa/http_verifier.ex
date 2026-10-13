@@ -16,7 +16,8 @@ defmodule SiwaServer.Siwa.HttpVerifier do
       request had a body, and
     * single use of the signature via `SiwaServer.Siwa.ReplayStore`.
 
-  Each verified request is then recorded by `SiwaServer.Siwa.ActivityStore`,
+  Each verified request is then counted by `SiwaServer.Siwa.ActivityStore` (a
+  count that cannot be written never refuses the request),
   and the answer names the agent's registry entry when it registered one
   through this server (see `SiwaServer.AgentRegistration`), and the person
   World's AgentBook last named behind the wallet (see `SiwaServer.AgentBook`).
@@ -45,8 +46,8 @@ defmodule SiwaServer.Siwa.HttpVerifier do
              signature_tolerance_seconds: RuntimeConfig.siwa_http_signature_tolerance_seconds(),
              replay_store: &ReplayStore.consume/2,
              chain_rpcs: Ethereum.chain_rpcs()
-           ),
-         :ok <- record_activity(verified.claims, Keyword.get(opts, :audience), method, path) do
+           ) do
+      record_activity(verified.claims, Keyword.get(opts, :audience))
       claims = verified.claims
 
       {:ok,
@@ -141,10 +142,11 @@ defmodule SiwaServer.Siwa.HttpVerifier do
 
   defp receipt_secret, do: RuntimeConfig.siwa_receipt_secret()
 
-  defp record_activity(claims, audience, method, path) do
-    case ActivityStore.record(claims["sub"], audience, method, path) do
-      :ok -> :ok
-      {:error, _reason} -> {:error, {500, "activity_record_failed", "could not record request"}}
+  # The count decides nothing, so a count that cannot be written never refuses a
+  # verified request. It is counted as a failure instead.
+  defp record_activity(claims, audience) do
+    with {:error, _reason} <- ActivityStore.record(claims["sub"], audience) do
+      :telemetry.execute([:siwa_server, :siwa, :activity, :count_failed], %{}, %{})
     end
   end
 

@@ -335,14 +335,8 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     assert response["data"]["agentBook"] == %{"humanId" => human_id, "agentCount" => 1}
     assert http_verify(request, "patchbay") |> json_response(409)
 
-    assert [
-             %{
-               audience: "patchbay",
-               method: "POST",
-               path: "/api/agent/payment-intents",
-               occurred_at: %DateTime{}
-             }
-           ] = activity(signer.address)
+    assert [%{audience: "patchbay", accepted: 1, first_seen_at: seen, last_seen_at: seen}] =
+             ActivityStore.days(signer.address, DateTime.add(DateTime.utc_now(), -60))
   end
 
   test "durable replay store refuses already expired entries even after cleanup" do
@@ -384,11 +378,4 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
       |> put_req_header("content-type", "application/json")
       |> put_req_header("x-siwa-audience", audience)
       |> post("/api/shared/siwa/http-verify", Jason.encode!(params))
-
-  defp activity(wallet_address) do
-    {:ok, entries, nil} =
-      ActivityStore.page(wallet_address, DateTime.add(DateTime.utc_now(), -60), nil)
-
-    entries
-  end
 end

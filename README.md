@@ -146,7 +146,7 @@ must fail closed. The SIWA library and the service tests cover these cases.
 | `SIWA_RECEIPT_TTL_SECONDS` | `3600` | How long a receipt stays valid. |
 | `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS` | `300` | Clock skew allowed on a signed HTTP request. |
 | `SIWA_WALLET_ORIGINS` | unset | Approved `audience=origin` pairs for wallet sign-in, comma separated. Unset disables it. |
-| `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Expired nonce, replay and activity rows removed per sweep, once a minute. |
+| `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Expired nonce, replay and activity rows removed per batch. A sweep runs once a minute and repeats batches until one comes back short, at most 20 for each kind. |
 | `KEYSTORE_BACKEND` | `encrypted_file` | Key store backend. `encrypted_file` is the only accepted value; anything else stops the boot. |
 | `KEYSTORE_PATH` | `/data/siwa-server-keystore.bin` | Where the encrypted key store lives. |
 
@@ -263,7 +263,9 @@ disk to confirm it, so a verification is not held up when that disk pauses. The
 cost: if the database crashes, the uses recorded since the disk last confirmed can
 be lost. That is about 600 ms normally and as long as the pause while the disk is
 pausing (pauses of up to about 7 seconds have been measured). A request used in
-that time could be accepted once more before its 120 second life ends. Nonces,
+that time could be accepted once more before its 120 second life ends. The day's
+count of verified requests is written the same way; a lost count changes no
+decision, and a count that cannot be written never refuses the request. Nonces,
 keyring requests and every other write wait for the disk.
 
 ### Optional agent registry listing

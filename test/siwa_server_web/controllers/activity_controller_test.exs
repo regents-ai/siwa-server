@@ -11,12 +11,13 @@ defmodule SiwaServerWeb.ActivityControllerTest do
   @token "siwa-test-regents-activity-read-key-01"
   @patchbay_token "siwa-test-patchbay-activity-read-key-1"
 
-  test "a Regents site reads one wallet's verified requests, newest first" do
-    :ok = ActivityStore.record(@wallet, "regents", "get", "/api/agents/v1/me")
-    :ok = ActivityStore.record(@wallet, "autolaunch", "POST", "/v1/agent/launches?draft=1")
-    :ok = ActivityStore.record(@other, "techtree", "POST", "/v1/runs")
+  test "a Regents site reads one wallet's verified requests as one line per site and day" do
+    :ok = ActivityStore.record(@wallet, "regents")
+    :ok = ActivityStore.record(@wallet, "regents")
+    :ok = ActivityStore.record(@wallet, "autolaunch")
+    :ok = ActivityStore.record(@other, "techtree")
 
-    assert %{"activity" => activity, "agentRegistration" => nil, "agentBook" => nil} =
+    assert %{"days" => days, "agentRegistration" => nil, "agentBook" => nil} =
              read(%{
                "wallet_address" => String.upcase(@wallet) |> String.replace("0X", "0x"),
                "since" => an_hour_ago()
@@ -24,13 +25,21 @@ defmodule SiwaServerWeb.ActivityControllerTest do
              |> json_response(200)
              |> Map.fetch!("data")
 
-    assert [
-             %{"audience" => "autolaunch", "method" => "POST", "path" => "/v1/agent/launches"},
-             %{"audience" => "regents", "method" => "GET", "path" => "/api/agents/v1/me"}
-           ] = activity
+    today = Date.to_iso8601(Date.utc_today())
 
-    assert Enum.all?(activity, &(Map.keys(&1) == ~w(audience method occurred_at path)))
-    assert {:ok, _at, 0} = DateTime.from_iso8601(hd(activity)["occurred_at"])
+    assert [
+             %{"audience" => "autolaunch", "day" => ^today, "accepted" => 1},
+             %{"audience" => "regents", "day" => ^today, "accepted" => 2} = regents
+           ] = days
+
+    assert Enum.all?(
+             days,
+             &(Map.keys(&1) == ~w(accepted audience day first_seen_at last_seen_at))
+           )
+
+    assert {:ok, first, 0} = DateTime.from_iso8601(regents["first_seen_at"])
+    assert {:ok, last, 0} = DateTime.from_iso8601(regents["last_seen_at"])
+    assert DateTime.compare(first, last) == :lt
   end
 
   test "names the wallet's agent registry listing so the site can link to it" do
@@ -68,27 +77,11 @@ defmodule SiwaServerWeb.ActivityControllerTest do
              |> get_in(["data", "agentBook"])
   end
 
-  test "reads 20 at a time, newest first, and the next cursor reads the rest" do
-    for n <- 1..25, do: :ok = ActivityStore.record(@wallet, "regents", "GET", "/r/#{n}")
-
-    assert %{"activity" => first, "next" => next} =
-             read(%{"wallet_address" => @wallet, "since" => an_hour_ago()})
-             |> json_response(200)
-             |> Map.fetch!("data")
-
-    assert %{"activity" => rest, "next" => nil} =
-             read(%{"wallet_address" => @wallet, "since" => an_hour_ago(), "after" => next})
-             |> json_response(200)
-             |> Map.fetch!("data")
-
-    assert Enum.map(first ++ rest, & &1["path"]) == Enum.map(25..1//-1, &"/r/#{&1}")
-  end
-
-  test "only requests at or after since are read" do
-    :ok = ActivityStore.record(@wallet, "regents", "GET", "/api/agents/v1/me")
+  test "only days with a request at or after since are read" do
+    :ok = ActivityStore.record(@wallet, "regents")
     later = DateTime.utc_now() |> DateTime.add(1) |> DateTime.to_iso8601()
 
-    assert %{"data" => %{"activity" => []}} =
+    assert %{"data" => %{"days" => []}} =
              read(%{"wallet_address" => @wallet, "since" => later}) |> json_response(200)
   end
 
@@ -120,21 +113,19 @@ defmodule SiwaServerWeb.ActivityControllerTest do
           %{"wallet_address" => "0x12", "since" => an_hour_ago()},
           %{"wallet_address" => @wallet, "since" => "yesterday"},
           %{"wallet_address" => @wallet},
-          %{"wallet_address" => @wallet, "since" => an_hour_ago(), "limit" => 5},
-          %{"wallet_address" => @wallet, "since" => an_hour_ago(), "after" => "not-a-cursor"},
-          %{"wallet_address" => @wallet, "since" => an_hour_ago(), "after" => nil}
+          %{"wallet_address" => @wallet, "since" => an_hour_ago(), "limit" => 5}
         ] do
       assert %{"error" => %{"code" => "invalid_activity_request"}} =
                read(body) |> json_response(400)
     end
   end
 
-  test "cleanup removes entries older than 30 days" do
-    :ok = ActivityStore.record(@wallet, "regents", "GET", "/api/agents/v1/me")
+  test "cleanup removes days older than 30 days" do
+    :ok = ActivityStore.record(@wallet, "regents")
 
     assert {:ok, 0} = ActivityStore.cleanup_expired(DateTime.utc_now())
     assert {:ok, 1} = ActivityStore.cleanup_expired(DateTime.add(DateTime.utc_now(), 31, :day))
-    assert ActivityStore.page(@wallet, ~U[2026-01-01 00:00:00Z], nil) == {:ok, [], nil}
+    assert ActivityStore.days(@wallet, ~U[2026-01-01 00:00:00Z]) == []
   end
 
   defp an_hour_ago, do: DateTime.utc_now() |> DateTime.add(-3_600) |> DateTime.to_iso8601()

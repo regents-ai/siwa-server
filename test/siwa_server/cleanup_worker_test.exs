@@ -22,7 +22,7 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
     assert replay_count("active-replay") == 1
   end
 
-  test "uses the configured batch size for each cleanup run" do
+  test "repeats batches of the configured size until none are left" do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     insert_nonce!("expired-nonce-1", DateTime.add(now, -60, :second))
@@ -30,10 +30,10 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
     insert_replay!("expired-replay-1", DateTime.add(now, -60, :second))
     insert_replay!("expired-replay-2", DateTime.add(now, -30, :second))
 
-    assert {:ok, %{nonce_count: 1, replay_count: 1}} = CleanupWorker.cleanup_once(now, 1)
+    assert {:ok, %{nonce_count: 2, replay_count: 2}} = CleanupWorker.cleanup_once(now, 1)
 
-    assert nonce_count("expired-nonce-1") + nonce_count("expired-nonce-2") == 1
-    assert replay_count("expired-replay-1") + replay_count("expired-replay-2") == 1
+    assert nonce_count("expired-nonce-1") + nonce_count("expired-nonce-2") == 0
+    assert replay_count("expired-replay-1") + replay_count("expired-replay-2") == 0
   end
 
   test "emits cleanup telemetry counts" do
