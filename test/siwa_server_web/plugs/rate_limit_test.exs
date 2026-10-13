@@ -90,6 +90,19 @@ defmodule SiwaServerWeb.Plugs.RateLimitTest do
     assert conn.status == 429
   end
 
+  # Sean SIWA-ADDRESS-TEST a (13 Oct 2026)
+  test "outside production a Fly-Client-IP header is ignored and the direct peer decides" do
+    from_peer_claiming = fn address ->
+      {1, 2, 3, 4} |> unfetched_conn() |> Plug.Conn.put_req_header("fly-client-ip", address)
+    end
+
+    assert %Plug.Conn{halted: false} = call(from_peer_claiming.("203.0.113.7"), :siwa_nonce)
+    assert %Plug.Conn{halted: false} = call(from_peer_claiming.("203.0.113.8"), :siwa_nonce)
+
+    assert %Plug.Conn{halted: true, status: 429} =
+             call(from_peer_claiming.("203.0.113.9"), :siwa_nonce)
+  end
+
   # Sean SIWA-LIMITER-TEST a (13 Oct 2026)
   test "a key of any length is kept at a fixed size and still counted as its own key" do
     long = String.duplicate("a", 60_000)
