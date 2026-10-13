@@ -23,7 +23,7 @@ defmodule SiwaServer.RateLimiter do
         allow_during_missing_table(name, now)
 
       table ->
-        check_table(table, name, key, bucket, expires_at, limit, window_ms, now)
+        check_table(table, name, digest(key), bucket, expires_at, limit, window_ms, now)
     end
   end
 
@@ -110,6 +110,10 @@ defmodule SiwaServer.RateLimiter do
   end
 
   defp limiter_key_class(name), do: name
+
+  # A key is built from what the caller sent, before anything is proven, so it
+  # is stored at a fixed size however long the caller made it.
+  defp digest(key), do: :crypto.hash(:sha256, key)
 
   defp table_exists?, do: :ets.whereis(@table) != :undefined
   defp schedule_cleanup, do: Process.send_after(self(), :cleanup, @cleanup_interval_ms)
