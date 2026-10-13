@@ -15,7 +15,7 @@ Pick how you sign, once:
 Then, for any Regent site:
 
     uv run siwa_agent.py sites
-    uv run siwa_agent.py pair https://regents.sh CODE --name Astra --harness claude_code
+    uv run siwa_agent.py pair https://regents.sh < ~/pair.json  # {"code": "...", "name": "Astra", "harness": "claude_code"}
     uv run siwa_agent.py me https://regents.sh
     uv run siwa_agent.py request POST https://keyfleet.ai/api/v1/agent/join/status --body '{"name":"Astra"}'
 
@@ -73,7 +73,7 @@ SIGNER_TIMEOUT_SECONDS = 300
 PASSKEY_WAIT_SECONDS = 300
 HELPER_ANSWER_SECONDS = 10
 HELPER_START_SECONDS = 10
-USER_AGENT = "siwa-agent-client/2.9 (python)"
+USER_AGENT = "siwa-agent-client/2.10 (python)"
 # BEGIN SIWA CONTRACT
 # Contract 53180b0986ba37fe13685d1a9fb0345605e926b5e6367d8d485174f524716060, written by `mix siwa_server.agent_clients` from the siwa library; do not edit.
 SIWA_CONTRACT = json.loads(
@@ -1661,8 +1661,24 @@ def command_sign_in(config: dict, args: argparse.Namespace) -> None:
     print(json.dumps({"address": key["address"], "site": receipt["audience"], "until": receipt["receipt_expires_at"]}))
 
 
+PAIRING_SHAPE = '{"code": "...", "name": "...", "harness": "..."}'
+
+
+def read_pairing() -> dict:
+    """The pairing arrives as JSON on stdin, so the one-time code stays out of shell history and the process list."""
+    if sys.stdin.isatty():
+        raise SiwaError(f"pair reads {PAIRING_SHAPE} on stdin: uv run siwa_agent.py pair <site> < ~/pair.json")
+    try:
+        pairing = json.loads(sys.stdin.read())
+    except json.JSONDecodeError as error:
+        raise SiwaError(f"pair reads {PAIRING_SHAPE} on stdin, and that was not JSON: {error}") from None
+    if not (isinstance(pairing, dict) and set(pairing) == {"code", "name", "harness"} and all(isinstance(v, str) and v for v in pairing.values())):
+        raise SiwaError(f"pair reads exactly {PAIRING_SHAPE} on stdin, each a non-empty string")
+    return pairing
+
+
 def command_pair(config: dict, args: argparse.Namespace) -> None:
-    body = json_body({"code": args.code, "name": args.name, "harness": args.harness})
+    body = json_body(read_pairing())
     print_response(*send_signed(config, "POST", site_url(args.site, "/api/agents/v1/pair"), body))
 
 
@@ -1800,11 +1816,8 @@ def main(argv: list[str]) -> None:
     sign_in_parser.add_argument("site", help="the site's address, for example https://keyfleet.ai")
     sign_in_parser.set_defaults(run=command_sign_in)
 
-    pair = commands.add_parser("pair", help="pair with your person's account using their one-time code")
+    pair = commands.add_parser("pair", help=f"pair with your person's account: reads {PAIRING_SHAPE} on stdin")
     pair.add_argument("site")
-    pair.add_argument("code")
-    pair.add_argument("--name", required=True, help="the name your person knows you by")
-    pair.add_argument("--harness", required=True, help="what you run on, for example claude_code, codex, hermes, muse")
     pair.set_defaults(run=command_pair)
 
     me = commands.add_parser("me", help="check in and see which account you are paired with")

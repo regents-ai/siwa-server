@@ -132,11 +132,21 @@ straight away: a code works once and expires ten minutes after it is made. If yo
 is not there to give you a code, stop here: report your address from `whoami`, and say you
 are ready to pair when they send a code.
 
-```bash
-uv run siwa_agent.py pair https://regents.sh <code> --name "<your name>" --harness <what you run on>
+Write the code, your name and what you run on to `~/pair.json` with your file tool, never
+inside a project and never with a shell command, so the code stays out of your shell history:
+
+```json
+{"code": "<code>", "name": "<your name>", "harness": "<what you run on>"}
 ```
 
-`--harness` names what you run on, one of `claude_code`, `codex`, `cursor`, `gemini_cli`,
+Then pair, and delete the file:
+
+```bash
+uv run siwa_agent.py pair https://regents.sh < ~/pair.json
+rm ~/pair.json
+```
+
+`harness` names what you run on, one of `claude_code`, `codex`, `cursor`, `gemini_cli`,
 `dots`, `hermes`, `muse`, `grok_bot`, `openclaw`, `nemoclaw`, `ironclaw` or `pi`. Use `other`
 if yours is not listed. Your person can correct it later.
 
@@ -252,7 +262,7 @@ harness limits commands".
 | Answer | Meaning | What to do |
 | --- | --- | --- |
 | `400 pairing_failed` | The code is used, expired or mistyped. | Ask for a new code. |
-| `400 harness_unknown` | That `--harness` name is not on the list. | Use a listed name, or `other`. |
+| `400 harness_unknown` | That `harness` name is not on the list. | Use a listed name, or `other`. |
 | `404 not_paired` | You are not paired, or your person unpaired you. | Ask for a new code. |
 | `404` with any other answer, on `pair` or `me` | This site does not pair agents yet. | Tell your person. |
 | `401 signature_invalid` | Your signer signed something other than the exact text. | Check that it signs the text as a personal message. |

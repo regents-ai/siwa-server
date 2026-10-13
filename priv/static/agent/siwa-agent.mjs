@@ -9,7 +9,7 @@
 //
 // Then, for any Regent site:
 //   node siwa-agent.mjs sites
-//   node siwa-agent.mjs pair https://regents.sh CODE --name Astra --harness claude_code
+//   node siwa-agent.mjs pair https://regents.sh < ~/pair.json  # {"code": "...", "name": "Astra", "harness": "claude_code"}
 //   node siwa-agent.mjs me https://regents.sh
 //   node siwa-agent.mjs request POST https://keyfleet.ai/api/v1/agent/join/status --body '{"name":"Astra"}'
 //
@@ -266,7 +266,7 @@ const SIWA_CONTRACT = {
   ]
 };
 // END SIWA CONTRACT
-const USER_AGENT = "siwa-agent-client/2.9 (node)";
+const USER_AGENT = "siwa-agent-client/2.10 (node)";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const SIGNATURE_PATTERN = /0x[0-9a-fA-F]{130,}/g;
 const BOX_INFO = "agent key box";
@@ -1482,6 +1482,23 @@ function takeFlag(args, name) {
   return true;
 }
 
+const PAIRING_SHAPE = '{"code": "...", "name": "...", "harness": "..."}';
+
+// The pairing arrives as JSON on stdin, so the one-time code stays out of shell history and the process list.
+function readPairing() {
+  if (process.stdin.isTTY) throw new SiwaError(`pair reads ${PAIRING_SHAPE} on stdin: node siwa-agent.mjs pair <site> < ~/pair.json`);
+  let pairing;
+  try {
+    pairing = JSON.parse(readFileSync(0, "utf8"));
+  } catch (error) {
+    throw new SiwaError(`pair reads ${PAIRING_SHAPE} on stdin, and that was not JSON: ${error.message}`);
+  }
+  const keys = pairing && typeof pairing === "object" && !Array.isArray(pairing) ? Object.keys(pairing).sort() : [];
+  const exact = keys.join(",") === "code,harness,name" && keys.every((key) => typeof pairing[key] === "string" && pairing[key] !== "");
+  if (!exact) throw new SiwaError(`pair reads exactly ${PAIRING_SHAPE} on stdin, each a non-empty string`);
+  return pairing;
+}
+
 function required(value, usage) {
   if (value === undefined) throw new SiwaError(`usage: ${usage}`);
   return value;
@@ -1776,11 +1793,8 @@ async function main(argv) {
       return console.log(JSON.stringify({ address: key.address, site: receipt.audience, until: receipt.receipt_expires_at }));
     }
     case "pair": {
-      const usage = "pair <site> <code> --name NAME --harness HARNESS";
-      const name = required(takeOption(args, "--name"), usage);
-      const harness = required(takeOption(args, "--harness"), usage);
-      const site = required(args[0], usage);
-      const code = required(args[1], usage);
+      const site = required(args[0], "pair <site> < pair.json");
+      const { code, name, harness } = readPairing();
       const body = Buffer.from(JSON.stringify({ code, name, harness }), "utf8");
       return printResponse(await sendSigned(config, "POST", `${originOf(site)}/api/agents/v1/pair`, body));
     }
@@ -1804,7 +1818,7 @@ async function main(argv) {
     }
     default:
       throw new SiwaError(
-        "commands: keygen [--force], lock-key, show-key, use-wallet <address> --signer <command> [--chain base|ethereum], whoami, sites, sign-in <site>, pair <site> <code> --name NAME --harness HARNESS, me <site>, request <method> <url>, headers <method> <url>, register-agent --name NAME --description TEXT [--image URL] [--tx-hash HASH], accept-world-id [--human-id NUMBER]",
+        "commands: keygen [--force], lock-key, show-key, use-wallet <address> --signer <command> [--chain base|ethereum], whoami, sites, sign-in <site>, pair <site> < pair.json, me <site>, request <method> <url>, headers <method> <url>, register-agent --name NAME --description TEXT [--image URL] [--tx-hash HASH], accept-world-id [--human-id NUMBER]",
       );
   }
 }
