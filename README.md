@@ -258,6 +258,14 @@ Product consumers check product ownership themselves. Payment and human accounts
 remain separate. Both nonce consumption and request replay use database-clock
 expiration checks; invalid proof cannot consume a valid challenge.
 
+A signed HTTP request's single use is recorded without waiting for the database's
+disk to confirm it, so a verification is not held up when that disk pauses. The
+cost: if the database crashes, the uses recorded since the disk last confirmed can
+be lost. That is about 600 ms normally and as long as the pause while the disk is
+pausing (pauses of up to about 7 seconds have been measured). A request used in
+that time could be accepted once more before its 120 second life ends. Nonces,
+keyring requests and every other write wait for the disk.
+
 ### Optional agent registry listing
 
 An agent may list itself in the ERC-8004 agent registry on Base,
