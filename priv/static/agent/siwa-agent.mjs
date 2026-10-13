@@ -1490,8 +1490,9 @@ function readPairing() {
   let pairing;
   try {
     pairing = JSON.parse(readFileSync(0, "utf8"));
-  } catch (error) {
-    throw new SiwaError(`pair reads ${PAIRING_SHAPE} on stdin, and that was not JSON: ${error.message}`);
+  } catch {
+    // Node's parse error quotes the input, which may be the code itself, so it is never shown.
+    throw new SiwaError(`pair reads ${PAIRING_SHAPE} on stdin, and that was not JSON`);
   }
   const keys = pairing && typeof pairing === "object" && !Array.isArray(pairing) ? Object.keys(pairing).sort() : [];
   const exact = keys.join(",") === "code,harness,name" && keys.every((key) => typeof pairing[key] === "string" && pairing[key] !== "");
