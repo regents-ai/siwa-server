@@ -90,6 +90,21 @@ defmodule SiwaServerWeb.Plugs.RateLimitTest do
     assert conn.status == 429
   end
 
+  # Sean SIWA-LIMITER-TEST a (13 Oct 2026)
+  test "a key of any length is kept at a fixed size and still counted as its own key" do
+    long = String.duplicate("a", 60_000)
+
+    assert :ok = RateLimiter.check(:siwa_nonce, long, 1, 60_000)
+    assert {:error, _retry_after_ms} = RateLimiter.check(:siwa_nonce, long, 1, 60_000)
+    assert :ok = RateLimiter.check(:siwa_nonce, long <> "b", 1, 60_000)
+
+    sizes =
+      for {{:siwa_nonce, key, _bucket}, _count, _expires_at} <- :ets.tab2list(RateLimiter),
+          do: byte_size(key)
+
+    assert sizes == [32, 32]
+  end
+
   test "missing limiter table allows requests, emits telemetry, and does not create a caller-owned table" do
     attach_fail_open_handler()
 
