@@ -39,6 +39,9 @@ config :siwa_server, SiwaServerWeb.Endpoint,
 
 config :siwa_server, SiwaServerWeb.Telemetry, prometheus_reporter: :siwa_server_prometheus
 
+# Rate limits key on the direct peer. Production turns on Fly's client header.
+config :siwa_server, :behind_fly_proxy, false
+
 # Metrics have a listener of their own (SiwaServerWeb.Metrics), on loopback locally.
 config :siwa_server, :metrics_listener, ip: {127, 0, 0, 1}, port: 0
 

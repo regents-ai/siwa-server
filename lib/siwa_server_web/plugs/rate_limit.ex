@@ -7,7 +7,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   @behaviour Plug
 
   alias SiwaServer.RateLimiter
-  alias SiwaServerWeb.{ErrorJSON, Help}
+  alias SiwaServerWeb.{ClientAddress, ErrorJSON, Help}
 
   @defaults %{
     siwa_nonce: [limit: 60, window_ms: 60_000],
@@ -105,8 +105,10 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   defp normalize_part(value) when is_integer(value), do: Integer.to_string(value)
   defp normalize_part(_value), do: "unknown"
 
-  defp client_ip(%Plug.Conn{remote_ip: remote_ip}) do
-    remote_ip
+  defp client_ip(conn) do
+    {address, _source} = ClientAddress.key(conn)
+
+    address
     |> :inet.ntoa()
     |> to_string()
   end

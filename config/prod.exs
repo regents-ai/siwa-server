@@ -12,6 +12,9 @@ config :siwa_server, SiwaServerWeb.Endpoint,
     ]
   ]
 
+# Every request reaches production through Fly's proxy, which sets Fly-Client-IP.
+config :siwa_server, :behind_fly_proxy, true
+
 # The private port fly.toml names under [metrics]; Fly routes no public traffic to it.
 config :siwa_server, :metrics_listener, ip: {0, 0, 0, 0, 0, 0, 0, 0}, port: 9091
 
