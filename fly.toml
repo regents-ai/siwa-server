@@ -28,6 +28,14 @@ kill_timeout = "5s"
   min_machines_running = 1
   processes = ["app"]
 
+  # At most 25 open connections reach the machine at once; Fly holds the rest.
+  # A 64 KB body can still cost a few MB to decode, so 25 at once is about
+  # 100 MB, well inside the 512 MB machine.
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
 # Fly's check reaches the machine over plain HTTP. It asks as localhost, which
 # force_ssl in config/prod.exs answers instead of redirecting.
 [[http_service.checks]]
