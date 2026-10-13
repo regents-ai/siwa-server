@@ -41,7 +41,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => signed_headers(receipt, body, created, expires),
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
 
     assert message =~ "expired"
@@ -58,7 +58,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => signed_headers(receipt, body, created, expires),
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
 
     assert message =~ "too old"
@@ -80,7 +80,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
 
     assert message =~ "does not match"
@@ -118,7 +118,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => Map.put(headers, "x-siwa-signature", smart_wallet_signature()),
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
   end
 
@@ -127,7 +127,12 @@ defmodule SiwaServer.HttpVerifierTest do
     body = Jason.encode!(%{"summary" => "Lookup failure", "details" => "retry works"})
     created = System.os_time(:second)
     headers = signed_headers(receipt, body, created, created + 120)
-    request = %{"method" => "POST", "path" => "/v1/agent/bug-report", "body" => body}
+
+    request = %{
+      "method" => "POST",
+      "path" => "/v1/agent/bug-report",
+      "body_digest" => Siwa.content_digest_for_body(body)
+    }
 
     System.put_env("BASE_RPC_URL", TestRpcServer.rpc_error())
 
@@ -155,7 +160,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => bad_headers,
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
 
     assert message =~ "string headers"
@@ -176,7 +181,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
 
     assert message =~ "x-agent-chain-id"
@@ -197,7 +202,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
 
     assert message =~ "string headers"
@@ -215,7 +220,7 @@ defmodule SiwaServer.HttpVerifierTest do
                  "method" => "POST",
                  "path" => "/v1/agent/bug-report",
                  "headers" => signed_headers(receipt, body, created, expires),
-                 "body" => body
+                 "body_digest" => Siwa.content_digest_for_body(body)
                },
                audience: "patchbay"
              )
@@ -241,7 +246,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => signed_headers(receipt, body, created, expires),
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
 
     assert message =~ "not configured"
@@ -261,7 +266,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report?status=closed&limit=25",
                "headers" => headers,
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
 
     assert {:ok, _payload} =
@@ -269,7 +274,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => signed_path,
                "headers" => headers,
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
   end
 
@@ -285,7 +290,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
 
     replay_key =
@@ -311,7 +316,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
   end
 
@@ -328,7 +333,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => Map.put(headers, "x-siwa-signature", bad_signature),
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
 
     assert {:ok, _payload} =
@@ -336,7 +341,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
   end
 
@@ -351,7 +356,7 @@ defmodule SiwaServer.HttpVerifierTest do
       "method" => "POST",
       "path" => "/v1/agent/bug-report",
       "headers" => headers,
-      "body" => body
+      "body_digest" => Siwa.content_digest_for_body(body)
     }
 
     results =
@@ -389,7 +394,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => signed_headers(receipt, body, created, expires, %{}, components),
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
 
     assert message =~ "x-siwa-signature-input"
@@ -428,7 +433,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
 
     assert message =~ "x-siwa-signature-input"
@@ -455,7 +460,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => signed_headers(receipt, body, created, expires, %{}, components),
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
 
     assert message =~ "covered components"
@@ -477,7 +482,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
 
     assert message =~ "x-siwa-signature-input"
@@ -499,7 +504,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
 
     assert message =~ "x-siwa-signature header"
@@ -526,7 +531,7 @@ defmodule SiwaServer.HttpVerifierTest do
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => headers,
-               "body" => body
+               "body_digest" => Siwa.content_digest_for_body(body)
              })
 
     assert message =~ "signature does not match"

@@ -7,22 +7,22 @@ defmodule SiwaServerWeb.AgentSiwaRequest.HttpVerify do
 
   alias SiwaServerWeb.AgentSiwaRequest
 
-  @fields [:method, :path, :headers, :body]
-  @required @fields -- [:body]
+  @fields [:method, :path, :headers, :body_digest]
+  @required @fields -- [:body_digest]
 
   @primary_key false
   embedded_schema do
     field :method, :string
     field :path, :string
     field :headers, :map
-    field :body, :string
+    field :body_digest, :string
   end
 
   @type t :: %__MODULE__{
           method: String.t(),
           path: String.t(),
           headers: %{String.t() => String.t()},
-          body: String.t() | nil
+          body_digest: String.t() | nil
         }
 
   def changeset(params) do

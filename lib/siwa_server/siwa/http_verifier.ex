@@ -4,14 +4,16 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   their wallet.
 
   `verify/2` validates the request shape (method, absolute path, string
-  headers, optional body), then delegates to
+  headers, and the optional `body_digest` the site worked out from the body it
+  read; the body itself never comes here), then delegates to
   `Siwa.RequestAuth.verify_authenticated_request/2`, which checks:
 
     * the wallet receipt issued by `SiwaServer.Siwa.Wallet.verify/1`
       (signature, expiry, and audience binding),
     * the HTTP message signature over the covered components, within the
       configured timestamp tolerance,
-    * the content-digest binding when a body is present, and
+    * that the signed content-digest is the site's body digest when the
+      request had a body, and
     * single use of the signature via `SiwaServer.Siwa.ReplayStore`.
 
   Each verified request is then recorded by `SiwaServer.Siwa.ActivityStore`,
@@ -31,12 +33,12 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   def verify(params, opts \\ []) when is_map(params) do
     with {:ok, method} <- required_string(params, "method"),
          {:ok, path} <- required_path(params, "path"),
-         {:ok, body} <- optional_body(params, "body"),
+         {:ok, body_digest} <- optional_string(params, "body_digest"),
          {:ok, headers} <- required_header_map(params, "headers"),
          {:ok, secret} <- receipt_secret(),
          {:ok, verified} <-
            Siwa.RequestAuth.verify_authenticated_request(
-             %{method: method, path: path, headers: headers, body: body},
+             %{method: method, path: path, headers: headers, body_digest: body_digest},
              receipt_secret: secret,
              audience: Keyword.get(opts, :audience),
              wallet_audiences: Map.keys(RuntimeConfig.siwa_wallet_origins()),
@@ -57,9 +59,9 @@ defmodule SiwaServer.Siwa.HttpVerifier do
            "keyId" => claims["key_id"],
            "verificationMethod" => Atom.to_string(verified.verification_method),
            "receiptExpiresAt" => unix_ms_to_iso8601(claims["exp"]),
-           "requiredHeaders" => Siwa.required_authenticated_request_headers(body),
+           "requiredHeaders" => Siwa.required_authenticated_request_headers(body_digest),
            "requiredCoveredComponents" =>
-             Siwa.required_authenticated_request_components(headers, body),
+             Siwa.required_authenticated_request_components(headers, body_digest),
            "coveredComponents" => verified.covered_components,
            "agentRegistration" => AgentRegistration.latest(claims["sub"]),
            "agentBook" => AgentBook.human(claims["sub"]),
@@ -94,10 +96,10 @@ defmodule SiwaServer.Siwa.HttpVerifier do
     end
   end
 
-  defp optional_body(params, key) do
+  defp optional_string(params, key) do
     case Map.get(params, key) do
       nil -> {:ok, nil}
-      body when is_binary(body) -> {:ok, body}
+      value when is_binary(value) -> {:ok, value}
       _value -> {:error, {"invalid_#{key}", "#{key} must be a string when present"}}
     end
   end

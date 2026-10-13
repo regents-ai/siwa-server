@@ -1236,7 +1236,8 @@ components:
           type: object
           additionalProperties:
             type: string
-        body:
+        body_digest:
+          description: The content-digest of the body the site read (sha-256=:<base64>:), sent only when the request had a body. The body itself is never sent.
           type: string
       additionalProperties: false
     AgentProfileFields:

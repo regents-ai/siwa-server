@@ -302,10 +302,14 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
       "method" => signed.method,
       "path" => signed.path,
       "headers" => signed.headers,
-      "body" => signed.body
+      "body_digest" => Siwa.content_digest_for_body(signed.body)
     }
 
-    assert http_verify(%{request | "body" => "{ }"}, "patchbay") |> json_response(401)
+    assert http_verify(
+             %{request | "body_digest" => Siwa.content_digest_for_body("{ }")},
+             "patchbay"
+           )
+           |> json_response(401)
 
     assert %{"hint" => hint} =
              http_verify(request, "techtree") |> json_response(401) |> Map.fetch!("error")

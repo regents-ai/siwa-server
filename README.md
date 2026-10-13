@@ -93,7 +93,8 @@ mix phx.server
 | `/regent-services-contract.openapiv3.yaml` | GET | The served shared services contract. |
 
 Sign-in has one path: the agent's wallet. A signed request binds the wallet, chain,
-audience and the request body when it has one.
+audience and the request body when it has one. A site checking a request sends
+`body_digest`, the content-digest of the body it read, and never the body itself.
 Protected request verification also expects the signed path to include the query string when
 one is present, and callers must send the app audience that owns the request.
 
