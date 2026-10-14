@@ -26,6 +26,10 @@ defmodule SiwaServer.RuntimeConfig do
 
   def siwa_receipt_ttl_seconds, do: fetch_siwa_integer(:receipt_ttl_seconds, 3_600)
 
+  # How long a site may check an agent's requests that read itself after this
+  # server verified one (`SiwaServer.Siwa.HttpVerifier`).
+  def siwa_lease_seconds, do: fetch_siwa_integer(:lease_seconds, 600)
+
   def siwa_http_signature_tolerance_seconds,
     do: fetch_integer("SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS", 300)
 

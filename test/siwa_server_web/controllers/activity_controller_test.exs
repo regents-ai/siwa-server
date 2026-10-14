@@ -12,10 +12,10 @@ defmodule SiwaServerWeb.ActivityControllerTest do
   @patchbay_token "siwa-test-patchbay-activity-read-key-1"
 
   test "a Regents site reads one wallet's verified requests as one line per site and day" do
-    :ok = ActivityStore.record(@wallet, "regents")
-    :ok = ActivityStore.record(@wallet, "regents")
-    :ok = ActivityStore.record(@wallet, "autolaunch")
-    :ok = ActivityStore.record(@other, "techtree")
+    :ok = ActivityStore.record(@wallet, "regents", true)
+    :ok = ActivityStore.record(@wallet, "regents", false)
+    :ok = ActivityStore.record(@wallet, "autolaunch", false)
+    :ok = ActivityStore.record(@other, "techtree", false)
 
     assert %{"days" => days, "agentRegistration" => nil, "agentBook" => nil} =
              read(%{
@@ -28,13 +28,13 @@ defmodule SiwaServerWeb.ActivityControllerTest do
     today = Date.to_iso8601(Date.utc_today())
 
     assert [
-             %{"audience" => "autolaunch", "day" => ^today, "accepted" => 1},
-             %{"audience" => "regents", "day" => ^today, "accepted" => 2} = regents
+             %{"audience" => "autolaunch", "day" => ^today, "accepted" => 1, "leases" => 0},
+             %{"audience" => "regents", "day" => ^today, "accepted" => 2, "leases" => 1} = regents
            ] = days
 
     assert Enum.all?(
              days,
-             &(Map.keys(&1) == ~w(accepted audience day first_seen_at last_seen_at))
+             &(Map.keys(&1) == ~w(accepted audience day first_seen_at last_seen_at leases))
            )
 
     assert {:ok, first, 0} = DateTime.from_iso8601(regents["first_seen_at"])
@@ -78,7 +78,7 @@ defmodule SiwaServerWeb.ActivityControllerTest do
   end
 
   test "only days with a request at or after since are read" do
-    :ok = ActivityStore.record(@wallet, "regents")
+    :ok = ActivityStore.record(@wallet, "regents", false)
     later = DateTime.utc_now() |> DateTime.add(1) |> DateTime.to_iso8601()
 
     assert %{"data" => %{"days" => []}} =
@@ -121,7 +121,7 @@ defmodule SiwaServerWeb.ActivityControllerTest do
   end
 
   test "cleanup removes days older than 30 days" do
-    :ok = ActivityStore.record(@wallet, "regents")
+    :ok = ActivityStore.record(@wallet, "regents", false)
 
     assert {:ok, 0} = ActivityStore.cleanup_expired(DateTime.utc_now())
     assert {:ok, 1} = ActivityStore.cleanup_expired(DateTime.add(DateTime.utc_now(), 31, :day))

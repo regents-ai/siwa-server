@@ -255,7 +255,16 @@ this server, or null. Sites link to `agentRegistration.registryUrl` when it is s
 It also returns `agentBook`: `{humanId, agentCount}` when the wallet accepted the World
 ID-verified person World's AgentBook named behind it, or null (see below).
 Product consumers check product ownership themselves. Payment and human accounts
-remain separate. Both nonce consumption and request replay use database-clock
+remain separate.
+
+A site asks for a lease (`"lease": true`) on a request that changes nothing and
+spends nothing. For a wallet that signed with its own key, the answer adds
+`leaseExpiresAt`: 10 minutes from now (`:siwa, :lease_seconds`), never past the
+receipt's expiry. Until then the site checks that agent's read-only requests under
+the same receipt itself with the shared `siwa` library and this server sees none of
+them; every request that writes or pays still comes here. A smart wallet never gets
+a lease. The activity read counts, for each site and day, the verified requests and
+how many of them began a lease. Both nonce consumption and request replay use database-clock
 expiration checks; invalid proof cannot consume a valid challenge.
 
 A signed HTTP request's single use is recorded without waiting for the database's

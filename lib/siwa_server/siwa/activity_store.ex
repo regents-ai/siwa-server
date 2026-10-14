@@ -1,9 +1,11 @@
 defmodule SiwaServer.Siwa.ActivityStore do
   @moduledoc """
   How much each wallet's agent was verified at each site on each day: one line
-  per wallet, audience and UTC day, with the number of verified requests and
-  when the first and the last of them was verified. Nothing else about a
-  request is kept. Lines last 30 days.
+  per wallet, audience and UTC day, with the number of verified requests, how
+  many of them began a lease (`SiwaServer.Siwa.HttpVerifier`), and when the
+  first and the last of them was verified. Reads a site checks itself on a lease
+  never reach this server, so they are not counted. Nothing else about a request
+  is kept. Lines last 30 days.
 
   The lines say what arrived for a wallet at a site. Nothing grants, refuses or
   limits on them.
@@ -26,8 +28,8 @@ defmodule SiwaServer.Siwa.ActivityStore do
   # crash can then lose the counts written since the disk last confirmed (about
   # 600 ms normally, the whole pause while the disk is pausing). A lost count
   # changes no decision anywhere, so a verification never waits on the disk for it.
-  @spec record(String.t(), String.t()) :: :ok | {:error, term()}
-  def record(wallet_address, audience) do
+  @spec record(String.t(), String.t(), boolean()) :: :ok | {:error, term()}
+  def record(wallet_address, audience, lease?) do
     case Repo.query(
            """
            WITH commit_mode AS (
@@ -36,14 +38,15 @@ defmodule SiwaServer.Siwa.ActivityStore do
              SELECT clock_timestamp() AT TIME ZONE 'UTC' AS at FROM commit_mode
            )
            INSERT INTO siwa_agent_daily_activity
-             (wallet_address, audience, day, accepted, first_seen_at, last_seen_at)
-           SELECT $1, $2, seen.at::date, 1, seen.at, seen.at
+             (wallet_address, audience, day, accepted, leases, first_seen_at, last_seen_at)
+           SELECT $1, $2, seen.at::date, 1, $3, seen.at, seen.at
            FROM seen
            ON CONFLICT (wallet_address, audience, day) DO UPDATE
            SET accepted = siwa_agent_daily_activity.accepted + 1,
+               leases = siwa_agent_daily_activity.leases + EXCLUDED.leases,
                last_seen_at = GREATEST(siwa_agent_daily_activity.last_seen_at, EXCLUDED.last_seen_at)
            """,
-           [String.downcase(wallet_address), audience],
+           [String.downcase(wallet_address), audience, if(lease?, do: 1, else: 0)],
            log: false
          ) do
       {:ok, _result} -> :ok
@@ -68,6 +71,7 @@ defmodule SiwaServer.Siwa.ActivityStore do
           audience: line.audience,
           day: line.day,
           accepted: line.accepted,
+          leases: line.leases,
           first_seen_at: type(line.first_seen_at, :utc_datetime_usec),
           last_seen_at: type(line.last_seen_at, :utc_datetime_usec)
         }

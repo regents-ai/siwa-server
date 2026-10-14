@@ -298,8 +298,9 @@ paths:
         Returns one line for each site and UTC day on which
         /api/shared/siwa/http-verify verified a request for the wallet over the
         last 30 days, newest day first. Each line names the audience, the day,
-        how many requests were verified, and when the first and the last of them
-        was verified. The lines say what arrived for the wallet at a site.
+        how many requests were verified, how many of them began a lease, and when
+        the first and the last of them was verified. Reads a site checks itself
+        on a lease never reach this server and are not counted. The lines say what arrived for the wallet at a site.
         Methods, paths, request bodies, headers, receipts and signatures are
         never kept. agentRegistration is the wallet's newest agent registry listing made
         through this server, or null, the same as http-verify returns. agentBook is
@@ -1222,6 +1223,10 @@ components:
               type: array
               items:
                 type: string
+            leaseExpiresAt:
+              description: Sent only when the site asked for a lease and the wallet signed with its own key. Until then the site checks this agent's read-only requests under the same receipt itself. Never after receiptExpiresAt.
+              type: string
+              format: date-time
           additionalProperties: false
       additionalProperties: false
     SiwaHttpVerifyRequest:
@@ -1239,6 +1244,9 @@ components:
         body_digest:
           description: The content-digest of the body the site read (sha-256=:<base64>:), sent only when the request had a body. The body itself is never sent.
           type: string
+        lease:
+          description: True only on a request that changes nothing and spends nothing. Asks for a lease, answered with leaseExpiresAt when the wallet signed with its own key.
+          type: boolean
       additionalProperties: false
     AgentProfileFields:
       type: object
@@ -1727,7 +1735,7 @@ components:
     SiwaActivityDay:
       type: object
       additionalProperties: false
-      required: [audience, day, accepted, first_seen_at, last_seen_at]
+      required: [audience, day, accepted, leases, first_seen_at, last_seen_at]
       properties:
         audience:
           type: string
@@ -1740,6 +1748,10 @@ components:
           type: integer
           minimum: 1
           description: How many requests were verified for the wallet at this site on this day.
+        leases:
+          type: integer
+          minimum: 0
+          description: How many of those requests began a lease.
         first_seen_at:
           type: string
           format: date-time

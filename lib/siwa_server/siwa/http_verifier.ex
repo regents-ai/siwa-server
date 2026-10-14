@@ -22,6 +22,12 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   through this server (see `SiwaServer.AgentRegistration`), and the person
   World's AgentBook last named behind the wallet (see `SiwaServer.AgentBook`).
 
+  A site asks for a lease (`"lease": true`) on a request that reads. For a key's
+  signature the answer adds `leaseExpiresAt`, `RuntimeConfig.siwa_lease_seconds/0`
+  from now and never past the receipt's expiry; until then the site checks that
+  agent's reads under the same receipt itself, and this server sees none of them.
+  A smart wallet's signature never gets a lease.
+
   Library error reasons are mapped to stable client-facing status/code
   tuples by the shared contract's `refusals` (`Siwa.Contract.refusal/1`).
   """
@@ -47,32 +53,35 @@ defmodule SiwaServer.Siwa.HttpVerifier do
              replay_store: &ReplayStore.consume/2,
              chain_rpcs: Ethereum.chain_rpcs()
            ) do
-      record_activity(verified.claims, Keyword.get(opts, :audience))
       claims = verified.claims
+      lease_expires_at = lease_expires_at(params, verified)
+      record_activity(claims, Keyword.get(opts, :audience), lease_expires_at)
 
       {:ok,
        %{
          "code" => "http_envelope_valid",
-         "data" => %{
-           "verified" => true,
-           "walletAddress" => claims["sub"],
-           "chainId" => claims["chain_id"],
-           "keyId" => claims["key_id"],
-           "verificationMethod" => Atom.to_string(verified.verification_method),
-           "receiptExpiresAt" => unix_ms_to_iso8601(claims["exp"]),
-           "requiredHeaders" => Siwa.required_authenticated_request_headers(body_digest),
-           "requiredCoveredComponents" =>
-             Siwa.required_authenticated_request_components(headers, body_digest),
-           "coveredComponents" => verified.covered_components,
-           "agentRegistration" => AgentRegistration.latest(claims["sub"]),
-           "agentBook" => AgentBook.human(claims["sub"]),
-           "principal" => %{
-             "kind" => "wallet",
-             "wallet_address" => claims["sub"],
-             "chain_id" => claims["chain_id"],
-             "audience" => claims["aud"]
+         "data" =>
+           %{
+             "verified" => true,
+             "walletAddress" => claims["sub"],
+             "chainId" => claims["chain_id"],
+             "keyId" => claims["key_id"],
+             "verificationMethod" => Atom.to_string(verified.verification_method),
+             "receiptExpiresAt" => unix_ms_to_iso8601(claims["exp"]),
+             "requiredHeaders" => Siwa.required_authenticated_request_headers(body_digest),
+             "requiredCoveredComponents" =>
+               Siwa.required_authenticated_request_components(headers, body_digest),
+             "coveredComponents" => verified.covered_components,
+             "agentRegistration" => AgentRegistration.latest(claims["sub"]),
+             "agentBook" => AgentBook.human(claims["sub"]),
+             "principal" => %{
+               "kind" => "wallet",
+               "wallet_address" => claims["sub"],
+               "chain_id" => claims["chain_id"],
+               "audience" => claims["aud"]
+             }
            }
-         }
+           |> put_lease(lease_expires_at)
        }}
     else
       {:error, {code, message}} -> {:error, {400, code, message}}
@@ -144,8 +153,24 @@ defmodule SiwaServer.Siwa.HttpVerifier do
 
   # The count decides nothing, so a count that cannot be written never refuses a
   # verified request. It is counted as a failure instead.
-  defp record_activity(claims, audience) do
-    with {:error, _reason} <- ActivityStore.record(claims["sub"], audience) do
+  # A site asks for a lease only on a request that reads (`Siwa.AgentAuthPlug`'s
+  # `read_only: true`). Only a key's signature gets one: the site checks it
+  # itself with no chain to ask. A lease never outlasts the receipt.
+  defp lease_expires_at(%{"lease" => true}, %{verification_method: :eoa_recovery, claims: claims}) do
+    lease_ends = System.system_time(:millisecond) + RuntimeConfig.siwa_lease_seconds() * 1_000
+    min(lease_ends, claims["exp"])
+  end
+
+  defp lease_expires_at(_params, _verified), do: nil
+
+  defp put_lease(data, nil), do: data
+
+  defp put_lease(data, lease_expires_at),
+    do: Map.put(data, "leaseExpiresAt", unix_ms_to_iso8601(lease_expires_at))
+
+  defp record_activity(claims, audience, lease_expires_at) do
+    with {:error, _reason} <-
+           ActivityStore.record(claims["sub"], audience, not is_nil(lease_expires_at)) do
       :telemetry.execute([:siwa_server, :siwa, :activity, :count_failed], %{}, %{})
     end
   end
