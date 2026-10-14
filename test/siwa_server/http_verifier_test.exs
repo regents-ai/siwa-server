@@ -122,6 +122,54 @@ defmodule SiwaServer.HttpVerifierTest do
              })
   end
 
+  # A site checks reads on a lease itself, so a lease granted where it should not
+  # be, or past its receipt, is never seen again by this server.
+  test "only a key wallet that asks gets a lease, ten minutes and never past its receipt" do
+    lease = fn receipt, signature ->
+      body = Jason.encode!(%{"tool" => "get_updates"})
+      created = System.os_time(:second)
+      headers = signed_headers(receipt, body, created, created + 120)
+      headers = if signature, do: Map.put(headers, "x-siwa-signature", signature), else: headers
+
+      {:ok, %{"data" => data}} =
+        verify_http_request(%{
+          "method" => "POST",
+          "path" => "/v1/agent/bug-report",
+          "headers" => headers,
+          "body_digest" => Siwa.content_digest_for_body(body),
+          "lease" => true
+        })
+
+      {data["leaseExpiresAt"], data["receiptExpiresAt"]}
+    end
+
+    {lease_ends, _receipt_ends} = lease.(receipt(), nil)
+    {:ok, lease_ends, 0} = DateTime.from_iso8601(lease_ends)
+    assert DateTime.diff(lease_ends, DateTime.utc_now()) in 595..600
+
+    assert {same, same} = lease.(receipt("patchbay", 120_000), nil)
+
+    body = Jason.encode!(%{"tool" => "get_updates"})
+    created = System.os_time(:second)
+
+    assert {:ok, %{"data" => data}} =
+             verify_http_request(%{
+               "method" => "POST",
+               "path" => "/v1/agent/bug-report",
+               "headers" => signed_headers(receipt(), body, created, created + 120),
+               "body_digest" => Siwa.content_digest_for_body(body)
+             })
+
+    refute Map.has_key?(data, "leaseExpiresAt")
+
+    System.put_env(
+      "BASE_RPC_URL",
+      TestRpcServer.wallet_answers({true, TestRpcServer.erc1271_approval()})
+    )
+
+    assert {nil, _receipt_ends} = lease.(receipt(), smart_wallet_signature())
+  end
+
   test "a signed request Base cannot check answers 502 and leaves the request unused" do
     receipt = receipt()
     body = Jason.encode!(%{"summary" => "Lookup failure", "details" => "retry works"})
@@ -626,7 +674,7 @@ defmodule SiwaServer.HttpVerifierTest do
     assert results == List.duplicate({:ok, :eoa_recovery}, 20)
   end
 
-  defp receipt(audience \\ "patchbay") do
+  defp receipt(audience \\ "patchbay", ttl_ms \\ 3_600_000) do
     secret = :siwa_server |> Application.fetch_env!(:siwa) |> Keyword.fetch!(:receipt_secret)
 
     assert {:ok, receipt} =
@@ -642,7 +690,7 @@ defmodule SiwaServer.HttpVerifierTest do
                  "key_id" => @wallet_address
                },
                receipt_secret: secret,
-               ttl_ms: 3_600_000
+               ttl_ms: ttl_ms
              )
 
     receipt.token
