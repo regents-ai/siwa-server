@@ -12,6 +12,7 @@ defmodule SiwaServer.Config do
 
   @default_ethereum_rpc_timeout_ms 5_000
   @default_readiness_rpc_timeout_ms 1_000
+  @default_readiness_keep_ms 30_000
 
   @doc "SIWA settings (`:nonce_ttl_seconds`, `:receipt_ttl_seconds`, `:receipt_secret`, `:activity_readers`)."
   def siwa, do: Application.get_env(@app, :siwa, [])
@@ -32,6 +33,10 @@ defmodule SiwaServer.Config do
   @doc "Timeout for the Base RPC chain-id probe in the readiness check."
   def readiness_rpc_timeout_ms,
     do: Application.get_env(@app, :readiness_rpc_timeout_ms, @default_readiness_rpc_timeout_ms)
+
+  @doc "How long `/readyz` keeps one readiness answer before checking again."
+  def readiness_keep_ms,
+    do: Application.get_env(@app, :readiness_keep_ms, @default_readiness_keep_ms)
 
   @doc "Phoenix endpoint configuration keyword list."
   def endpoint, do: Application.get_env(@app, SiwaServerWeb.Endpoint, [])

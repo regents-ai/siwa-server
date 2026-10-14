@@ -89,7 +89,7 @@ mix phx.server
 | `/api/shared/siwa/agent-book/accept` | POST | Keep that person once the wallet has signed the message. |
 | `/agent-profiles/{profile_id}` | GET | A listed agent's public registration file. |
 | `/healthz` | GET | Liveness. |
-| `/readyz` | GET | Readiness. |
+| `/readyz` | GET | Readiness, checked at most once every 30 seconds; requests in between get the last answer. |
 | `/regent-services-contract.openapiv3.yaml` | GET | The served shared services contract. |
 
 Sign-in has one path: the agent's wallet. A signed request binds the wallet, chain,

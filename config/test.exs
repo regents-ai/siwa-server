@@ -37,6 +37,9 @@ config :siwa_server, :siwa,
 
 config :siwa_server, Oban, testing: :manual
 
+# Tests change the chain addresses between /readyz requests, so each one checks afresh.
+config :siwa_server, :readiness_keep_ms, 0
+
 config :siwa_keyring,
   backend: "encrypted_file",
   password: "siwa-server-test-password",
