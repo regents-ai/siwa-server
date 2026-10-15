@@ -164,8 +164,8 @@ mix precommit
 ```
 
 It compiles with warnings as errors, checks unused dependency locks and formatting, runs
-Sobelow, verifies the served services contract and the release packaging, holds the
-compile-connected `xref` graph at zero, and runs the test suite with warnings as errors. It
+Sobelow, verifies the served services contract, holds the compile-connected `xref` graph
+at zero, and runs the test suite with warnings as errors. It
 needs a local PostgreSQL, because the test alias creates and migrates a database first.
 
 ## Deployment
@@ -314,7 +314,15 @@ routes refuse a wallet that has accepted already (`409 agent_book_already_accept
 sites list a person's other agents on their own pages by `humanId`. Sites decide when
 to show `humanId`; the same person's agents share it. Sign-in never reads World Chain.
 
-For an isolated checkout, set `REGENT_ELIXIR_UTILS_ROOT` to a frozen `elixir-utils`
-export. `REGENT_RELEASE_CONTEXT` identifies the matching Docker input directory
-containing `elixir-utils/`; the packaging check validates actual dependency paths
-against that context. A passing packaging check is not a built or deployed image.
+The shared SIWA, keyring and chain packages come from one `elixir-utils` commit pinned
+in `mix.exs`, the way the template pins them. The image builds from this repository
+alone and Docker fetches that exact commit, so the shared commit must be on GitHub
+before a release.
+
+Hosted ChatGPT connections use the internal HMAC-protected
+`POST /api/shared/keyring/hosted` route. Registration reuses an encrypted signer by
+account key; signing accepts only approved identity probes, pairing, and free
+Patchbay questions and replies. It never exports keys or signs arbitrary messages or
+transactions. Products still verify each resulting request through http-verify and
+apply their own pairing and permissions. The hosted signers live beside the key store
+on its encrypted volume. A hosted connection creates no on-chain registry listing.

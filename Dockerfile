@@ -10,18 +10,16 @@ ENV MIX_ENV=prod
 
 RUN mix local.hex --force && mix local.rebar --force
 
-COPY siwa-server/mix.exs siwa-server/mix.lock ./
-COPY siwa-server/config config
-COPY elixir-utils/siwa/siwa-elixir/apps/siwa ../elixir-utils/siwa/siwa-elixir/apps/siwa
-COPY elixir-utils/siwa/siwa-elixir/apps/siwa_keyring ../elixir-utils/siwa/siwa-elixir/apps/siwa_keyring
-COPY elixir-utils/siwa/siwa-elixir/config ../elixir-utils/siwa/siwa-elixir/config
-COPY elixir-utils/siwa/siwa-elixir/mix.exs elixir-utils/siwa/siwa-elixir/mix.lock ../elixir-utils/siwa/siwa-elixir/
-COPY elixir-utils/chain ../elixir-utils/chain
-RUN mix deps.get --only prod
+# The build context is this repository. Shared Regent libraries arrive from
+# GitHub at the commits mix.lock pins; a mix.lock that no longer matches
+# mix.exs stops the build.
+COPY mix.exs mix.lock ./
+COPY config config
+RUN mix deps.get --only prod --check-locked
 RUN mix deps.compile
 
-COPY siwa-server/lib lib
-COPY siwa-server/priv priv
+COPY lib lib
+COPY priv priv
 
 RUN mix compile
 RUN mix release

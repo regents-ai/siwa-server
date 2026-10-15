@@ -36,8 +36,8 @@ defmodule SiwaServer.AgentClientsConformanceTest do
   setup_all do
     fixtures =
       Mix.Project.deps_paths()
-      |> Map.fetch!(:siwa)
-      |> Path.join("../../../contract/fixtures.json")
+      |> Map.fetch!(:siwa_contract)
+      |> Path.join("fixtures.json")
       |> File.read!()
       |> Jason.decode!()
 

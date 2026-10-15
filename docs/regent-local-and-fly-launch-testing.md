@@ -9,7 +9,7 @@ Use this mirror when you are working from `siwa-server/`.
 ## Local
 
 ```bash
-cd /Users/sean/Documents/regent/siwa-server
+cd /Users/sean/Documents/regent/repos/siwa-server
 direnv allow
 direnv exec . mix test
 direnv exec . mix precommit
@@ -60,14 +60,12 @@ direnv exec . bash -lc 'fly secrets set --app "$SIWA_FLY_APP" \
   SIWA_CLEANUP_BATCH_SIZE="$SIWA_CLEANUP_BATCH_SIZE"'
 ```
 
-Deploy from the workspace root because the Dockerfile copies `siwa-server/` and `elixir-utils/` from there. Pass the workspace root as the build directory; `fly.toml` keeps the Dockerfile path relative to `siwa-server/`.
+Deploy from this repository: the image builds from it alone and fetches the shared
+libraries from GitHub at the commits `mix.lock` pins.
 
 ```bash
-cd /Users/sean/Documents/regent
-fly deploy /Users/sean/Documents/regent \
-  --config /Users/sean/Documents/regent/siwa-server/fly.toml \
-  --app "$SIWA_FLY_APP" \
-  --remote-only
+cd /Users/sean/Documents/regent/repos/siwa-server
+fly deploy --app "$SIWA_FLY_APP" --remote-only
 curl -fsS "https://<siwa-host>/healthz"
 curl -fsS "https://<siwa-host>/regent-services-contract.openapiv3.yaml" >/tmp/regent-services-contract.openapiv3.yaml
 ```

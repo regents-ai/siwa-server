@@ -979,6 +979,69 @@ paths:
                 $ref: "#/components/schemas/SimpleError"
         "429":
           $ref: "#/components/responses/RateLimitError"
+  /api/shared/keyring/hosted:
+    post:
+      operationId: siwaHostedAgentRequest
+      tags: [internal]
+      description: >
+        Register the persistent signer for a Regents account connection, or sign
+        an allowlisted free participation request. Requires internal HMAC proof.
+        Does not expose keys or sign payments, transactions or arbitrary messages.
+      security:
+        - KeyringHmacTimestamp: []
+          KeyringHmacRequestId: []
+          KeyringHmacSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [operation, identity_key]
+              additionalProperties: false
+              properties:
+                operation:
+                  type: string
+                  enum: [register, sign]
+                identity_key:
+                  type: string
+                  pattern: '^[a-f0-9]{64}$'
+                  description: Server-derived stable account connection key; never a chat identifier.
+                audience:
+                  type: string
+                  enum: [patchbay, ash-template]
+                request:
+                  type: object
+                  required: [method, path]
+                  additionalProperties: false
+                  properties:
+                    method:
+                      type: string
+                      enum: [GET, POST]
+                    path:
+                      type: string
+                      enum: [/api/agents/v1/whoami, /api/agents/v1/pair, /chatgpt/agent/mcp]
+                    body:
+                      type: string
+                      maxLength: 32768
+                      description: Exact request bytes. MCP bodies permit ask_question and post_reply only.
+      responses:
+        "200":
+          description: Public signer address, or a signed envelope for the trusted calling service only.
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Internal HMAC authentication failed.
+        "413":
+          description: Request exceeds the bounded body size.
+        "415":
+          description: Unsupported content type.
+        "422":
+          description: Unsupported operation, unavailable identity or signing refused.
+        "429":
+          $ref: "#/components/responses/RateLimitError"
 components:
   securitySchemes:
     ActivityReadToken:

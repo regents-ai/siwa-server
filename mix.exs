@@ -1,6 +1,9 @@
 defmodule SiwaServer.MixProject do
   use Mix.Project
 
+  @elixir_utils "https://github.com/regents-ai/elixir-utils.git"
+  @elixir_utils_ref "6b55ae52408fa587545ca14813148d502603ae07"
+
   def project do
     [
       app: :siwa_server,
@@ -70,17 +73,26 @@ defmodule SiwaServer.MixProject do
       {:ex_secp256k1, "~> 0.8.0"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.13"},
-      {:siwa, path: Path.join(elixir_utils_root(), "siwa/siwa-elixir/apps/siwa"), override: true},
-      {:siwa_keyring, path: Path.join(elixir_utils_root(), "siwa/siwa-elixir/apps/siwa_keyring")},
-      {:regent_chain, path: Path.join(elixir_utils_root(), "chain")},
+      {:siwa,
+       git: @elixir_utils,
+       ref: @elixir_utils_ref,
+       sparse: "siwa/siwa-elixir/apps/siwa",
+       override: true},
+      {:siwa_keyring,
+       git: @elixir_utils, ref: @elixir_utils_ref, sparse: "siwa/siwa-elixir/apps/siwa_keyring"},
+      {:regent_chain, git: @elixir_utils, ref: @elixir_utils_ref, sparse: "chain"},
+      # The signing contract's shared fixtures, read by the agent client conformance test.
+      {:siwa_contract,
+       git: @elixir_utils,
+       ref: @elixir_utils_ref,
+       sparse: "siwa/contract",
+       app: false,
+       compile: false,
+       only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.16", only: [:dev, :test], runtime: false},
       {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
     ]
-  end
-
-  defp elixir_utils_root do
-    System.get_env("REGENT_ELIXIR_UTILS_ROOT") || "../elixir-utils"
   end
 
   # Aliases are shortcuts or tasks specific to the current project.
@@ -98,9 +110,6 @@ defmodule SiwaServer.MixProject do
       "check.services_contract": [
         "siwa_server.contract_check"
       ],
-      "check.release_packaging": [
-        "siwa_server.release_packaging_check"
-      ],
       "check.agent_clients": [
         "siwa_server.agent_clients --check"
       ],
@@ -112,7 +121,6 @@ defmodule SiwaServer.MixProject do
         "sobelow --exit --skip",
         "usage_rules.sync --check",
         "check.services_contract",
-        "check.release_packaging",
         "check.agent_clients",
         "xref graph --label compile-connected --fail-above 0",
         "test --warnings-as-errors"

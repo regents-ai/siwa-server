@@ -17,8 +17,7 @@ source_of_truth:
   runtime_contracts: []
   chain_contracts: []
 code_map: []
-local_path_dependencies:
-  - ../elixir-utils/siwa/siwa-elixir
+local_path_dependencies: []
 acceptance_commands:
   - cwd: siwa-server
     command: mix precommit

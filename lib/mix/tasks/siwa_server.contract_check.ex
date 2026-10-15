@@ -27,6 +27,7 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
       MapSet.new(~w(200 400 401 403 404 413 415 429 500)),
     {"POST", "/api/shared/siwa/wallet/verify"} =>
       MapSet.new(~w(200 400 401 403 404 413 415 429 500 502)),
+    {"POST", "/api/shared/keyring/hosted"} => MapSet.new(~w(200 401 413 415 422 429)),
     @keyring_health_route => MapSet.new(~w(200 429)),
     {"POST", "/api/shared/keyring/create-wallet"} => MapSet.new(~w(200 401 413 415 422 429)),
     {"POST", "/api/shared/keyring/has-wallet"} => MapSet.new(~w(200 401 413 415 422 429)),
@@ -199,7 +200,7 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
   defp keyring_routes do
     router_path =
       :siwa_keyring
-      |> path_dep!()
+      |> dependency_path!()
       |> Path.join("lib/siwa_keyring/router.ex")
 
     router_path
@@ -216,21 +217,11 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     end
   end
 
-  defp path_dep!(app) do
-    Mix.Project.config()
-    |> Keyword.fetch!(:deps)
-    |> Enum.find_value(fn
-      {^app, opts} when is_list(opts) ->
-        Keyword.get(opts, :path)
-
-      {^app, _requirement, opts} when is_list(opts) ->
-        Keyword.get(opts, :path)
-
-      _dep ->
-        nil
-    end)
+  defp dependency_path!(app) do
+    Mix.Project.deps_paths()
+    |> Map.get(app)
     |> case do
-      nil -> Mix.raise("missing local path dependency for #{app}")
+      nil -> Mix.raise("missing installed dependency for #{app}")
       path -> Path.expand(path, File.cwd!())
     end
   end

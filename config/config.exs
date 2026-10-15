@@ -46,6 +46,7 @@ config :siwa_server, :behind_fly_proxy, false
 config :siwa_server, :metrics_listener, ip: {127, 0, 0, 1}, port: 0
 
 config :siwa_keyring,
+  hosted_requests: SiwaServer.HostedRequests,
   backend: "encrypted_file",
   password: nil,
   path: "/tmp/siwa-server-keystore.bin",
