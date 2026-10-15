@@ -456,7 +456,7 @@ paths:
     post:
       operationId: createAgentBookChallenge
       tags: [auth]
-      description: Read the person World's AgentBook names behind the wallet now and issue a single-use message, valid for five minutes, for the wallet to sign to accept that person. A wallet accepts once: sites show the accepted person for good, whatever AgentBook names later.
+      description: "Read the person World's AgentBook names behind the wallet now and issue a single-use message, valid for five minutes, for the wallet to sign to accept that person. A wallet accepts once: sites show the accepted person for good, whatever AgentBook names later."
       requestBody:
         required: true
         content:
