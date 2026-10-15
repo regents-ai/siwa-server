@@ -15,8 +15,8 @@ defmodule SiwaServer.HttpVerifierTest do
       :siwa_server,
       :siwa,
       Keyword.put(previous_siwa, :wallet_origins, %{
-        "patchbay" => "https://patchbay.help",
-        "techtree" => "https://techtree.sh"
+        "patchbay" => ["https://patchbay.help"],
+        "techtree" => ["https://techtree.sh"]
       })
     )
 

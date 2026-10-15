@@ -226,7 +226,7 @@ defmodule SiwaServerWeb.Help do
 
   defp site_name(audience) do
     case RuntimeConfig.siwa_wallet_origins() do
-      %{^audience => origin} -> origin
+      %{^audience => [origin | _]} -> origin
       _closed -> audience
     end
   end
@@ -234,6 +234,7 @@ defmodule SiwaServerWeb.Help do
   defp open_sites do
     RuntimeConfig.siwa_wallet_origins()
     |> Map.values()
+    |> List.flatten()
     |> Enum.sort()
     |> Enum.join(", ")
   end

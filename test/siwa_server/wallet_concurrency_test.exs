@@ -13,7 +13,7 @@ defmodule SiwaServer.WalletConcurrencyTest do
     Application.put_env(
       :siwa_server,
       :siwa,
-      Keyword.put(previous, :wallet_origins, %{"patchbay" => "https://patchbay.help"})
+      Keyword.put(previous, :wallet_origins, %{"patchbay" => ["https://patchbay.help"]})
     )
 
     on_exit(fn -> Application.put_env(:siwa_server, :siwa, previous) end)

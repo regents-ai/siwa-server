@@ -77,7 +77,7 @@ paths:
     get:
       operationId: listSharedWalletSiwaAudiences
       tags: [auth]
-      description: List the sites an agent can sign in to with its own key, each with the origin that owns the audience. An agent matches the site it is calling to an origin here to learn which audience to sign in for.
+      description: List the sites an agent can sign in to with its own key, one row for each origin that signs in for an audience. An audience can have several origins. An agent matches the site it is calling to an origin here to learn which audience to sign in for.
       responses:
         "200":
           description: Audiences open to wallet sign-in

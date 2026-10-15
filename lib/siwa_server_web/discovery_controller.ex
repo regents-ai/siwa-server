@@ -41,7 +41,9 @@ defmodule SiwaServerWeb.DiscoveryController do
     audiences =
       SiwaServer.RuntimeConfig.siwa_wallet_origins()
       |> Enum.sort()
-      |> Enum.map(fn {audience, origin} -> %{"audience" => audience, "origin" => origin} end)
+      |> Enum.flat_map(fn {audience, origins} ->
+        Enum.map(origins, &%{"audience" => audience, "origin" => &1})
+      end)
 
     json(conn, %{"code" => "audiences", "data" => %{"audiences" => audiences}})
   end

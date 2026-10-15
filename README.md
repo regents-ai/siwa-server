@@ -145,7 +145,7 @@ must fail closed. The SIWA library and the service tests cover these cases.
 | `SIWA_NONCE_TTL_SECONDS` | `300` | How long an issued nonce stays valid. |
 | `SIWA_RECEIPT_TTL_SECONDS` | `3600` | How long a receipt stays valid. |
 | `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS` | `300` | Clock skew allowed on a signed HTTP request. |
-| `SIWA_WALLET_ORIGINS` | unset | Approved `audience=origin` pairs for wallet sign-in, comma separated. Unset disables it. |
+| `SIWA_WALLET_ORIGINS` | unset | Approved `audience=origin` pairs for wallet sign-in, comma separated; an audience may repeat with more origins. Unset disables it. |
 | `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Expired nonce, replay and activity rows removed per batch. A sweep runs once a minute and repeats batches until one comes back short, at most 20 for each kind. |
 | `KEYSTORE_BACKEND` | `encrypted_file` | Key store backend. `encrypted_file` is the only accepted value; anything else stops the boot. |
 | `KEYSTORE_PATH` | `/data/siwa-server-keystore.bin` | Where the encrypted key store lives. |
@@ -216,7 +216,9 @@ same read, so nothing is deployed. A failed lookup on Base answers 502
 
 `SIWA_WALLET_ORIGINS` lists the approved audiences and the HTTPS origin each one signs
 in from, as comma-separated `audience=origin` pairs, for example
-`patchbay=https://patchbay.help,keyfleet=https://keyfleet.example`. Leaving it empty
+`patchbay=https://patchbay.help,keyfleet=https://keyfleet.example`. An audience that
+signs in from several origins repeats, one entry per origin; its first origin is the one
+the challenge names, and no origin may belong to two audiences. Leaving it empty
 disables this flow for every audience. Callers never choose an origin; only this table
 does. The server binds the origin, audience, address, chain and expiry in the
 challenge. An origin change invalidates outstanding challenges. Rate limits use the

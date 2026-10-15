@@ -152,7 +152,7 @@ defmodule SiwaServer.Siwa.Wallet do
 
   defp enabled_origin(audience) do
     case Map.fetch(RuntimeConfig.siwa_wallet_origins(), audience) do
-      {:ok, origin} ->
+      {:ok, [origin | _]} ->
         {:ok, origin}
 
       :error ->

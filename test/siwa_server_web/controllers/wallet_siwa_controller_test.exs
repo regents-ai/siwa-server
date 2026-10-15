@@ -11,7 +11,7 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     Application.put_env(
       :siwa_server,
       :siwa,
-      Keyword.put(previous, :wallet_origins, %{"patchbay" => "https://patchbay.help"})
+      Keyword.put(previous, :wallet_origins, %{"patchbay" => ["https://patchbay.help"]})
     )
 
     previous_rpc_urls = Map.new(~w(BASE_RPC_URL ETHEREUM_RPC_URL), &{&1, System.get_env(&1)})
@@ -27,11 +27,29 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     end)
   end
 
-  test "lists the audiences open to wallet sign-in with their origins", %{conn: conn} do
+  test "lists the audiences open to wallet sign-in, one row for each origin", %{conn: conn} do
+    config = Application.fetch_env!(:siwa_server, :siwa)
+
+    Application.put_env(
+      :siwa_server,
+      :siwa,
+      Keyword.put(config, :wallet_origins, %{
+        "patchbay" => ["https://patchbay.help"],
+        "keyfleet" => ["https://keyfleet.ai", "https://regents-club.notebooks.keyfleet.ai"]
+      })
+    )
+
     assert %{
              "code" => "audiences",
              "data" => %{
-               "audiences" => [%{"audience" => "patchbay", "origin" => "https://patchbay.help"}]
+               "audiences" => [
+                 %{"audience" => "keyfleet", "origin" => "https://keyfleet.ai"},
+                 %{
+                   "audience" => "keyfleet",
+                   "origin" => "https://regents-club.notebooks.keyfleet.ai"
+                 },
+                 %{"audience" => "patchbay", "origin" => "https://patchbay.help"}
+               ]
              }
            } = json_response(get(conn, "/api/shared/siwa/audiences"), 200)
   end
@@ -268,7 +286,7 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     Application.put_env(
       :siwa_server,
       :siwa,
-      Keyword.put(config, :wallet_origins, %{"patchbay" => "https://new.patchbay.help"})
+      Keyword.put(config, :wallet_origins, %{"patchbay" => ["https://new.patchbay.help"]})
     )
 
     assert json_post("/api/shared/siwa/wallet/verify", proof(nonce)) |> json_response(401)
