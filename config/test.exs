@@ -33,6 +33,10 @@ config :siwa_server, :siwa,
   activity_readers: %{
     "regents" => "siwa-test-regents-activity-read-key-01",
     "patchbay" => "siwa-test-patchbay-activity-read-key-1"
+  },
+  hosted_signers: %{
+    "patchbay" => "siwa-test-patchbay-hosted-signing-key-1",
+    "ash-template" => "siwa-test-template-hosted-signing-key1"
   }
 
 config :siwa_server, Oban, testing: :manual

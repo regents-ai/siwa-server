@@ -176,7 +176,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/api/shared/siwa/agent-book/accept",
                "/agent-profiles/{profile_id}",
                "/api/shared/keyring/health",
-               "/api/shared/keyring/hosted",
+               "/api/shared/siwa/hosted",
                "/api/shared/keyring/create-wallet",
                "/api/shared/keyring/has-wallet",
                "/api/shared/keyring/get-address",

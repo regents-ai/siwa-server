@@ -1,47 +1,61 @@
 defmodule SiwaServer.HostedRequests do
   @moduledoc """
-  Internal, HMAC-gated signing for an account's persistent ChatGPT connection.
+  Signing for an account's persistent ChatGPT connection, asked for by a site
+  with its own hosted signing key (`SiwaServer.HostedSigners`).
 
-  Keys stay in the encrypted SIWA key store. This service signs only pairing,
-  identity probes and free Patchbay participation, never arbitrary messages,
-  transactions or payment requests. Products still verify every resulting
-  request through the ordinary SIWA verifier and apply their own permissions.
+  The calling site is the audience of everything signed, and each connection's
+  key belongs to the site that registered it: the stored signer is named from
+  the site and the site's connection key together, so one site cannot reach
+  another site's connections. Keys stay in the encrypted SIWA key store. This
+  service signs only pairing, identity probes and free Patchbay participation,
+  never arbitrary messages, transactions or payment requests. Products still
+  verify every resulting request through the ordinary SIWA verifier and apply
+  their own permissions.
   """
 
   alias SiwaServer.RuntimeConfig
   alias SiwaServer.Siwa.Wallet
 
-  def handle(%{"operation" => "register", "identity_key" => key} = params)
+  def handle(site, %{"operation" => "register", "identity_key" => key} = params)
       when map_size(params) == 2 do
-    SiwaKeyring.HostedIdentity.ensure(key)
+    with {:ok, identity} <- identity(site, key) do
+      SiwaKeyring.HostedIdentity.ensure(identity)
+    end
   end
 
   def handle(
-        %{
-          "operation" => "sign",
-          "identity_key" => key,
-          "audience" => audience,
-          "request" => request
-        } = params
+        site,
+        %{"operation" => "sign", "identity_key" => key, "request" => request} = params
       )
-      when map_size(params) == 4 do
-    with :ok <- allowed_request(audience, request),
-         {:ok, signer} <- SiwaKeyring.HostedIdentity.signer(key),
+      when map_size(params) == 3 do
+    with :ok <- allowed_request(site, request),
+         {:ok, identity} <- identity(site, key),
+         {:ok, signer} <- SiwaKeyring.HostedIdentity.signer(identity),
          {:ok, address} <- Siwa.RemoteSigner.get_address(signer),
-         {:ok, receipt} <- receipt(signer, address, audience),
+         {:ok, receipt} <- receipt(signer, address, site),
          {:ok, secret} <- RuntimeConfig.siwa_receipt_secret() do
       Siwa.sign_authenticated_request(
         %{method: request["method"], path: request["path"], body: request["body"], headers: %{}},
         receipt,
         signer,
         receipt_secret: secret,
-        audience: audience,
+        audience: site,
         wallet_audiences: Map.keys(RuntimeConfig.siwa_wallet_origins())
       )
     end
   end
 
-  def handle(_), do: {:error, :hosted_request_not_allowed}
+  def handle(_site, _params), do: {:error, :hosted_request_not_allowed}
+
+  defp identity(site, key) when is_binary(key) do
+    if Regex.match?(~r/\A[a-f0-9]{64}\z/, key) do
+      {:ok, :crypto.hash(:sha256, site <> "\n" <> key) |> Base.encode16(case: :lower)}
+    else
+      {:error, :hosted_request_not_allowed}
+    end
+  end
+
+  defp identity(_site, _key), do: {:error, :hosted_request_not_allowed}
 
   defp allowed_request(audience, %{"method" => "GET", "path" => "/api/agents/v1/whoami"} = r)
        when map_size(r) == 2 and audience in ["patchbay", "ash-template"],

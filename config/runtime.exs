@@ -121,6 +121,12 @@ config :siwa_server, SiwaServerWeb.Endpoint, http: [port: port]
 
 wallet_origins = SiwaServer.WalletOrigins.parse!(System.get_env("SIWA_WALLET_ORIGINS"))
 
+hosted_signers =
+  case env_value.("SIWA_HOSTED_SIGNERS", nil) do
+    nil -> Keyword.fetch!(current_siwa, :hosted_signers)
+    value -> SiwaServer.HostedSigners.parse!(value)
+  end
+
 config :siwa_server, :siwa,
   wallet_origins: wallet_origins,
   nonce_ttl_seconds:
@@ -131,7 +137,8 @@ config :siwa_server, :siwa,
       Keyword.get(current_siwa, :receipt_ttl_seconds, 3_600)
     ),
   receipt_secret: receipt_secret,
-  activity_readers: activity_readers
+  activity_readers: activity_readers,
+  hosted_signers: hosted_signers
 
 config :siwa_server, :siwa_cleanup,
   batch_size:

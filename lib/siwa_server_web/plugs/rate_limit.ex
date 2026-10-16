@@ -14,6 +14,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
     siwa_verify: [limit: 60, window_ms: 60_000],
     siwa_http_verify: [limit: 600, window_ms: 60_000],
     siwa_activity: [limit: 600, window_ms: 60_000],
+    siwa_hosted: [limit: 3_000, window_ms: 60_000],
     siwa_register: [limit: 60, window_ms: 60_000],
     agent_book: [limit: 60, window_ms: 60_000],
     agent_profile: [limit: 600, window_ms: 60_000],
@@ -67,6 +68,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   end
 
   defp client_key(conn, :siwa_activity), do: "activity:#{client_ip(conn)}"
+  defp client_key(conn, :siwa_hosted), do: "hosted:#{client_ip(conn)}"
   defp client_key(conn, :agent_profile), do: "agent-profile:#{client_ip(conn)}"
 
   defp client_key(conn, :keyring_internal) do

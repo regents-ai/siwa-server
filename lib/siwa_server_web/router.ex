@@ -12,6 +12,7 @@ defmodule SiwaServerWeb.Router do
         :siwa_verify,
         :siwa_http_verify,
         :siwa_activity,
+        :siwa_hosted,
         :siwa_register,
         :agent_book,
         :agent_profile
@@ -48,6 +49,11 @@ defmodule SiwaServerWeb.Router do
   scope "/api/shared/siwa", SiwaServerWeb do
     pipe_through :siwa_activity
     post "/activity", ActivityController, :read
+  end
+
+  scope "/api/shared/siwa", SiwaServerWeb do
+    pipe_through :siwa_hosted
+    post "/hosted", HostedController, :handle
   end
 
   scope "/api/shared/siwa/agent", SiwaServerWeb do

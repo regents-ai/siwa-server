@@ -20,6 +20,8 @@ defmodule SiwaServer.RuntimeConfig do
 
   def siwa_activity_readers, do: Keyword.fetch!(Config.siwa(), :activity_readers)
 
+  def siwa_hosted_signers, do: Keyword.fetch!(Config.siwa(), :hosted_signers)
+
   def siwa_wallet_origins, do: Keyword.get(Config.siwa(), :wallet_origins, %{})
 
   def siwa_nonce_ttl_seconds, do: fetch_siwa_integer(:nonce_ttl_seconds, 300)

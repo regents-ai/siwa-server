@@ -15,7 +15,8 @@ config :siwa_server, :siwa,
   nonce_ttl_seconds: 300,
   receipt_ttl_seconds: 3_600,
   receipt_secret: nil,
-  activity_readers: %{}
+  activity_readers: %{},
+  hosted_signers: %{}
 
 config :siwa_server, Oban,
   repo: SiwaServer.Repo,
@@ -46,7 +47,6 @@ config :siwa_server, :behind_fly_proxy, false
 config :siwa_server, :metrics_listener, ip: {127, 0, 0, 1}, port: 0
 
 config :siwa_keyring,
-  hosted_requests: SiwaServer.HostedRequests,
   backend: "encrypted_file",
   password: nil,
   path: "/tmp/siwa-server-keystore.bin",

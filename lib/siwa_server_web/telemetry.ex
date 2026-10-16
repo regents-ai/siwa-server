@@ -83,6 +83,12 @@ defmodule SiwaServerWeb.Telemetry do
         tags: [:reader],
         description: "Activity reads by the site whose key was presented, or refused"
       ),
+      counter("siwa_server.siwa.hosted.requests.total",
+        event_name: [:siwa_server, :siwa, :hosted, :request],
+        measurement: fn _measurements, _metadata -> 1 end,
+        tags: [:site],
+        description: "Hosted signing requests by the site whose key was presented, or refused"
+      ),
       counter("siwa_server.siwa.activity.count.failures.total",
         event_name: [:siwa_server, :siwa, :activity, :count_failed],
         measurement: fn _measurements, _metadata -> 1 end,

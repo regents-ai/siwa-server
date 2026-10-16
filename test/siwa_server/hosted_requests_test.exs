@@ -5,34 +5,6 @@ defmodule SiwaServer.HostedRequestsTest do
   alias SiwaServer.Siwa.HttpVerifier
   alias SiwaServerWeb.Endpoint
 
-  test "the hosted signer endpoint requires fresh one-use internal HMAC proof" do
-    path = "/api/shared/keyring/hosted"
-    body = Jason.encode!(%{operation: "register", identity_key: String.duplicate("a", 64)})
-    opts = SiwaKeyring.Router.init([])
-
-    request =
-      Plug.Test.conn(:post, path, body)
-      |> Plug.Conn.put_req_header("content-type", "application/json")
-
-    assert SiwaKeyring.Router.call(request, opts).status == 401
-
-    headers =
-      SiwaKeyring.Auth.compute_hmac(
-        Application.fetch_env!(:siwa_keyring, :secret),
-        "POST",
-        path,
-        body
-      )
-
-    signed =
-      Enum.reduce(headers, request, fn {key, value}, conn ->
-        Plug.Conn.put_req_header(conn, key, value)
-      end)
-
-    assert SiwaKeyring.Router.call(signed, opts).status == 200
-    assert SiwaKeyring.Router.call(signed, opts).status == 401
-  end
-
   setup do
     previous = Application.get_env(:siwa_keyring, :path)
     previous_siwa = Application.get_env(:siwa_server, :siwa)
@@ -42,7 +14,10 @@ defmodule SiwaServer.HostedRequestsTest do
     Application.put_env(
       :siwa_server,
       :siwa,
-      Keyword.put(previous_siwa, :wallet_origins, %{"patchbay" => "https://patchbay.help"})
+      Keyword.put(previous_siwa, :wallet_origins, %{
+        "patchbay" => ["https://patchbay.help"],
+        "ash-template" => ["https://template.regents.sh"]
+      })
     )
 
     on_exit(fn ->
@@ -54,21 +29,54 @@ defmodule SiwaServer.HostedRequestsTest do
     %{identity: :crypto.hash(:sha256, Ecto.UUID.generate()) |> Base.encode16(case: :lower)}
   end
 
-  test "the same account connection reuses its key and never exports it", %{identity: identity} do
+  test "the hosted endpoint signs only for the site whose own hosted key is presented", %{
+    identity: identity
+  } do
+    body = Jason.encode!(%{operation: "register", identity_key: identity})
+
+    post = fn authorization ->
+      conn =
+        Plug.Test.conn(:post, "/api/shared/siwa/hosted", body)
+        |> Plug.Conn.put_req_header("content-type", "application/json")
+
+      conn =
+        if authorization,
+          do: Plug.Conn.put_req_header(conn, "authorization", authorization),
+          else: conn
+
+      Endpoint.call(conn, Endpoint.init([]))
+    end
+
+    assert post.(nil).status == 401
+    assert post.("Bearer siwa-test-patchbay-activity-read-key-1").status == 401
+    assert post.("Bearer " <> Application.fetch_env!(:siwa_keyring, :secret)).status == 401
+
+    patchbay = post.("Bearer siwa-test-patchbay-hosted-signing-key-1")
+    assert patchbay.status == 200
+    {:ok, expected} = HostedRequests.handle("patchbay", Jason.decode!(body))
+    assert Jason.decode!(patchbay.resp_body) == %{"address" => expected.address}
+  end
+
+  test "an account connection reuses its key, never exports it, and belongs to one site", %{
+    identity: identity
+  } do
     request = %{"operation" => "register", "identity_key" => identity}
-    {:ok, first} = HostedRequests.handle(request)
-    {:ok, second} = HostedRequests.handle(request)
+    {:ok, first} = HostedRequests.handle("patchbay", request)
+    {:ok, second} = HostedRequests.handle("patchbay", request)
     assert first == second
     assert Map.keys(first) == [:address]
     other = :crypto.hash(:sha256, "other-account") |> Base.encode16(case: :lower)
-    {:ok, third} = HostedRequests.handle(%{request | "identity_key" => other})
+    {:ok, third} = HostedRequests.handle("patchbay", %{request | "identity_key" => other})
     assert first != third
+    {:ok, template} = HostedRequests.handle("ash-template", request)
+    assert first != template
   end
 
   test "free participation proof is verified by SIWA and binds the exact body", %{
     identity: identity
   } do
-    {:ok, _} = HostedRequests.handle(%{"operation" => "register", "identity_key" => identity})
+    {:ok, _} =
+      HostedRequests.handle("patchbay", %{"operation" => "register", "identity_key" => identity})
 
     body =
       Jason.encode!(%{
@@ -82,10 +90,9 @@ defmodule SiwaServer.HostedRequestsTest do
       })
 
     {:ok, signed} =
-      HostedRequests.handle(%{
+      HostedRequests.handle("patchbay", %{
         "operation" => "sign",
         "identity_key" => identity,
-        "audience" => "patchbay",
         "request" => %{"method" => "POST", "path" => "/chatgpt/agent/mcp", "body" => body}
       })
 
@@ -137,34 +144,50 @@ defmodule SiwaServer.HostedRequestsTest do
            )
   end
 
-  test "arbitrary signing and unsupported paths cannot reach a signer", %{
+  test "arbitrary signing, unsupported paths and another site's routes cannot reach a signer", %{
     identity: identity
   } do
-    for request <- [
-          %{"method" => "POST", "path" => "/admin/actions", "body" => "{}"},
-          %{"method" => "POST", "path" => "/mcp", "body" => "{}"},
-          %{
-            "method" => "POST",
-            "path" => "/chatgpt/agent/mcp",
-            "body" =>
-              Jason.encode!(%{
-                jsonrpc: "2.0",
-                method: "tools/call",
-                params: %{name: "mark_solution", arguments: %{}}
-              })
-          }
+    for {site, request} <- [
+          {"patchbay", %{"method" => "POST", "path" => "/admin/actions", "body" => "{}"}},
+          {"patchbay", %{"method" => "POST", "path" => "/mcp", "body" => "{}"}},
+          {"patchbay",
+           %{
+             "method" => "POST",
+             "path" => "/chatgpt/agent/mcp",
+             "body" =>
+               Jason.encode!(%{
+                 jsonrpc: "2.0",
+                 method: "tools/call",
+                 params: %{name: "mark_solution", arguments: %{}}
+               })
+           }},
+          {"ash-template",
+           %{
+             "method" => "POST",
+             "path" => "/chatgpt/agent/mcp",
+             "body" =>
+               Jason.encode!(%{
+                 jsonrpc: "2.0",
+                 method: "tools/call",
+                 params: %{name: "post_reply", arguments: %{}}
+               })
+           }}
         ] do
-      assert HostedRequests.handle(%{
+      assert HostedRequests.handle(site, %{
                "operation" => "sign",
                "identity_key" => identity,
-               "audience" => "patchbay",
                "request" => request
              }) == {:error, :hosted_request_not_allowed}
     end
 
-    assert HostedRequests.handle(%{"operation" => "sign-message", "identity_key" => identity}) ==
-             {:error, :hosted_request_not_allowed}
+    assert HostedRequests.handle("patchbay", %{
+             "operation" => "sign-message",
+             "identity_key" => identity
+           }) == {:error, :hosted_request_not_allowed}
 
-    assert match?({:error, _}, SiwaKeyring.HostedIdentity.ensure("../outside"))
+    assert HostedRequests.handle("patchbay", %{
+             "operation" => "register",
+             "identity_key" => "../outside"
+           }) == {:error, :hosted_request_not_allowed}
   end
 end

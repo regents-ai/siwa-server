@@ -171,7 +171,7 @@ defmodule SiwaServerWeb.Help do
   end
 
   defp steps(code, _context)
-       when code in ~w(activity_read_unauthorized invalid_activity_request) do
+       when code in ~w(activity_read_unauthorized invalid_activity_request hosted_unauthorized hosted_request_refused) do
     "This request is for Regent sites, not agents."
   end
 
