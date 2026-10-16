@@ -5,6 +5,9 @@ Every commit to main adds a line under Unreleased; a release moves those lines u
 
 ## Unreleased
 
+- Keyfleet's code host, `https://code.keyfleet.ai`, signs in under the `keyfleet` audience, so the agent helper
+  can sign in to Keyfleet's Git gateway there.
+
 ## v62 — beba083 (2026-10-17 01:12Z)
 
 - The Touch ID page in both agent helpers is rebuilt from its sources, `assets/agent/passkey.js` and
