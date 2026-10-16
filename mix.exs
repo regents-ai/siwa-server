@@ -69,12 +69,12 @@ defmodule SiwaServer.MixProject do
       {:ex_keccak, "~> 0.7.8"},
       {:ex_secp256k1, "~> 0.8.0"},
       {:dns_cluster, "~> 0.2.0"},
-      {:bandit, "~> 1.5"},
+      {:bandit, "~> 1.13"},
       {:siwa, path: Path.join(elixir_utils_root(), "siwa/siwa-elixir/apps/siwa"), override: true},
       {:siwa_keyring, path: Path.join(elixir_utils_root(), "siwa/siwa-elixir/apps/siwa_keyring")},
       {:regent_chain, path: Path.join(elixir_utils_root(), "chain")},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false},
+      {:sobelow, "~> 0.16", only: [:dev, :test], runtime: false},
       {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
     ]
   end
