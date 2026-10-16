@@ -240,7 +240,10 @@ The local Touch ID page uses the shared shell in
 `design-system/standalone/agent-key.html`, with SIWA-owned browser behavior in
 `assets/agent/passkey.js`. Its fonts, tokens and crown marks are embedded: opening
 the page makes no external asset requests. The page confirms the passkey step;
-only the agent's subsequent `me` request confirms account pairing.
+only the agent's subsequent `me` request confirms account pairing. It names the agent
+app that opened it ("Opened by Claude Code"; Codex, Cursor, Gemini CLI, Hermes and
+OpenCode are known, anything else is "your agent"), found by each client from its
+parent processes, and after Touch ID it says "You can safely close this page".
 Regenerate both clients and the Regents CLI page from sibling checkouts with:
 
 ```sh

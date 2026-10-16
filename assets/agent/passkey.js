@@ -8,6 +8,7 @@ const $ = (id) => document.getElementById(id);
 document.title = words[0] + " · Regents";
 $("title").textContent = words[0];
 $("lead").textContent = words[1];
+$("opener").textContent = "Opened by " + setup.opener;
 $("address").textContent = setup.address;
 $("copy").onclick = async () => {
   try {
@@ -59,9 +60,9 @@ $("go").onclick = async () => {
     const sent = await fetch(location.pathname, { method: "POST", body: JSON.stringify(answer) }).catch(() => null);
     if (!sent?.ok) throw new Error("Your agent stopped waiting. Run its command again.");
     const result = {
-      lock: ["Passkey created", "Return to your agent to finish setup and pairing. You can close this tab."],
-      unlock: ["Touch ID confirmed", "Return to your agent to continue. You can close this tab."],
-      show: ["Touch ID confirmed", "Return to your terminal to view the key. You can close this tab."],
+      lock: ["Passkey created", "Return to your agent to finish setup and pairing."],
+      unlock: ["Touch ID confirmed", "Return to your agent to continue."],
+      show: ["Touch ID confirmed", "Return to your terminal to view the key."],
     }[setup.mode];
     $("title").textContent = result[0];
     $("lead").textContent = result[1];
@@ -69,6 +70,7 @@ $("go").onclick = async () => {
     $("state").textContent = "✓ Confirmed";
     $("go").textContent = "✓ Touch ID complete";
     $("go").setAttribute("data-complete", "");
+    $("done").setAttribute("data-shown", "");
     $("go").setAttribute("aria-busy", "false");
     $("title").focus();
   } catch (error) {
