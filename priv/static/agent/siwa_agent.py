@@ -1250,7 +1250,8 @@ def opener() -> str:
 def passkey_secret(mode: str, address: str, credential_id: str | None) -> dict:
     """Open a page on this Mac where the person confirms with Touch ID; return the passkey's id and secret."""
     token = secrets.token_urlsafe(24)
-    setup = json.dumps({"mode": mode, "address": address, "credentialId": credential_id, "opener": opener()})
+    # Written inside the page's script: "<" is escaped so no value can end the script early.
+    setup = json.dumps({"mode": mode, "address": address, "credentialId": credential_id, "opener": opener()}).replace("<", "\\u003c")
     page = PASSKEY_PAGE.replace("__SETUP__", setup).encode("utf-8")
     answer: dict = {}
     answered = threading.Event()

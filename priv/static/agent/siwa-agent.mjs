@@ -1201,7 +1201,9 @@ function opener() {
 // Open a page on this Mac where the person confirms with Touch ID; resolve to the passkey's id and secret.
 function passkeySecret(mode, address, credentialId) {
   const token = randomBytes(18).toString("base64url");
-  const page = PASSKEY_PAGE.replace("__SETUP__", JSON.stringify({ mode, address, credentialId, opener: opener() }));
+  // Written inside the page's script: "<" is escaped so no value can end the script early.
+  const setup = JSON.stringify({ mode, address, credentialId, opener: opener() }).replaceAll("<", "\\u003c");
+  const page = PASSKEY_PAGE.replace("__SETUP__", () => setup);
   return new Promise((resolve, reject) => {
     let answered = false;
     const finish = () => {
