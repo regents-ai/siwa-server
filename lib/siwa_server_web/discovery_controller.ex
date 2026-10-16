@@ -23,7 +23,7 @@ defmodule SiwaServerWeb.DiscoveryController do
     conn
     |> put_status(status)
     |> put_resp_header("cache-control", "no-store")
-    |> json(readiness)
+    |> json(Map.take(readiness, [:ready, :checks]))
   end
 
   # The path is a fixed application asset; nothing from the request reaches File.read!.

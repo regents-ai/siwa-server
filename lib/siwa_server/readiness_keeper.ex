@@ -8,10 +8,14 @@ defmodule SiwaServer.ReadinessKeeper do
   same answer instead of starting their own.
 
   The check runs in its own unlinked task, so a crash in it fails only the
-  requests waiting for it, as it did before, and never this process.
+  requests waiting for it, as it did before, and never this process. The
+  reasons a check failed can name hosts, so they go to the log once per check
+  and never into the public answer.
   """
 
   use GenServer
+
+  require Logger
 
   alias SiwaServer.Config
   alias SiwaServer.Readiness
@@ -45,11 +49,18 @@ defmodule SiwaServer.ReadinessKeeper do
         |> Task.yield(:infinity)
         |> case do
           {:ok, readiness} ->
+            log_failures(readiness.failures)
             {:reply, {:ok, readiness}, {System.monotonic_time(:millisecond), readiness}}
 
           {:exit, reason} ->
             {:reply, {:exit, reason}, kept}
         end
+    end
+  end
+
+  defp log_failures(failures) do
+    for {check, reason} <- failures do
+      Logger.warning("readiness check failed check=#{check} reason=#{reason}")
     end
   end
 end

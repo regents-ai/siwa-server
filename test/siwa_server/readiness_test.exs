@@ -64,16 +64,21 @@ defmodule SiwaServer.ReadinessTest do
     refute Map.has_key?(failures, :base_rpc_chain_id)
   end
 
-  test "GET /readyz reports per-check status and failure reasons", %{conn: conn} do
+  test "GET /readyz reports per-check status and logs the failure reasons", %{conn: conn} do
     System.delete_env("BASE_RPC_URL")
 
-    conn = get(conn, ~p"/readyz")
-    body = json_response(conn, 503)
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        conn = get(conn, ~p"/readyz")
+        body = json_response(conn, 503)
 
-    assert body["ready"] == false
-    assert body["checks"]["base_rpc_url"] == false
-    assert body["failures"]["base_rpc_url"] =~ "BASE_RPC_URL is not configured"
-    assert Enum.all?(body["checks"], fn {_name, value} -> is_boolean(value) end)
+        assert Map.keys(body) |> Enum.sort() == ["checks", "ready"]
+        assert body["ready"] == false
+        assert body["checks"]["base_rpc_url"] == false
+        assert Enum.all?(body["checks"], fn {_name, value} -> is_boolean(value) end)
+      end)
+
+    assert log =~ "check=base_rpc_url reason=BASE_RPC_URL is not configured"
   end
 
   defp restore_env(key, nil), do: System.delete_env(key)
