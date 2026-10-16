@@ -905,6 +905,7 @@ header { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
 .local { margin-left: auto; font-size: 12px; color: var(--color-muted); }
 main { border: 1px solid var(--color-border); background: var(--color-surface); }
 .content { padding: 32px; }
+#opener { margin: 0 0 16px; font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
 #state { margin: 0 0 24px; color: var(--color-muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
 h1 { font-family: var(--font-family-title); font-weight: 400; font-size: clamp(28px, 6vw, 36px); line-height: 1.2; min-height: 1.2em; margin: 0 0 16px; outline: none; }
 #lead { min-height: 3em; margin: 0 0 24px; color: var(--color-muted); line-height: 1.5; }
@@ -913,6 +914,8 @@ button:hover { background: var(--color-bg); color: var(--color-fg); }
 button:disabled { cursor: wait; opacity: .65; }
 button[data-complete] { cursor: default; opacity: 1; color: var(--color-muted); background: transparent; border-color: var(--color-border); }
 button:focus-visible, a:focus-visible { outline: 2px solid var(--color-fg); outline-offset: 4px; }
+#done { margin: 16px 0 0; font-size: 18px; font-weight: 600; visibility: hidden; }
+#done[data-shown] { visibility: visible; }
 #note { min-height: 4.5em; margin: 16px 0 0; color: var(--color-error); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
 .identity { border-top: 1px solid var(--color-border); padding: 20px 32px; }
 .label { display: block; color: var(--color-muted); font-size: 12px; margin-bottom: 8px; }
@@ -941,10 +944,12 @@ a { color: inherit; text-underline-offset: 3px; }
   </header>
   <main>
     <div class="content">
+      <p id="opener"></p>
       <p id="state">Agent key · Touch ID</p>
       <h1 id="title" tabindex="-1">Protect your agent key</h1>
       <p id="lead" role="status">Return to your agent if this page does not finish loading.</p>
       <button id="go" type="button">Use Touch ID</button>
+      <p id="done">You can safely close this page</p>
       <p id="note" role="alert"></p>
       <noscript>JavaScript is required to use Touch ID on this page.</noscript>
     </div>
@@ -973,6 +978,7 @@ const $ = (id) => document.getElementById(id);
 document.title = words[0] + " · Regents";
 $("title").textContent = words[0];
 $("lead").textContent = words[1];
+$("opener").textContent = "Opened by " + setup.opener;
 $("address").textContent = setup.address;
 $("copy").onclick = async () => {
   try {
@@ -1024,9 +1030,9 @@ $("go").onclick = async () => {
     const sent = await fetch(location.pathname, { method: "POST", body: JSON.stringify(answer) }).catch(() => null);
     if (!sent?.ok) throw new Error("Your agent stopped waiting. Run its command again.");
     const result = {
-      lock: ["Passkey created", "Return to your agent to finish setup and pairing. You can close this tab."],
-      unlock: ["Touch ID confirmed", "Return to your agent to continue. You can close this tab."],
-      show: ["Touch ID confirmed", "Return to your terminal to view the key. You can close this tab."],
+      lock: ["Passkey created", "Return to your agent to finish setup and pairing."],
+      unlock: ["Touch ID confirmed", "Return to your agent to continue."],
+      show: ["Touch ID confirmed", "Return to your terminal to view the key."],
     }[setup.mode];
     $("title").textContent = result[0];
     $("lead").textContent = result[1];
@@ -1034,6 +1040,7 @@ $("go").onclick = async () => {
     $("state").textContent = "✓ Confirmed";
     $("go").textContent = "✓ Touch ID complete";
     $("go").setAttribute("data-complete", "");
+    $("done").setAttribute("data-shown", "");
     $("go").setAttribute("aria-busy", "false");
     $("title").focus();
   } catch (error) {
@@ -1174,10 +1181,27 @@ async function boxKey(secret) {
   );
 }
 
+// Shells and program launchers sit between an agent's app and this command; the page names the app.
+const LAUNCHERS = new Set(["sh", "bash", "zsh", "fish", "dash", "env", "login", "sudo", "nohup", "timeout", "script",
+  "tmux", "screen", "sandbox-exec", "uv", "uvx", "node", "npx", "npm", "bun", "deno"]);
+const APP_NAMES = { claude: "Claude Code", codex: "Codex", cursor: "Cursor", "cursor-agent": "Cursor",
+  gemini: "Gemini CLI", hermes: "Hermes", opencode: "OpenCode" };
+
+// The app that started this command: the nearest parent process that is not a shell or launcher.
+function opener() {
+  let pid = process.ppid;
+  for (;;) {
+    const [parent, ...path] = execFileSync("ps", ["-o", "ppid=,comm=", "-p", String(pid)], { encoding: "utf8" }).trim().split(/\s+/);
+    const name = basename(path.join(" "));
+    if (!LAUNCHERS.has(name.toLowerCase()) && !name.toLowerCase().startsWith("python")) return APP_NAMES[name.toLowerCase()] ?? name;
+    pid = Number(parent);
+  }
+}
+
 // Open a page on this Mac where the person confirms with Touch ID; resolve to the passkey's id and secret.
 function passkeySecret(mode, address, credentialId) {
   const token = randomBytes(18).toString("base64url");
-  const page = PASSKEY_PAGE.replace("__SETUP__", JSON.stringify({ mode, address, credentialId }));
+  const page = PASSKEY_PAGE.replace("__SETUP__", JSON.stringify({ mode, address, credentialId, opener: opener() }));
   return new Promise((resolve, reject) => {
     let answered = false;
     const finish = () => {
