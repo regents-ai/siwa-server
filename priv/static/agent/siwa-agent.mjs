@@ -1181,14 +1181,20 @@ async function boxKey(secret) {
   );
 }
 
-// Agent apps the Touch ID page names; any other app is shown as "your agent".
+// Agent apps the Touch ID page names; any other app, or a process list that cannot be read, is shown as "your agent".
 const APP_NAMES = { claude: "Claude Code", codex: "Codex", cursor: "Cursor", "cursor-agent": "Cursor",
   gemini: "Gemini CLI", hermes: "Hermes", opencode: "OpenCode" };
 
 // The agent app that started this command: the nearest parent process whose program or script is a known agent.
 function opener() {
+  let processes;
+  try {
+    processes = execFileSync("/bin/ps", ["-A", "-o", "pid=,ppid=,args="], { encoding: "utf8", maxBuffer: Infinity });
+  } catch {
+    return "your agent";
+  }
   const table = new Map();
-  for (const line of execFileSync("/bin/ps", ["-A", "-o", "pid=,ppid=,args="], { encoding: "utf8", maxBuffer: Infinity }).trim().split("\n")) {
+  for (const line of processes.trim().split("\n")) {
     const [pid, ppid, ...args] = line.trim().split(/\s+/);
     table.set(Number(pid), [Number(ppid), args.slice(0, 2).map((arg) => basename(arg).toLowerCase())]);
   }

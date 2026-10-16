@@ -1229,15 +1229,19 @@ def box_cipher(secret: str):
     return AESGCM(HKDF(algorithm=hashes.SHA256(), length=32, salt=bytes(32), info=BOX_INFO).derive(bytes.fromhex(secret)))
 
 
-# Agent apps the Touch ID page names; any other app is shown as "your agent".
+# Agent apps the Touch ID page names; any other app, or a process list that cannot be read, is shown as "your agent".
 APP_NAMES = {"claude": "Claude Code", "codex": "Codex", "cursor": "Cursor", "cursor-agent": "Cursor",
              "gemini": "Gemini CLI", "hermes": "Hermes", "opencode": "OpenCode"}
 
 
 def opener() -> str:
     """The agent app that started this command: the nearest parent process whose program or script is a known agent."""
+    try:
+        processes = subprocess.run(["/bin/ps", "-A", "-o", "pid=,ppid=,args="], capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return "your agent"
     table = {}
-    for line in subprocess.run(["/bin/ps", "-A", "-o", "pid=,ppid=,args="], capture_output=True, text=True, check=True).stdout.splitlines():
+    for line in processes.splitlines():
         pid, ppid, *args = line.split()
         table[int(pid)] = (int(ppid), [os.path.basename(arg).lower() for arg in args[:2]])
     pid = os.getppid()
