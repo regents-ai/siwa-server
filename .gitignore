@@ -42,3 +42,6 @@ layer3.md
 .codex/
 .claude/
 /output/imagegen/
+
+# Python bytecode written when the agent helper is run locally.
+__pycache__/

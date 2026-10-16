@@ -1229,22 +1229,25 @@ def box_cipher(secret: str):
     return AESGCM(HKDF(algorithm=hashes.SHA256(), length=32, salt=bytes(32), info=BOX_INFO).derive(bytes.fromhex(secret)))
 
 
-# Shells and program launchers sit between an agent's app and this command; the page names the app.
-LAUNCHERS = {"sh", "bash", "zsh", "fish", "dash", "env", "login", "sudo", "nohup", "timeout", "script",
-             "tmux", "screen", "sandbox-exec", "uv", "uvx", "node", "npx", "npm", "bun", "deno"}
+# Agent apps the Touch ID page names; any other app is shown as "your agent".
 APP_NAMES = {"claude": "Claude Code", "codex": "Codex", "cursor": "Cursor", "cursor-agent": "Cursor",
              "gemini": "Gemini CLI", "hermes": "Hermes", "opencode": "OpenCode"}
 
 
 def opener() -> str:
-    """The app that started this command: the nearest parent process that is not a shell or launcher."""
+    """The agent app that started this command: the nearest parent process whose program or script is a known agent."""
+    table = {}
+    for line in subprocess.run(["/bin/ps", "-A", "-o", "pid=,ppid=,args="], capture_output=True, text=True, check=True).stdout.splitlines():
+        pid, ppid, *args = line.split()
+        table[int(pid)] = (int(ppid), [os.path.basename(arg).lower() for arg in args[:2]])
     pid = os.getppid()
-    while True:
-        parent, path = subprocess.run(["ps", "-o", "ppid=,comm=", "-p", str(pid)], capture_output=True, text=True, check=True).stdout.split(None, 1)
-        name = os.path.basename(path.strip())
-        if name.lower() not in LAUNCHERS and not name.lower().startswith("python"):
-            return APP_NAMES.get(name.lower(), name)
-        pid = int(parent)
+    while pid > 1 and pid in table:
+        ppid, names = table[pid]
+        for name in names:
+            if name in APP_NAMES:
+                return APP_NAMES[name]
+        pid = ppid
+    return "your agent"
 
 
 def passkey_secret(mode: str, address: str, credential_id: str | None) -> dict:

@@ -1181,21 +1181,22 @@ async function boxKey(secret) {
   );
 }
 
-// Shells and program launchers sit between an agent's app and this command; the page names the app.
-const LAUNCHERS = new Set(["sh", "bash", "zsh", "fish", "dash", "env", "login", "sudo", "nohup", "timeout", "script",
-  "tmux", "screen", "sandbox-exec", "uv", "uvx", "node", "npx", "npm", "bun", "deno"]);
+// Agent apps the Touch ID page names; any other app is shown as "your agent".
 const APP_NAMES = { claude: "Claude Code", codex: "Codex", cursor: "Cursor", "cursor-agent": "Cursor",
   gemini: "Gemini CLI", hermes: "Hermes", opencode: "OpenCode" };
 
-// The app that started this command: the nearest parent process that is not a shell or launcher.
+// The agent app that started this command: the nearest parent process whose program or script is a known agent.
 function opener() {
-  let pid = process.ppid;
-  for (;;) {
-    const [parent, ...path] = execFileSync("ps", ["-o", "ppid=,comm=", "-p", String(pid)], { encoding: "utf8" }).trim().split(/\s+/);
-    const name = basename(path.join(" "));
-    if (!LAUNCHERS.has(name.toLowerCase()) && !name.toLowerCase().startsWith("python")) return APP_NAMES[name.toLowerCase()] ?? name;
-    pid = Number(parent);
+  const table = new Map();
+  for (const line of execFileSync("/bin/ps", ["-A", "-o", "pid=,ppid=,args="], { encoding: "utf8" }).trim().split("\n")) {
+    const [pid, ppid, ...args] = line.trim().split(/\s+/);
+    table.set(Number(pid), [Number(ppid), args.slice(0, 2).map((arg) => basename(arg).toLowerCase())]);
   }
+  for (let pid = process.ppid; pid > 1 && table.has(pid); pid = table.get(pid)[0]) {
+    const name = table.get(pid)[1].find((name) => Object.hasOwn(APP_NAMES, name));
+    if (name) return APP_NAMES[name];
+  }
+  return "your agent";
 }
 
 // Open a page on this Mac where the person confirms with Touch ID; resolve to the passkey's id and secret.
