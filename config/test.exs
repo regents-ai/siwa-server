@@ -35,8 +35,7 @@ config :siwa_server, :siwa,
     "patchbay" => "siwa-test-patchbay-activity-read-key-1"
   },
   hosted_signers: %{
-    "patchbay" => "siwa-test-patchbay-hosted-signing-key-1",
-    "ash-template" => "siwa-test-template-hosted-signing-key1"
+    "patchbay" => "siwa-test-patchbay-hosted-signing-key-1"
   }
 
 config :siwa_server, Oban, testing: :manual

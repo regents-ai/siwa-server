@@ -16,7 +16,7 @@ defmodule SiwaServer.HostedRequestsTest do
       :siwa,
       Keyword.put(previous_siwa, :wallet_origins, %{
         "patchbay" => ["https://patchbay.help"],
-        "ash-template" => ["https://template.regents.sh"]
+        "keyfleet" => ["https://keyfleet.ai"]
       })
     )
 
@@ -68,8 +68,8 @@ defmodule SiwaServer.HostedRequestsTest do
     other = :crypto.hash(:sha256, "other-account") |> Base.encode16(case: :lower)
     {:ok, third} = HostedRequests.handle("patchbay", %{request | "identity_key" => other})
     assert first != third
-    {:ok, template} = HostedRequests.handle("ash-template", request)
-    assert first != template
+    {:ok, keyfleet} = HostedRequests.handle("keyfleet", request)
+    assert first != keyfleet
   end
 
   test "free participation proof is verified by SIWA and binds the exact body", %{
@@ -114,7 +114,7 @@ defmodule SiwaServer.HostedRequestsTest do
              {:error, _},
              Siwa.verify_authenticated_request(
                envelope,
-               Keyword.put(opts, :audience, "ash-template")
+               Keyword.put(opts, :audience, "keyfleet")
              )
            )
 
@@ -161,7 +161,7 @@ defmodule SiwaServer.HostedRequestsTest do
                  params: %{name: "mark_solution", arguments: %{}}
                })
            }},
-          {"ash-template",
+          {"keyfleet",
            %{
              "method" => "POST",
              "path" => "/chatgpt/agent/mcp",

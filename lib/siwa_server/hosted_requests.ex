@@ -57,19 +57,19 @@ defmodule SiwaServer.HostedRequests do
 
   defp identity(_site, _key), do: {:error, :hosted_request_not_allowed}
 
-  defp allowed_request(audience, %{"method" => "GET", "path" => "/api/agents/v1/whoami"} = r)
-       when map_size(r) == 2 and audience in ["patchbay", "ash-template"],
+  defp allowed_request("patchbay", %{"method" => "GET", "path" => "/api/agents/v1/whoami"} = r)
+       when map_size(r) == 2,
        do: :ok
 
   defp allowed_request(
-         audience,
+         "patchbay",
          %{
            "method" => "POST",
            "path" => "/api/agents/v1/pair",
            "body" => body
          } = r
        )
-       when map_size(r) == 3 and audience in ["patchbay", "ash-template"] do
+       when map_size(r) == 3 do
     with {:ok, %{"code" => code, "name" => name, "harness" => "chatgpt"} = args} <- decode(body),
          true <- map_size(args) == 3 and is_binary(code) and byte_size(code) in 1..128,
          true <- is_binary(name) and String.length(name) in 1..100 do

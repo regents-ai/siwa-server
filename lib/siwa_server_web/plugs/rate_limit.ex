@@ -14,7 +14,9 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
     siwa_verify: [limit: 60, window_ms: 60_000],
     siwa_http_verify: [limit: 600, window_ms: 60_000],
     siwa_activity: [limit: 600, window_ms: 60_000],
-    siwa_hosted: [limit: 3_000, window_ms: 60_000],
+    # Each hosted signing unlocks the encrypted key store three times, about
+    # 140 ms of one CPU on the live machine, so 300 a minute stays inside one CPU.
+    siwa_hosted: [limit: 300, window_ms: 60_000],
     siwa_register: [limit: 60, window_ms: 60_000],
     agent_book: [limit: 60, window_ms: 60_000],
     agent_profile: [limit: 600, window_ms: 60_000],

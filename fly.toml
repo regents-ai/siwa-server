@@ -51,6 +51,7 @@ kill_timeout = "5s"
   [http_service.checks.headers]
     Host = "localhost"
 
+# The key store and hosted signers live on this volume: run exactly one machine.
 [[mounts]]
   source = "siwa_data"
   destination = "/data"
