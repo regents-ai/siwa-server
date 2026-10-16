@@ -436,6 +436,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
    * resolves to one of these four; black is a contrast utility, not a fifth color. */
   --palette-tangerine-tango: #FF5B19;
   --palette-charcoal: #161616;
+  --utility-bg: #141516;
+  --utility-surface: #1C1D1F;
+  --utility-ink: #F2F2F0;
+  --utility-muted: #B0B1B4;
+  --utility-rule: #393B3E;
   --palette-platinum: #E5E3D2;
   --palette-powder-blue: #AECACD;
 
@@ -527,12 +532,14 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
   --support-panel-ink: var(--palette-charcoal);
 }
 :root[data-brand="patchbay"] {
-  --support-figure-surface: var(--palette-powder-blue);
-  --support-figure-ink: var(--palette-charcoal);
-  --support-band-surface: var(--palette-tangerine-tango);
-  --support-band-ink: var(--palette-charcoal);
-  --support-panel-surface: var(--palette-charcoal);
-  --support-panel-ink: var(--palette-platinum);
+  --support-figure-surface: var(--color-surface-elevated);
+  --support-figure-ink: var(--color-fg);
+  --support-band-surface: var(--color-accent);
+  --support-band-ink: var(--color-fg-on-accent);
+  --support-panel-surface: var(--color-surface);
+  --support-panel-ink: var(--color-fg);
+  --rg-shimmer-color: var(--color-accent);
+  --rg-button-border-color: var(--palette-tangerine-tango);
 }
 :root[data-brand="techtree"] {
   --support-figure-surface: var(--palette-platinum);
@@ -553,14 +560,14 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
   --color-border: #DAD8C7;
   --color-fg: #161616;
   --color-fg-muted: color-mix(in srgb, var(--color-fg) 65%, var(--color-bg));
-  --color-accent: #161616;
+  --color-accent: #FFFFFF;
   --color-accent-secondary: #FF5B19;
-  --color-fg-on-accent: #E5E3D2;
+  --color-fg-on-accent: #161616;
   --color-success: #145C3B;
   --color-error: #9C2525;
   --color-warning: #754600;
   --color-info: #365D62;
-  --color-primary-shade: #3A3A3A;
+  --color-primary-shade: #EDEBE0;
   --color-focus: #A33208;
   --color-link: #161616;
   --color-muted: var(--color-fg-muted);
@@ -758,51 +765,68 @@ samp {
 :root[data-brand="patchbay"][data-theme="dark"],
 :root[data-brand="patchbay"]:not([data-theme]) {
   color-scheme: dark;
-  --brand-accent: #FF5B19;
-  --color-bg: #0F0F10;
-  --color-surface: #1B1C1E;
-  --color-surface-elevated: #1B1C1E;
-  --color-border: #2A2B2E;
-  --color-fg: #E5E3D2;
-  --color-fg-muted: color-mix(in srgb, var(--color-fg) 65%, var(--color-bg));
-  --color-accent: #B9B7A6;
-  --color-primary-shade: #8E8C7C;
-  --color-accent-secondary: #FF5B19;
-  --color-fg-on-accent: #161616;
-  --color-focus: #AECACD;
-  --color-link: #B9B7A6;
+  --brand-accent: #9BB4FF;
+  --color-bg: #111726;
+  --color-surface: #1B2335;
+  --color-surface-elevated: #252F45;
+  --color-border: #6D7D99;
+  --color-fg: #EEF2FF;
+  --color-fg-muted: #ABB8D1;
+  --color-accent: #9BB4FF;
+  --color-primary-shade: #B3C6FF;
+  --color-accent-secondary: #9BB4FF;
+  --color-fg-on-accent: #142247;
+  --color-focus: #9BB4FF;
+  --color-link: #9BB4FF;
   --color-muted: var(--color-fg-muted);
   --color-success: #7ED8A9;
   --color-error: #FF9B8F;
   --color-warning: #F5C16C;
+  --color-accent-tint: #273853;
   --color-info: #AECACD;
 }
 
 :root[data-brand="patchbay"][data-theme="light"] {
   color-scheme: light;
-  --brand-accent: #FF5B19;
-  --color-bg: #E5E3D2;
-  --color-surface: #AECACD;
-  --color-surface-elevated: #AECACD;
-  --color-border: color-mix(in srgb, var(--color-fg) 28%, var(--color-bg));
-  --color-fg: #161616;
-  --color-fg-muted: color-mix(in srgb, var(--color-fg) 75%, var(--color-bg));
-  --color-accent: #FF5B19;
-  --color-primary-shade: #E6450E;
-  --color-accent-secondary: #161616;
-  --color-fg-on-accent: #161616;
-  --color-focus: #A33208;
-  --color-link: #161616;
+  --brand-accent: #294EC3;
+  --color-bg: #F6F7FA;
+  --color-surface: #FFFFFF;
+  --color-surface-elevated: #EAEDF4;
+  --color-border: #7B869B;
+  --color-fg: #192239;
+  --color-fg-muted: #536078;
+  --color-accent: #294EC3;
+  --color-primary-shade: #203D99;
+  --color-accent-secondary: #294EC3;
+  --color-fg-on-accent: #FFFFFF;
+  --color-focus: #294EC3;
+  --color-link: #294EC3;
   --color-muted: var(--color-fg-muted);
   --color-success: #124F33;
   --color-error: #8A1F1F;
   --color-warning: #6A3F00;
+  --color-accent-tint: #E5EBFF;
   --color-info: #2C4E52;
 }
 
 /* No choice made on the site: follow the device when it asks for light.
  * Each block repeats its brand's [data-theme="light"] block above. */
+:root[data-theme="light"] {
+  --utility-bg: #FAFAF8;
+  --utility-surface: #FFFFFF;
+  --utility-ink: #222326;
+  --utility-muted: #60636A;
+  --utility-rule: #DCDDE0;
+}
 @media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+  --utility-bg: #FAFAF8;
+  --utility-surface: #FFFFFF;
+  --utility-ink: #222326;
+  --utility-muted: #60636A;
+  --utility-rule: #DCDDE0;
+  }
+
   :root[data-brand="platform"]:not([data-theme]) {
     color-scheme: light;
 
@@ -813,14 +837,14 @@ samp {
     --color-border: #DAD8C7;
     --color-fg: #161616;
     --color-fg-muted: color-mix(in srgb, var(--color-fg) 65%, var(--color-bg));
-    --color-accent: #161616;
+    --color-accent: #FFFFFF;
     --color-accent-secondary: #FF5B19;
-    --color-fg-on-accent: #E5E3D2;
+    --color-fg-on-accent: #161616;
     --color-success: #145C3B;
     --color-error: #9C2525;
     --color-warning: #754600;
     --color-info: #365D62;
-    --color-primary-shade: #3A3A3A;
+    --color-primary-shade: #EDEBE0;
     --color-focus: #A33208;
     --color-link: #161616;
     --color-muted: var(--color-fg-muted);
@@ -874,23 +898,24 @@ samp {
 
   :root[data-brand="patchbay"]:not([data-theme]) {
     color-scheme: light;
-    --brand-accent: #FF5B19;
-    --color-bg: #E5E3D2;
-    --color-surface: #AECACD;
-    --color-surface-elevated: #AECACD;
-    --color-border: color-mix(in srgb, var(--color-fg) 28%, var(--color-bg));
-    --color-fg: #161616;
-    --color-fg-muted: color-mix(in srgb, var(--color-fg) 75%, var(--color-bg));
-    --color-accent: #FF5B19;
-    --color-primary-shade: #E6450E;
-    --color-accent-secondary: #161616;
-    --color-fg-on-accent: #161616;
-    --color-focus: #A33208;
-    --color-link: #161616;
+    --brand-accent: #294EC3;
+    --color-bg: #F6F7FA;
+    --color-surface: #FFFFFF;
+    --color-surface-elevated: #EAEDF4;
+    --color-border: #7B869B;
+    --color-fg: #192239;
+    --color-fg-muted: #536078;
+    --color-accent: #294EC3;
+    --color-primary-shade: #203D99;
+    --color-accent-secondary: #294EC3;
+    --color-fg-on-accent: #FFFFFF;
+    --color-focus: #294EC3;
+    --color-link: #294EC3;
     --color-muted: var(--color-fg-muted);
     --color-success: #124F33;
     --color-error: #8A1F1F;
     --color-warning: #6A3F00;
+    --color-accent-tint: #E5EBFF;
     --color-info: #2C4E52;
   }
 }

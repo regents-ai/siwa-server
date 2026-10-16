@@ -5,10 +5,11 @@ Every commit to main adds a line under Unreleased; a release moves those lines u
 
 ## Unreleased
 
-- The Touch ID page's script source (`assets/agent/passkey.js`) carries the v61 page changes, so the
-  generator rebuilds the page that is live. The page's layout source,
-  `design-system/standalone/agent-key.html`, still needs the matching opener and close-this-page lines
-  before `scripts/build_agent_page.py --check` passes again.
+- The Touch ID page in both agent helpers is rebuilt from its sources, `assets/agent/passkey.js` and
+  design-system f9b0e25 (whose `standalone/agent-key.html` now has the opener and close-this-page lines), so
+  `scripts/build_agent_page.py --check` passes again. Only the bundled colour tokens change; every colour and
+  font the page shows stays the same in light and dark.
+- The Touch ID page's script source (`assets/agent/passkey.js`) carries the v61 page changes.
 - Started this changelog.
 
 ## v61 — 37e2a85 (2026-10-16 16:14Z)
