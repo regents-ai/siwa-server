@@ -1188,7 +1188,7 @@ const APP_NAMES = { claude: "Claude Code", codex: "Codex", cursor: "Cursor", "cu
 // The agent app that started this command: the nearest parent process whose program or script is a known agent.
 function opener() {
   const table = new Map();
-  for (const line of execFileSync("/bin/ps", ["-A", "-o", "pid=,ppid=,args="], { encoding: "utf8" }).trim().split("\n")) {
+  for (const line of execFileSync("/bin/ps", ["-A", "-o", "pid=,ppid=,args="], { encoding: "utf8", maxBuffer: Infinity }).trim().split("\n")) {
     const [pid, ppid, ...args] = line.trim().split(/\s+/);
     table.set(Number(pid), [Number(ppid), args.slice(0, 2).map((arg) => basename(arg).toLowerCase())]);
   }
