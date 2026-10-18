@@ -7,13 +7,15 @@ defmodule SiwaServer.WalletOrigins do
   `patchbay=https://patchbay.help,keyfleet=https://keyfleet.example`. An audience
   may list several origins, one entry each; its first entry is the origin the
   sign-in challenge names. No origin appears twice, so every origin belongs to
-  exactly one audience. Each origin must be a bare HTTPS origin on port 443
-  without credentials, path, query or fragment. An empty or missing value
+  exactly one audience. Each origin is written in its one spelling: `https://`
+  and a lowercase host, with no port, trailing dot, credentials, path, query or
+  fragment (one trailing slash is dropped). An empty or missing value
   disables wallet sign-in for every audience. Callers never supply origins; only
   this table does.
   """
 
   @audience_regex ~r/^[a-z0-9][a-z0-9_-]{0,63}$/
+  @origin_regex ~r/\Ahttps:\/\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\z/
 
   @spec parse!(String.t() | nil) :: %{String.t() => [String.t(), ...]}
   def parse!(value) when value in [nil, ""], do: %{}
@@ -61,19 +63,13 @@ defmodule SiwaServer.WalletOrigins do
   end
 
   defp validate_origin!(origin) do
-    with {:ok, uri} <- URI.new(origin),
-         true <- bare_https_origin?(uri) do
-      String.trim_trailing(origin, "/")
+    origin = String.replace_suffix(origin, "/", "")
+
+    if Regex.match?(@origin_regex, origin) do
+      origin
     else
-      _ ->
-        raise ArgumentError,
-              "SIWA_WALLET_ORIGINS origin #{inspect(origin)} must be an HTTPS origin without credentials, path or query"
+      raise ArgumentError,
+            "SIWA_WALLET_ORIGINS origin #{inspect(origin)} must be https:// and a lowercase host, with nothing else"
     end
   end
-
-  defp bare_https_origin?(%URI{scheme: "https", host: host, port: 443, path: path} = uri)
-       when is_binary(host) and host != "" and path in [nil, "/"],
-       do: is_nil(uri.userinfo) and is_nil(uri.query) and is_nil(uri.fragment)
-
-  defp bare_https_origin?(_uri), do: false
 end

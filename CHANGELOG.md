@@ -16,6 +16,8 @@ a release moves those lines under its date. Which version and commit each releas
   and answer an unknown command with the same JSON error. `--help` or `-h` anywhere on the line shows that
   help and runs nothing, so `keygen --force --help` no longer replaces the key in the Node helper. The Python
   helper answers every wrong command line as JSON on stderr, like the Node one.
+- Each site's sign-in address is written one way only, `https://` and a lowercase name, so one address can
+  never belong to two sites under two spellings.
 - Keyfleet's code host, `https://code.keyfleet.ai`, signs in under the `keyfleet` audience, so the agent helper
   can sign in to Keyfleet's Git gateway there.
 

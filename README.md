@@ -171,8 +171,8 @@ headless Chromium (`e2e/`, Playwright 1.64.1, on a Mac). It needs a local Postgr
 because the test alias creates and migrates a database first, and Playwright's Chromium
 (`npx --prefix e2e playwright install --only-shell chromium`, once).
 
-[FEATURES.md](FEATURES.md) lists what this service does and the check that proves each part,
-with the gaps that have no check yet.
+[verification/features.yml](verification/features.yml) lists what this service does, its risk
+level and the checks that prove each part, with the gaps that have no check yet.
 
 ## Deployment
 

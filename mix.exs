@@ -91,6 +91,7 @@ defmodule SiwaServer.MixProject do
        only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.16", only: [:dev, :test], runtime: false},
+      {:stream_data, "~> 1.4", only: [:dev, :test]},
       {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
     ]
   end

@@ -1,0 +1,262 @@
+# What siwa-server does, the code that serves it, its risk level and the checks that prove it.
+# The shape is control/verification/standard.md's. `mix precommit` runs every proof listed here
+# except where a gap says otherwise. Almost everything here is sign-in, so most features are protected.
+repo: siwa-server
+features:
+  - id: wallet-sign-in
+    what: A wallet asks for a sign-in challenge for a site and signs it in once, for each origin the site lists.
+    who: agent
+    level: protected
+    paths:
+      - lib/siwa_server_web/wallet_siwa_controller.ex
+      - lib/siwa_server/siwa/wallet.ex
+      - lib/siwa_server/siwa/nonce_store.ex
+      - lib/siwa_server/siwa/nonce_record.ex
+      - lib/siwa_server/wallet_origins.ex
+      - lib/siwa_server/ethereum.ex
+    entry:
+      - route: POST /api/shared/siwa/wallet/nonce
+      - route: POST /api/shared/siwa/wallet/verify
+      - route: GET /api/shared/siwa/audiences
+    proofs:
+      - test/siwa_server_web/controllers/wallet_siwa_controller_test.exs
+      - test/siwa_server/nonce_store_test.exs
+      - test/siwa_server/wallet_concurrency_test.exs
+      - test/siwa_server/wallet_origins_test.exs
+      - test/siwa_server/ethereum_test.exs
+      - test/siwa_server/nonce_redeem_once_property_test.exs
+      - test/siwa_server/siwa_message_round_trip_property_test.exs
+      - test/siwa_server/wallet_origins_property_test.exs
+    regressions:
+      - id: R-20261018-origin-two-spellings
+        from: property test, seed 814171 (patchbay.help listed again as patchbay.help:443)
+        test: test/siwa_server/wallet_origins_property_test.exs
+    gaps:
+      - No browser e2e: this is an API that agents and site servers call, not a page.
+      - The sign-in message has no parser; its property proves the issued text is the only text accepted.
+
+  - id: signed-request-check
+    what: A site asks whether a signed agent request is genuine (window, body, path and query, audience, receipt, used once).
+    who: agent
+    level: protected
+    paths:
+      - lib/siwa_server_web/agent_siwa_controller.ex
+      - lib/siwa_server_web/agent_siwa_request.ex
+      - lib/siwa_server_web/agent_siwa_request/http_verify.ex
+      - lib/siwa_server/siwa/http_verifier.ex
+      - lib/siwa_server/siwa/replay_store.ex
+      - lib/siwa_server/siwa/replay_record.ex
+      - lib/siwa_server/siwa/error.ex
+    entry:
+      - route: POST /api/shared/siwa/http-verify
+    proofs:
+      - test/siwa_server_web/controllers/agent_siwa_controller_test.exs
+      - test/siwa_server/http_verifier_test.exs
+      - test/siwa_server/replay_store_test.exs
+      - test/siwa_server/replay_store_commit_test.exs
+      - test/siwa_server/replay_window_property_test.exs
+    gaps:
+      - No browser e2e: API only.
+      - The window property reads the real clock around each check; the verifier takes no clock of its own.
+
+  - id: refusal-help
+    what: Every refusal tells the agent what to do next, in words shaped by the site and how it signs.
+    who: agent
+    level: ordinary
+    paths:
+      - lib/siwa_server_web/help.ex
+      - lib/siwa_server_web/fallback_controller.ex
+      - lib/siwa_server_web/controllers/error_json.ex
+    proofs:
+      - test/siwa_server_web/controllers/agent_siwa_controller_test.exs
+      - test/siwa_server_web/controllers/error_json_test.exs
+    regressions:
+      - id: R-20261018-bad-signature-said-missing
+        from: Sentinel task, control e115e3d1
+        test: test/siwa_server_web/controllers/agent_siwa_controller_test.exs
+
+  - id: agent-registry-listing
+    what: An agent lists itself in the agent registry on Base, and its profile is served.
+    who: agent
+    level: protected
+    paths:
+      - lib/siwa_server_web/agent_registration_controller.ex
+      - lib/siwa_server_web/agent_siwa_request/register_step.ex
+      - lib/siwa_server_web/agent_siwa_request/registered.ex
+      - lib/siwa_server/agent_registration.ex
+      - lib/siwa_server/agent_registration/record.ex
+      - lib/siwa_server/agent_registry.ex
+    entry:
+      - route: POST /api/shared/siwa/agent/register-step
+      - route: POST /api/shared/siwa/agent/registered
+      - route: GET /agent-profiles/:profile_id
+    proofs:
+      - test/siwa_server_web/controllers/agent_registration_controller_test.exs
+    gaps:
+      - No property proof that only a successful registration transaction for this wallet is accepted.
+
+  - id: agent-book-person
+    what: An agent accepts the person World ID's AgentBook names behind its wallet, once and for good.
+    who: agent
+    level: protected
+    paths:
+      - lib/siwa_server_web/agent_book_controller.ex
+      - lib/siwa_server/agent_book.ex
+      - lib/siwa_server/agent_book/acceptance.ex
+    entry:
+      - route: POST /api/shared/siwa/agent-book/challenge
+      - route: POST /api/shared/siwa/agent-book/accept
+    proofs:
+      - test/siwa_server_web/controllers/agent_book_controller_test.exs
+      - test/siwa_server/agent_book_test.exs
+    gaps:
+      - No property proof that a second acceptance never replaces the first.
+
+  - id: site-activity-read
+    what: A Regent site reads one wallet's activity, registry listing and AgentBook person with its own reader key.
+    who: operator
+    level: protected
+    paths:
+      - lib/siwa_server_web/activity_controller.ex
+      - lib/siwa_server/activity_readers.ex
+      - lib/siwa_server/siwa/activity_store.ex
+    entry:
+      - route: POST /api/shared/siwa/activity
+    proofs:
+      - test/siwa_server_web/controllers/activity_controller_test.exs
+      - test/siwa_server/activity_readers_test.exs
+    gaps:
+      - No property proof that one site's key never reads under another site's name.
+
+  - id: hosted-requests
+    what: Patchbay's hosted ChatGPT connections sign requests, only for Patchbay.
+    who: operator
+    level: protected
+    paths:
+      - lib/siwa_server_web/hosted_controller.ex
+      - lib/siwa_server/hosted_requests.ex
+      - lib/siwa_server/hosted_signers.ex
+    entry:
+      - route: POST /api/shared/siwa/hosted
+    proofs:
+      - test/siwa_server/hosted_requests_test.exs
+    gaps:
+      - No property proof that a hosted signer never signs for another audience.
+
+  - id: key-store
+    what: The internal key store creates wallets and signs for them, and refuses bad signatures.
+    who: operator
+    level: protected
+    paths:
+      - lib/siwa_server_web/keyring_forwarder.ex
+    entry:
+      - route: /api/shared/keyring
+    proofs:
+      - test/siwa_server_web/internal/keyring_router_test.exs
+
+  - id: request-handling
+    what: Every request is parsed and routed the same way; key store requests pass through unread.
+    who: agent
+    level: protected
+    paths:
+      - lib/siwa_server_web.ex
+      - lib/siwa_server_web/endpoint.ex
+      - lib/siwa_server_web/json_parser.ex
+      - lib/siwa_server/text.ex
+    proofs:
+      - test/siwa_server_web/controllers/agent_siwa_controller_test.exs
+      - test/siwa_server_web/internal/keyring_router_test.exs
+
+  - id: rate-limits
+    what: Requests are limited per wallet, chain, audience and address, with a wait in Retry-After.
+    who: agent
+    level: protected
+    paths:
+      - lib/siwa_server_web/plugs/rate_limit.ex
+      - lib/siwa_server/rate_limiter.ex
+      - lib/siwa_server_web/client_address.ex
+      - lib/siwa_server_web/router.ex
+    proofs:
+      - test/siwa_server_web/plugs/rate_limit_test.exs
+
+  - id: agent-helpers
+    what: The Python and Node helpers sign in, sign each request fresh and show one help screen; help anywhere runs nothing.
+    who: agent
+    level: protected
+    paths:
+      - priv/static/agent/siwa_agent.py
+      - priv/static/agent/siwa-agent.mjs
+      - priv/static/agent/siwa-contract.json
+      - priv/static/skill.md
+      - lib/mix/tasks/siwa_server.agent_clients.ex
+    entry:
+      - cli: uv run siwa_agent.py
+      - cli: node siwa-agent.mjs
+    proofs:
+      - test/siwa_server/agent_clients_conformance_test.exs
+    gaps:
+      - The Node helper's own Touch ID run (its page is the same bytes as Python's).
+
+  - id: touch-id-page
+    what: A person confirms with Touch ID to protect, unlock or show their agent's key, on a page their agent opens.
+    who: person
+    level: protected
+    paths:
+      - assets/agent/passkey.js
+      - scripts/build_agent_page.py
+    proofs:
+      - e2e/touch-id-page.spec.mjs
+      - e2e/playwright.config.mjs
+    gaps:
+      - scripts/build_agent_page.py --check needs the design-system checkout, so it is run by hand, not in precommit.
+      - The real-helper run needs a Mac.
+      - WebKit not run on the Mac (Safari).
+
+  - id: discovery-and-readiness
+    what: The service describes itself, says when it is ready and which checks failed, and serves its contract.
+    who: operator
+    level: ordinary
+    paths:
+      - lib/siwa_server_web/discovery_controller.ex
+      - lib/siwa_server/readiness.ex
+      - lib/siwa_server/readiness_keeper.ex
+      - lib/mix/tasks/siwa_server.contract_check.ex
+      - lib/siwa_server_web/metrics.ex
+      - lib/siwa_server_web/telemetry.ex
+      - priv/static/regent-services-contract.openapiv3.yaml
+    entry:
+      - route: GET /
+      - route: GET /healthz
+      - route: GET /readyz
+      - route: GET /regent-services-contract.openapiv3.yaml
+    proofs:
+      - test/siwa_server/readiness_test.exs
+
+  - id: cleanup
+    what: Expired challenges and used requests are removed in batches.
+    who: operator
+    level: ordinary
+    paths:
+      - lib/siwa_server/siwa/cleanup_worker.ex
+    proofs:
+      - test/siwa_server/cleanup_worker_test.exs
+
+  - id: configuration
+    what: Settings and secrets stay inside this repository's list, and the database settings fit Fly's managed Postgres.
+    who: operator
+    level: protected
+    paths:
+      - config/**
+      - lib/siwa_server/runtime_config.ex
+      - lib/siwa_server/config.ex
+      - lib/siwa_server/database_config.ex
+      - lib/siwa_server/repo.ex
+      - lib/siwa_server/application.ex
+      - lib/siwa_server/release.ex
+      - fly.toml
+      - Dockerfile
+      - priv/repo/migrations/**
+    proofs:
+      - test/siwa_server/runtime_config_test.exs
+      - test/siwa_server/secret_allowlist_test.exs
+      - test/siwa_server/database_config_test.exs
