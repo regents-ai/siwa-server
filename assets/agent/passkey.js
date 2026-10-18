@@ -1,8 +1,18 @@
 const setup = __SETUP__;
-const words = {
-  lock: ["Protect your agent key", "Confirm with Touch ID to keep your agent’s key safe on this Mac."],
-  unlock: ["Unlock your agent key", "Confirm with Touch ID so your agent can sign in. You’re asked once after each restart."],
-  show: ["Show your agent key", "Confirm with Touch ID to show the key in the window where you asked for it. Only continue if you asked."],
+// Each step's title and sentence, before Touch ID and after it.
+const [words, result] = {
+  lock: [
+    ["Protect your agent key", "Confirm with Touch ID to keep your agent’s key safe."],
+    ["Agent key protected", "Go back to your agent to finish setting up."],
+  ],
+  unlock: [
+    ["Unlock your agent key", "Confirm with Touch ID so your agent can sign in. You’re asked once after each Mac restart."],
+    ["Agent key unlocked", "Go back to your agent to continue."],
+  ],
+  show: [
+    ["Show your agent key", "Confirm with Touch ID to show the key in the window where you asked for it. Only continue if you asked."],
+    ["Touch ID confirmed", "Go back to the window where you asked for the key."],
+  ],
 }[setup.mode];
 const $ = (id) => document.getElementById(id);
 // A message written for the person; any other error shows one plain line.
@@ -10,6 +20,7 @@ class Plain extends Error {}
 document.title = words[0] + " · Regents";
 $("title").textContent = words[0];
 $("lead").textContent = words[1];
+$("lead-done").textContent = result[1];
 $("opener").textContent = "Opened by " + setup.opener;
 $("address").textContent = setup.address;
 $("copy").onclick = async () => {
@@ -61,15 +72,12 @@ $("go").onclick = async () => {
     const answer = setup.mode === "lock" ? await makePasskey() : await secretOf(setup.credentialId);
     const sent = await fetch(location.pathname, { method: "POST", body: JSON.stringify(answer) }).catch(() => null);
     if (!sent?.ok) throw new Plain("Your agent stopped waiting. Ask it to try again.");
-    const result = {
-      lock: ["Agent key protected", "Go back to your agent to finish setting up."],
-      unlock: ["Agent key unlocked", "Go back to your agent to continue."],
-      show: ["Touch ID confirmed", "Go back to the window where you asked for the key."],
-    }[setup.mode];
     $("title").textContent = result[0];
-    $("lead").textContent = result[1];
+    $("lead").setAttribute("data-hidden", "");
+    $("lead-done").removeAttribute("data-hidden");
+    $("title").setAttribute("aria-describedby", "lead-done");
     document.title = result[0] + " · Regents";
-    $("go").textContent = "✓ Touch ID complete";
+    $("go").textContent = "✓ Done";
     $("go").setAttribute("data-complete", "");
     $("done").setAttribute("data-shown", "");
     $("share").hidden = true;
@@ -82,7 +90,7 @@ $("go").onclick = async () => {
       $("note").textContent = error.message;
     } else {
       console.error(error);
-      $("note").textContent = "Touch ID couldn’t finish on this device. Try again, or use another device.";
+      $("note").textContent = "Touch ID couldn’t finish. Try again, or open this page in Safari or Chrome.";
     }
     $("go").disabled = false;
     $("go").textContent = "Use Touch ID";

@@ -9,10 +9,10 @@ check yet.
 | Behaviour | Proof |
 | --- | --- |
 | The Python and Node helpers sign every request the same way, byte for byte, as the siwa library's contract says | `test/siwa_server/agent_clients_conformance_test.exs` |
-| Both helpers show the same help, without the command they only start themselves, and answer a wrong command with the same JSON error | `test/siwa_server/agent_clients_conformance_test.exs` |
+| Both helpers show the same help, without the command they only start themselves; help anywhere on the line runs nothing; a wrong command line is a JSON error on stderr, the same words for an unknown command | `test/siwa_server/agent_clients_conformance_test.exs` |
 | Both helpers carry the signing contract the library generates | `mix siwa_server.agent_clients --check` |
 | Both helpers carry the Touch ID page built from its sources | `scripts/build_agent_page.py --check` (run by hand with the design-system folder; **gap**: not in precommit, because it needs that checkout) |
-| `keygen` locks a new key with Touch ID, and `show-key` opens it again | `e2e/touch-id-page.spec.mjs`, the real Python helper on a Mac; **gap**: the Node helper's own run (its page is the same bytes) |
+| `keygen` locks a new key with Touch ID, and `show-key` opens it again; the test stops the helper holding the unlocked key and removes its folders, pass or fail | `e2e/touch-id-page.spec.mjs`, the real Python helper on a Mac; **gap**: the Node helper's own run (its page is the same bytes) |
 | A request without signed headers is told where to get the newest client | `test/siwa_server_web/controllers/agent_siwa_controller_test.exs` |
 | A request with every signed header but a bad signature is told it didn't verify, never that headers are missing | `test/siwa_server_web/controllers/agent_siwa_controller_test.exs` |
 | An agent lists itself in the agent registry on Base, and its profile is served | `test/siwa_server_web/controllers/agent_registration_controller_test.exs` |
@@ -22,8 +22,8 @@ check yet.
 
 | Behaviour | Proof |
 | --- | --- |
-| The page says who opened it, what Touch ID does in each step (protect, unlock, show) and that it is safe to close, in plain words, at 390 and 1280 wide, light and dark | `e2e/touch-id-page.spec.mjs` |
-| Finishing, cancelling or failing never moves the rest of the page | `e2e/touch-id-page.spec.mjs` |
+| The page says who opened it, each step's title and sentence before and after Touch ID (protect, unlock, show) and that it is safe to close, with no technical words, at 320, 390, 480 and 1280 wide, light and dark | `e2e/touch-id-page.spec.mjs` |
+| Finishing never moves the button, the address box or the footer, at every width from 300 to 1280 in steps of 20; cancelling or failing doesn't either, at 320, 390, 480 and 1280 | `e2e/touch-id-page.spec.mjs` |
 | A cancelled Touch ID, an agent that stopped waiting and a browser that cannot do it each get their own plain line; any other browser error gets one plain line, its own words go to the log | `e2e/touch-id-page.spec.mjs` |
 | Safari | **gap**: WebKit is not run on the Mac |
 

@@ -903,7 +903,10 @@ main { border: 1px solid var(--color-border); background: var(--color-surface); 
 .content { padding: 32px; }
 #opener { margin: 0 0 24px; color: var(--color-muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; overflow-wrap: anywhere; }
 h1 { font-family: var(--font-family-title); font-weight: 400; font-size: clamp(28px, 6vw, 36px); line-height: 1.2; min-height: 1.2em; margin: 0 0 16px; outline: none; }
-#lead { min-height: 3em; margin: 0 0 24px; color: var(--color-muted); line-height: 1.5; }
+/* Both sentences share one cell, so finishing never changes the page's height. */
+.lead { display: grid; margin: 0 0 24px; color: var(--color-muted); line-height: 1.5; }
+.lead > p { grid-area: 1 / 1; margin: 0; }
+.lead > p[data-hidden] { visibility: hidden; }
 button { width: 100%; min-height: 48px; padding: 12px 16px; border: 1px solid var(--color-fg); border-radius: 0; background: var(--color-fg); color: var(--color-bg); font: inherit; cursor: pointer; }
 button:hover { background: var(--color-bg); color: var(--color-fg); }
 button:disabled { cursor: wait; opacity: .65; }
@@ -928,7 +931,7 @@ button.secondary { background: transparent; color: var(--color-fg); }
 button.secondary:hover { background: var(--color-fg); color: var(--color-bg); }
 a { color: inherit; text-underline-offset: 3px; }
 @media (prefers-color-scheme: light) { .mark-dark { display: none; } .mark-light { display: block; } }
-@media (max-width: 420px) { body { padding: 24px 16px; } .shell { margin-top: 24px; } .content { padding: 24px; } h1 { min-height: 2.4em; } #lead { min-height: 4.5em; } .after { min-height: 4.5em; } .identity { padding: 20px 24px; } header { gap: 8px; } .brand { font-size: 22px; } }
+@media (max-width: 420px) { body { padding: 24px 16px; } .shell { margin-top: 24px; } .content { padding: 24px; } h1 { min-height: 2.4em; } .after { min-height: 4.5em; } .identity { padding: 20px 24px; } header { gap: 8px; } .brand { font-size: 22px; } }
 @media (forced-colors: active) { main, .identity, button { border-color: CanvasText; } button { background: ButtonFace; color: ButtonText; } }
 </style>
 </head>
@@ -944,7 +947,10 @@ a { color: inherit; text-underline-offset: 3px; }
     <div class="content">
       <p id="opener"></p>
       <h1 id="title" tabindex="-1">Agent key</h1>
-      <p id="lead" role="status">If this page doesn’t finish loading, go back to your agent.</p>
+      <div class="lead">
+        <p id="lead">If this page doesn’t finish loading, go back to your agent.</p>
+        <p id="lead-done" data-hidden></p>
+      </div>
       <button id="go" type="button">Use Touch ID</button>
       <div class="after">
         <p id="done">You can safely close this page</p>
@@ -966,10 +972,20 @@ a { color: inherit; text-underline-offset: 3px; }
 </div>
 <script>
 const setup = __SETUP__;
-const words = {
-  lock: ["Protect your agent key", "Confirm with Touch ID to keep your agent’s key safe on this Mac."],
-  unlock: ["Unlock your agent key", "Confirm with Touch ID so your agent can sign in. You’re asked once after each restart."],
-  show: ["Show your agent key", "Confirm with Touch ID to show the key in the window where you asked for it. Only continue if you asked."],
+// Each step's title and sentence, before Touch ID and after it.
+const [words, result] = {
+  lock: [
+    ["Protect your agent key", "Confirm with Touch ID to keep your agent’s key safe."],
+    ["Agent key protected", "Go back to your agent to finish setting up."],
+  ],
+  unlock: [
+    ["Unlock your agent key", "Confirm with Touch ID so your agent can sign in. You’re asked once after each Mac restart."],
+    ["Agent key unlocked", "Go back to your agent to continue."],
+  ],
+  show: [
+    ["Show your agent key", "Confirm with Touch ID to show the key in the window where you asked for it. Only continue if you asked."],
+    ["Touch ID confirmed", "Go back to the window where you asked for the key."],
+  ],
 }[setup.mode];
 const $ = (id) => document.getElementById(id);
 // A message written for the person; any other error shows one plain line.
@@ -977,6 +993,7 @@ class Plain extends Error {}
 document.title = words[0] + " · Regents";
 $("title").textContent = words[0];
 $("lead").textContent = words[1];
+$("lead-done").textContent = result[1];
 $("opener").textContent = "Opened by " + setup.opener;
 $("address").textContent = setup.address;
 $("copy").onclick = async () => {
@@ -1028,15 +1045,12 @@ $("go").onclick = async () => {
     const answer = setup.mode === "lock" ? await makePasskey() : await secretOf(setup.credentialId);
     const sent = await fetch(location.pathname, { method: "POST", body: JSON.stringify(answer) }).catch(() => null);
     if (!sent?.ok) throw new Plain("Your agent stopped waiting. Ask it to try again.");
-    const result = {
-      lock: ["Agent key protected", "Go back to your agent to finish setting up."],
-      unlock: ["Agent key unlocked", "Go back to your agent to continue."],
-      show: ["Touch ID confirmed", "Go back to the window where you asked for the key."],
-    }[setup.mode];
     $("title").textContent = result[0];
-    $("lead").textContent = result[1];
+    $("lead").setAttribute("data-hidden", "");
+    $("lead-done").removeAttribute("data-hidden");
+    $("title").setAttribute("aria-describedby", "lead-done");
     document.title = result[0] + " · Regents";
-    $("go").textContent = "✓ Touch ID complete";
+    $("go").textContent = "✓ Done";
     $("go").setAttribute("data-complete", "");
     $("done").setAttribute("data-shown", "");
     $("share").hidden = true;
@@ -1049,7 +1063,7 @@ $("go").onclick = async () => {
       $("note").textContent = error.message;
     } else {
       console.error(error);
-      $("note").textContent = "Touch ID couldn’t finish on this device. Try again, or use another device.";
+      $("note").textContent = "Touch ID couldn’t finish. Try again, or open this page in Safari or Chrome.";
     }
     $("go").disabled = false;
     $("go").textContent = "Use Touch ID";
@@ -1847,7 +1861,8 @@ async function acceptWorldId(config, args) {
 
 async function main(argv) {
   const [command, ...args] = argv;
-  if (command === undefined || ["-h", "--help", "help"].includes(command)) {
+  // Help anywhere on the line shows the help screen and runs nothing.
+  if (command === undefined || command === "help" || argv.includes("-h") || argv.includes("--help")) {
     return process.stdout.write(USAGE + "\n\n" + HELP);
   }
   const config = settings();

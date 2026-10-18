@@ -81,8 +81,8 @@ defmodule SiwaServer.AgentClientsConformanceTest do
   @tag :tmp_dir
   test "both clients show an agent the same help and answer a wrong command the same way",
        %{tmp_dir: home} do
-    {python_help, 0} = run_client(:python, home, ["--help"])
-    {node_help, 0} = run_client(:node, home, ["--help"])
+    {python_help, 0} = run_client(:python, home, ["--help"], :stdout)
+    {node_help, 0} = run_client(:node, home, ["--help"], :stdout)
 
     # Only the first line, how to start each client, differs.
     assert ["Usage: uv run siwa_agent.py COMMAND", "" | python_rest] =
@@ -95,24 +95,33 @@ defmodule SiwaServer.AgentClientsConformanceTest do
     refute python_help =~ "key-helper"
 
     for client <- [:python, :node] do
-      assert {output, 2} = run_client(client, home, ["unpair"])
+      # Help after a command shows the same screen and runs nothing: no key is made.
+      for args <- [["help"], ["keygen", "--force", "--help"], ["show-key", "-h"]] do
+        assert {help, 0} = run_client(client, home, args, :stdout)
+        assert help == %{python: python_help, node: node_help}[client]
+      end
+
+      assert File.ls!(home) == []
+
+      assert {"", 2} = run_client(client, home, ["unpair"], :stdout)
+      assert {output, 2} = run_client(client, home, ["unpair"], :stderr)
 
       assert Jason.decode!(output) == %{
                "error" => "unknown command 'unpair'; run --help to see the commands"
              }
+
+      assert {"", 2} = run_client(client, home, ["request", "GET"], :stdout)
+      assert {output, 2} = run_client(client, home, ["request", "GET"], :stderr)
+      assert %{"error" => _message} = Jason.decode!(output)
     end
   end
 
-  defp run_client(:python, home, args),
-    do:
-      System.cmd("python3", ["-I", @python | args],
-        env: [{"SIWA_AGENT_HOME", home}],
-        stderr_to_stdout: true
-      )
-
-  defp run_client(:node, home, args),
-    do:
-      System.cmd("node", [@node | args], env: [{"SIWA_AGENT_HOME", home}], stderr_to_stdout: true)
+  # One of the client's two output streams; the other is dropped.
+  defp run_client(client, home, args, stream) do
+    command = if(client == :python, do: ["python3", "-I", @python], else: ["node", @node])
+    redirect = if(stream == :stdout, do: ~s("$@" 2>/dev/null), else: ~s("$@" 2>&1 >/dev/null))
+    System.cmd("sh", ["-c", redirect, "sh" | command ++ args], env: [{"SIWA_AGENT_HOME", home}])
+  end
 
   defp seed_home(home, fixtures, signature_header) do
     principal = fixtures["principal"]

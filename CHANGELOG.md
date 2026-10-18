@@ -10,11 +10,12 @@ a release moves those lines under its date. Which version and commit each releas
 - The Touch ID page is shorter and plainer: one label saying which agent opened it, the step, one sentence
   and the button. The "Why localhost?" and pairing paragraphs are gone, the message for the agent is two
   sentences at the bottom and disappears once Touch ID is done, and the finished line and errors share one
-  reserved line. A browser error other than a cancel or timeout shows one plain line; its own words go to the
-  browser log.
+  reserved line. Finishing or failing moves nothing on the page, at any width. A browser error other than a
+  cancel or timeout shows one plain line; its own words go to the browser log.
 - Both agent helpers print the same help (`--help`), without the `key-helper` command they start themselves,
-  and answer an unknown command with the same JSON error. The Python helper answers every wrong command line
-  as JSON on stderr, like the Node one.
+  and answer an unknown command with the same JSON error. `--help` or `-h` anywhere on the line shows that
+  help and runs nothing, so `keygen --force --help` no longer replaces the key in the Node helper. The Python
+  helper answers every wrong command line as JSON on stderr, like the Node one.
 - Keyfleet's code host, `https://code.keyfleet.ai`, signs in under the `keyfleet` audience, so the agent helper
   can sign in to Keyfleet's Git gateway there.
 
