@@ -183,6 +183,9 @@ with the gaps that have no check yet.
 
 The launch and maintenance checklist is in `docs/regent-local-and-fly-launch-testing.md`.
 
+[RELEASES.md](RELEASES.md) records each release's Fly version and commit; [CHANGELOG.md](CHANGELOG.md)
+says what changed for agents, people and sites.
+
 ## The other repositories
 
 | Repository | What it is | What it deliberately does not do |
