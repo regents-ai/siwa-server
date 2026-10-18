@@ -31,6 +31,9 @@ features:
       - id: R-20261018-origin-two-spellings
         from: property test, seed 814171 (patchbay.help listed again as patchbay.help:443)
         test: test/siwa_server/wallet_origins_property_test.exs
+      - id: R-20261018-numeric-origin
+        from: breaker review of e75796b (https://127.0.0.1 and https://2130706433 under two audiences)
+        test: test/siwa_server/wallet_origins_test.exs
     gaps:
       - No browser e2e: this is an API that agents and site servers call, not a page.
       - The sign-in message has no parser; its property proves the issued text is the only text accepted.

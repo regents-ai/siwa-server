@@ -8,14 +8,16 @@ defmodule SiwaServer.WalletOrigins do
   may list several origins, one entry each; its first entry is the origin the
   sign-in challenge names. No origin appears twice, so every origin belongs to
   exactly one audience. Each origin is written in its one spelling: `https://`
-  and a lowercase host, with no port, trailing dot, credentials, path, query or
-  fragment (one trailing slash is dropped). An empty or missing value
+  and a lowercase host name, with no port, trailing dot, credentials, path, query or
+  fragment (one trailing slash is dropped). A host is a name, never a number: its
+  last label starts with a letter, and no label is longer than 63 characters. An empty or missing value
   disables wallet sign-in for every audience. Callers never supply origins; only
   this table does.
   """
 
   @audience_regex ~r/^[a-z0-9][a-z0-9_-]{0,63}$/
-  @origin_regex ~r/\Ahttps:\/\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\z/
+  # Labels of at most 63 characters; the last starts with a letter, so no host is a number.
+  @origin_regex ~r/\Ahttps:\/\/(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?\z/
 
   @spec parse!(String.t() | nil) :: %{String.t() => [String.t(), ...]}
   def parse!(value) when value in [nil, ""], do: %{}

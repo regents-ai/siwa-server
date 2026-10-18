@@ -7,6 +7,9 @@ defmodule SiwaServer.AgentClientsConformanceTest do
   Its signer records the text it is handed and answers with the fixture's
   signature, so the test also covers how the client writes that signature into
   its header.
+
+  Every helper failure seen in the field becomes a case here first, failing,
+  and is then fixed; its id goes under agent-helpers in verification/features.yml.
   """
 
   use ExUnit.Case, async: true
