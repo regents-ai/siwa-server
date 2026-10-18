@@ -82,6 +82,58 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     assert hint =~ "uv tool upgrade regents-cli"
   end
 
+  # A request with every signed header present was refused with words saying the
+  # headers were missing (Sentinel, 18 Oct 2026).
+  test "a request with every signed header but a bad signature is told it didn't verify",
+       %{conn: conn} do
+    previous = Application.get_env(:siwa_server, :siwa)
+    on_exit(fn -> Application.put_env(:siwa_server, :siwa, previous) end)
+
+    Application.put_env(
+      :siwa_server,
+      :siwa,
+      Keyword.put(previous, :wallet_origins, %{"patchbay" => ["https://patchbay.help"]})
+    )
+
+    # Base answers that no smart wallet approves the wrong signature.
+    System.put_env("BASE_RPC_URL", TestRpcServer.wallet_answers({true, <<>>}))
+
+    # The same headers, signed rightly, are accepted: only the signature differs below.
+    good =
+      conn
+      |> put_req_header("x-siwa-audience", "patchbay")
+      |> json_post("/api/shared/siwa/http-verify", %{
+        "method" => "GET",
+        "path" => "/api/agents/v1/me",
+        "headers" => signed_headers()
+      })
+
+    assert %{"data" => %{"verified" => true}} = json_response(good, 200)
+
+    wrong = "sig1=:" <> signature_payload(TestWallet.sign_message("some other text")) <> ":"
+
+    for {signature, code, says} <- [
+          {"sig1=:!!!!:", "http_signature_invalid", "didn't verify"},
+          {wrong, "signature_invalid", "does not come from the address"}
+        ] do
+      payload = %{
+        "method" => "GET",
+        "path" => "/api/agents/v1/me",
+        "headers" => Map.put(signed_headers(), "x-siwa-signature", signature)
+      }
+
+      conn =
+        conn
+        |> recycle()
+        |> put_req_header("x-siwa-audience", "patchbay")
+        |> json_post("/api/shared/siwa/http-verify", payload)
+
+      assert %{"error" => %{"code" => ^code, "hint" => hint}} = json_response(conn, 401)
+      refute hint =~ "missing"
+      assert hint =~ says
+    end
+  end
+
   test "public SIWA endpoints reject oversized JSON bodies", %{conn: conn} do
     body = Jason.encode!(%{"message" => String.duplicate("x", 70_000)})
 
@@ -256,6 +308,63 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     |> put_req_header("content-type", "application/json")
     |> post(path, Jason.encode!(params))
   end
+
+  # Every header a signed GET carries, signed by the test wallet for patchbay.
+  defp signed_headers do
+    secret = :siwa_server |> Application.fetch_env!(:siwa) |> Keyword.fetch!(:receipt_secret)
+
+    {:ok, %{token: receipt}} =
+      Siwa.create_receipt(
+        %{
+          "typ" => "siwa_wallet_receipt",
+          "verified" => "wallet_signature",
+          "jti" => Ecto.UUID.generate(),
+          "sub" => @wallet_address,
+          "aud" => "patchbay",
+          "chain_id" => @chain_id,
+          "nonce" => "receipt-#{System.unique_integer([:positive])}",
+          "key_id" => @wallet_address
+        },
+        receipt_secret: secret,
+        ttl_ms: 3_600_000
+      )
+
+    created = System.os_time(:second)
+
+    headers = %{
+      "x-siwa-receipt" => receipt,
+      "x-key-id" => @wallet_address,
+      "x-timestamp" => Integer.to_string(created),
+      "x-agent-wallet-address" => @wallet_address,
+      "x-agent-chain-id" => Integer.to_string(@chain_id)
+    }
+
+    components =
+      ~w(@method @path x-siwa-receipt x-key-id x-timestamp x-agent-wallet-address x-agent-chain-id)
+
+    params =
+      "(#{Enum.map_join(components, " ", &~s("#{&1}"))});created=#{created};expires=#{created + 120}" <>
+        ~s(;nonce="req-#{System.unique_integer([:positive])}";keyid="#{@wallet_address}")
+
+    message =
+      components
+      |> Enum.map(fn
+        "@method" -> ~s("@method": get)
+        "@path" -> ~s("@path": /api/agents/v1/me)
+        name -> ~s("#{name}": #{headers[name]})
+      end)
+      |> Kernel.++([~s("@signature-params": #{params})])
+      |> Enum.join("\n")
+
+    headers
+    |> Map.put("x-siwa-signature-input", "sig1=#{params}")
+    |> Map.put(
+      "x-siwa-signature",
+      "sig1=:#{signature_payload(TestWallet.sign_message(message))}:"
+    )
+  end
+
+  defp signature_payload("0x" <> hex), do: hex |> Base.decode16!(case: :mixed) |> Base.encode64()
 
   defp operation_response_codes(contract, path, method) do
     path_pattern = Regex.compile!("^  #{Regex.escape(path)}:\\n(.*?)(?=^  /|\\z)", "ms")

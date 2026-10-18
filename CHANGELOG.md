@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- A signed request that carries every signature header but whose signature doesn't verify is told that, in its
+  hint, instead of being told its headers are missing. Only a request without them hears they are missing.
 - The Touch ID page is shorter and plainer: one label saying which agent opened it, the step, one sentence
   and the button. The "Why localhost?" and pairing paragraphs are gone, the message for the agent is two
   sentences at the bottom and disappears once Touch ID is done, and the finished line and errors share one

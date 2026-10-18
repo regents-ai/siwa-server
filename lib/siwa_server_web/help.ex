@@ -96,14 +96,24 @@ defmodule SiwaServerWeb.Help do
   end
 
   defp steps(code, _context)
-       when code in ~w(http_headers_missing http_required_components_missing http_signature_input_invalid http_signature_invalid) do
+       when code in ~w(http_headers_missing http_required_components_missing) do
     [
-      "The request's signature headers are missing, too old or malformed. Get the newest client ",
-      "with `",
+      "The request is missing signature headers. Get the newest client with `",
       @client,
-      "`, or if you use regents-cli, run `uv tool upgrade regents-cli`. Then send the request ",
-      "with `uv run siwa_agent.py request METHOD URL` or your regents command, which signs each ",
-      "request fresh, just before sending. Each signature works once, for two minutes."
+      "`, or if you use regents-cli, run `uv tool upgrade regents-cli`. Then ",
+      send_fresh()
+    ]
+  end
+
+  defp steps(code, _context)
+       when code in ~w(http_signature_input_invalid http_signature_invalid) do
+    [
+      "The request's signature didn't verify: it is malformed, too old, or made for another ",
+      "request. ",
+      send_fresh(),
+      " If it keeps happening, get the newest client with `",
+      @client,
+      "`, or if you use regents-cli, run `uv tool upgrade regents-cli`."
     ]
   end
 
@@ -179,6 +189,14 @@ defmodule SiwaServerWeb.Help do
     [
       "The sign-in service had a problem on its side. Wait a minute and try again. ",
       "If it keeps happening, tell your person."
+    ]
+  end
+
+  defp send_fresh do
+    [
+      "Send the request with `uv run siwa_agent.py request METHOD URL` or your regents command, ",
+      "which signs each request fresh, just before sending. Each signature works once, for two ",
+      "minutes."
     ]
   end
 

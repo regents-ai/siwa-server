@@ -14,6 +14,7 @@ check yet.
 | Both helpers carry the Touch ID page built from its sources | `scripts/build_agent_page.py --check` (run by hand with the design-system folder; **gap**: not in precommit, because it needs that checkout) |
 | `keygen` locks a new key with Touch ID, and `show-key` opens it again | `e2e/touch-id-page.spec.mjs`, the real Python helper on a Mac; **gap**: the Node helper's own run (its page is the same bytes) |
 | A request without signed headers is told where to get the newest client | `test/siwa_server_web/controllers/agent_siwa_controller_test.exs` |
+| A request with every signed header but a bad signature is told it didn't verify, never that headers are missing | `test/siwa_server_web/controllers/agent_siwa_controller_test.exs` |
 | An agent lists itself in the agent registry on Base, and its profile is served | `test/siwa_server_web/controllers/agent_registration_controller_test.exs` |
 | An agent accepts the person World ID's AgentBook names, once | `test/siwa_server_web/controllers/agent_book_controller_test.exs`, `test/siwa_server/agent_book_test.exs` |
 
