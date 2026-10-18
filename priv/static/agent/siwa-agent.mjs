@@ -1,34 +1,5 @@
 #!/usr/bin/env node
-// SIWA agent client: one Ethereum key for every Regent site.
-//
-// Guide: https://siwa.regents.sh/skill.md
-//
-// Pick how you sign, once:
-//   npm install viem && node siwa-agent.mjs keygen       # this client makes and keeps a key (on a Mac, locked with a passkey)
-//   node siwa-agent.mjs use-wallet 0xADDRESS --signer 'cast wallet sign --account agent "$SIWA_MESSAGE"'
-//
-// Then, for any Regent site:
-//   node siwa-agent.mjs sites
-//   node siwa-agent.mjs pair https://regents.sh < ~/pair.json  # {"code": "...", "name": "Astra", "harness": "claude_code"}
-//   node siwa-agent.mjs me https://regents.sh
-//   node siwa-agent.mjs request POST https://keyfleet.ai/api/v1/agent/join/status --body '{"name":"Astra"}'
-//
-// Optional, once: list yourself in the agent registry on Base (your wallet pays the gas):
-//   node siwa-agent.mjs register-agent --name Astra --description "What I do"
-//
-// Optional, once your person has vouched for you with World ID (see the guide):
-//   node siwa-agent.mjs accept-world-id
-//
-// Environment:
-//   SIWA_AGENT_HOME where the key and receipts are kept (default ~/.siwa-agent)
-//   SIWA_BROKER     the SIWA server (default https://siwa.regents.sh; the same server answers at
-//                   https://siwa-server.fly.dev if your network blocks siwa.regents.sh)
-//   SIWA_BASE_RPC   the Base node register-agent sends through (default https://mainnet.base.org)
-//
-// A private key made by keygen never leaves this machine. On a Mac it is locked
-// with a passkey: your person confirms with Touch ID once after each restart, and
-// `show-key` shows the plain key to copy. With use-wallet, this client never sees
-// a private key at all: it hands each text to your signer.
+// Regents agent sign-in client. Run it with --help to see the commands.
 
 import { execFile, execFileSync, execSync, spawn } from "node:child_process";
 import { createHash, randomBytes, webcrypto } from "node:crypto";
@@ -930,8 +901,7 @@ header { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
 .local { margin-left: auto; font-size: 12px; color: var(--color-muted); }
 main { border: 1px solid var(--color-border); background: var(--color-surface); }
 .content { padding: 32px; }
-#opener { margin: 0 0 16px; font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
-#state { margin: 0 0 24px; color: var(--color-muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+#opener { margin: 0 0 24px; color: var(--color-muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; overflow-wrap: anywhere; }
 h1 { font-family: var(--font-family-title); font-weight: 400; font-size: clamp(28px, 6vw, 36px); line-height: 1.2; min-height: 1.2em; margin: 0 0 16px; outline: none; }
 #lead { min-height: 3em; margin: 0 0 24px; color: var(--color-muted); line-height: 1.5; }
 button { width: 100%; min-height: 48px; padding: 12px 16px; border: 1px solid var(--color-fg); border-radius: 0; background: var(--color-fg); color: var(--color-bg); font: inherit; cursor: pointer; }
@@ -939,24 +909,27 @@ button:hover { background: var(--color-bg); color: var(--color-fg); }
 button:disabled { cursor: wait; opacity: .65; }
 button[data-complete] { cursor: default; opacity: 1; color: var(--color-muted); background: transparent; border-color: var(--color-border); }
 button:focus-visible, a:focus-visible { outline: 2px solid var(--color-fg); outline-offset: 4px; }
-#done { margin: 16px 0 0; font-size: 18px; font-weight: 600; visibility: hidden; }
+/* The finished line and an error share one reserved line, so nothing below moves. */
+.after { display: grid; min-height: 3em; margin: 16px 0 0; line-height: 1.5; }
+.after > p { grid-area: 1 / 1; margin: 0; }
+#done { font-weight: 600; visibility: hidden; }
 #done[data-shown] { visibility: visible; }
-#note { min-height: 4.5em; margin: 16px 0 0; color: var(--color-error); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+#note { color: var(--color-error); font-size: 14px; }
 .identity { border-top: 1px solid var(--color-border); padding: 20px 32px; }
 .label { display: block; color: var(--color-muted); font-size: 12px; margin-bottom: 8px; }
 code { font-family: var(--font-family-mono); font-size: 12px; overflow-wrap: anywhere; }
-.share { margin-top: 24px; border: 1px solid var(--color-border); padding: 24px 32px; }
-.share h2 { margin: 0 0 12px; font-size: 12px; font-weight: 400; letter-spacing: .08em; text-transform: uppercase; color: var(--color-muted); }
-.message { margin: 0 0 16px; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; user-select: all; }
-button.secondary { background: transparent; color: var(--color-fg); }
-button.secondary:hover { background: var(--color-fg); color: var(--color-bg); }
 footer { padding-top: 24px; color: var(--color-muted); font-size: 13px; line-height: 1.6; }
 footer p { margin: 0 0 8px; }
-.why { color: var(--color-fg); }
+.share { margin-top: 24px; border-top: 1px solid var(--color-border); padding-top: 24px; }
+.share[hidden] { display: none; }
+.share h2 { margin: 0 0 12px; font-size: 12px; font-weight: 400; letter-spacing: .08em; text-transform: uppercase; }
+.message { margin: 0 0 16px; color: var(--color-fg); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; user-select: all; }
+button.secondary { background: transparent; color: var(--color-fg); }
+button.secondary:hover { background: var(--color-fg); color: var(--color-bg); }
 a { color: inherit; text-underline-offset: 3px; }
 @media (prefers-color-scheme: light) { .mark-dark { display: none; } .mark-light { display: block; } }
-@media (max-width: 420px) { body { padding: 24px 16px; } .shell { margin-top: 24px; } .content { padding: 24px; } h1 { min-height: 2.4em; } #lead { min-height: 7.5em; } .identity { padding: 20px 24px; } .share { padding: 20px 24px; } header { gap: 8px; } .brand { font-size: 22px; } }
-@media (forced-colors: active) { main, .identity, .share, button { border-color: CanvasText; } button { background: ButtonFace; color: ButtonText; } }
+@media (max-width: 420px) { body { padding: 24px 16px; } .shell { margin-top: 24px; } .content { padding: 24px; } h1 { min-height: 2.4em; } #lead { min-height: 4.5em; } .after { min-height: 4.5em; } .identity { padding: 20px 24px; } header { gap: 8px; } .brand { font-size: 22px; } }
+@media (forced-colors: active) { main, .identity, button { border-color: CanvasText; } button { background: ButtonFace; color: ButtonText; } }
 </style>
 </head>
 <body>
@@ -970,36 +943,37 @@ a { color: inherit; text-underline-offset: 3px; }
   <main>
     <div class="content">
       <p id="opener"></p>
-      <p id="state">Agent key · Touch ID</p>
-      <h1 id="title" tabindex="-1">Protect your agent key</h1>
-      <p id="lead" role="status">Return to your agent if this page does not finish loading.</p>
+      <h1 id="title" tabindex="-1">Agent key</h1>
+      <p id="lead" role="status">If this page doesn’t finish loading, go back to your agent.</p>
       <button id="go" type="button">Use Touch ID</button>
-      <p id="done">You can safely close this page</p>
-      <p id="note" role="alert"></p>
-      <noscript>JavaScript is required to use Touch ID on this page.</noscript>
+      <div class="after">
+        <p id="done">You can safely close this page</p>
+        <p id="note" role="alert"></p>
+      </div>
+      <noscript>Turn on JavaScript to use Touch ID on this page.</noscript>
     </div>
     <div class="identity"><span class="label">Agent address</span><code id="address"></code></div>
   </main>
-  <section class="share" aria-labelledby="share-title">
-    <h2 id="share-title">Message for your agent</h2>
-    <p id="message" class="message">I’m on the Regents Touch ID page you opened. Its address is localhost because it runs on my Mac, not on a website. Touch ID there protects your agent key with my fingerprint, and the secret that unlocks it never leaves this computer. It does not pair you with my account: once I’m done, run your client’s “me” command to check pairing. Agent guide: https://siwa.regents.sh/skill.md. Questions: https://patchbay.help</p>
-    <button id="copy" type="button" class="secondary">Copy message</button>
-  </section>
   <footer>
-    <p class="why"><strong>Why localhost?</strong> This page runs on your Mac, not on a website. The secret that unlocks your agent’s key never leaves this computer, so no website ever holds it.</p>
-    <p class="why">This step protects or unlocks the agent’s key; your agent confirms account pairing separately.</p>
     <p><a href="https://patchbay.help" target="_blank" rel="noopener noreferrer">Questions? Ask on patchbay.help ↗</a></p>
     <p><a href="https://siwa.regents.sh/skill.md" target="_blank" rel="noopener noreferrer">Regents agent guide ↗</a></p>
+    <section class="share" id="share" aria-labelledby="share-title">
+      <h2 id="share-title">Message for your agent</h2>
+      <p id="message" class="message">I’m on the Regents Touch ID page you opened on my Mac. When I’m done, check that you’re paired with my account. Guide: https://siwa.regents.sh/skill.md</p>
+      <button id="copy" type="button" class="secondary">Copy message</button>
+    </section>
   </footer>
 </div>
 <script>
 const setup = __SETUP__;
 const words = {
-  lock: ["Secure your agent key", "Create a passkey with Touch ID to protect your agent’s key."],
-  unlock: ["Unlock your agent key", "Use Touch ID to let your agent sign in. Asked once after each Mac restart."],
-  show: ["Reveal your agent key", "Use Touch ID to reveal the private key in your terminal. Only continue if you requested it."],
+  lock: ["Protect your agent key", "Confirm with Touch ID to keep your agent’s key safe on this Mac."],
+  unlock: ["Unlock your agent key", "Confirm with Touch ID so your agent can sign in. You’re asked once after each restart."],
+  show: ["Show your agent key", "Confirm with Touch ID to show the key in the window where you asked for it. Only continue if you asked."],
 }[setup.mode];
 const $ = (id) => document.getElementById(id);
+// A message written for the person; any other error shows one plain line.
+class Plain extends Error {}
 document.title = words[0] + " · Regents";
 $("title").textContent = words[0];
 $("lead").textContent = words[1];
@@ -1010,7 +984,7 @@ $("copy").onclick = async () => {
     await navigator.clipboard.writeText($("message").textContent);
     $("copy").textContent = "✓ Copied";
   } catch {
-    $("copy").textContent = "Couldn’t copy. Select the message and copy it.";
+    $("copy").textContent = "Couldn’t copy. Select the message instead.";
   }
 };
 const hex = (bytes) => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -1027,7 +1001,7 @@ async function secretOf(credentialId) {
     extensions: { prf: { eval: { first: await salt() } } },
   } });
   const first = credential.getClientExtensionResults().prf?.results?.first;
-  if (!first) throw new Error("This browser can't open the passkey. Open this page in Safari or Chrome.");
+  if (!first) throw new Plain("This browser can’t use Touch ID here. Open this page in Safari or Chrome.");
   return { credential_id: credentialId, secret: hex(first) };
 }
 
@@ -1053,25 +1027,30 @@ $("go").onclick = async () => {
   try {
     const answer = setup.mode === "lock" ? await makePasskey() : await secretOf(setup.credentialId);
     const sent = await fetch(location.pathname, { method: "POST", body: JSON.stringify(answer) }).catch(() => null);
-    if (!sent?.ok) throw new Error("Your agent stopped waiting. Run its command again.");
+    if (!sent?.ok) throw new Plain("Your agent stopped waiting. Ask it to try again.");
     const result = {
-      lock: ["Passkey created", "Return to your agent to finish setup and pairing."],
-      unlock: ["Touch ID confirmed", "Return to your agent to continue."],
-      show: ["Touch ID confirmed", "Return to your terminal to view the key."],
+      lock: ["Agent key protected", "Go back to your agent to finish setting up."],
+      unlock: ["Agent key unlocked", "Go back to your agent to continue."],
+      show: ["Touch ID confirmed", "Go back to the window where you asked for the key."],
     }[setup.mode];
     $("title").textContent = result[0];
     $("lead").textContent = result[1];
     document.title = result[0] + " · Regents";
-    $("state").textContent = "✓ Confirmed";
     $("go").textContent = "✓ Touch ID complete";
     $("go").setAttribute("data-complete", "");
     $("done").setAttribute("data-shown", "");
+    $("share").hidden = true;
     $("go").setAttribute("aria-busy", "false");
     $("title").focus();
   } catch (error) {
-    $("note").textContent = error.name === "NotAllowedError"
-      ? "Touch ID was cancelled or timed out. Try again when you’re ready."
-      : error.message;
+    if (error.name === "NotAllowedError") {
+      $("note").textContent = "Touch ID was cancelled or timed out. Try again when you’re ready.";
+    } else if (error instanceof Plain) {
+      $("note").textContent = error.message;
+    } else {
+      console.error(error);
+      $("note").textContent = "Touch ID couldn’t finish on this device. Try again, or use another device.";
+    }
     $("go").disabled = false;
     $("go").textContent = "Use Touch ID";
     $("go").setAttribute("aria-busy", "false");
@@ -1540,6 +1519,45 @@ function takeFlag(args, name) {
   return true;
 }
 
+const USAGE = "Usage: node siwa-agent.mjs COMMAND (first, once: npm install viem)";
+// The same words as HELP in siwa_agent.py; the conformance test compares them.
+const HELP = `Sign in to every Regent site with one agent key.
+Guide: https://siwa.regents.sh/skill.md
+
+Set up once, with one of:
+  keygen [--force]                 make a key kept on this computer (on a Mac, Touch ID
+                                   protects it); --force replaces it and the old identity is lost
+  use-wallet ADDRESS --signer CMD [--chain base|ethereum] [--force]
+                                   sign with your own wallet tool: CMD signs $SIWA_MESSAGE
+                                   and prints the 0x signature
+
+Use any Regent site:
+  sites                            list the sites you can sign in to
+  pair SITE < pair.json            pair with your person's account; pair.json holds
+                                   {"code": "...", "name": "Astra", "harness": "claude_code"}
+  me SITE                          see which account you are paired with
+  request METHOD URL [--body TEXT] [--header NAME=VALUE]
+                                   send a signed request and print the answer
+  headers METHOD URL [--body TEXT] print signed headers without sending the request
+  sign-in SITE                     sign in now (requests do this on their own)
+  whoami                           show your address, how you sign and where you are signed in
+
+Your key:
+  lock-key                         on a Mac, protect a key kept here with Touch ID
+  show-key                         show the secret key to copy, after Touch ID on a Mac
+
+Optional, once:
+  register-agent --name NAME --description TEXT [--image URL] [--tx-hash HASH]
+                                   list yourself in the agent registry on Base; your wallet pays
+  accept-world-id [--human-id NUMBER]
+                                   accept the person who vouched for you with World ID
+
+Settings:
+  SIWA_AGENT_HOME                  where your key is kept (default ~/.siwa-agent)
+  SIWA_BROKER                      the sign-in server (default https://siwa.regents.sh)
+  SIWA_BASE_RPC                    register-agent's Base node (default https://mainnet.base.org)
+`;
+
 const PAIRING_SHAPE = '{"code": "...", "name": "...", "harness": "..."}';
 
 // The pairing arrives as JSON on stdin, so the one-time code stays out of shell history and the process list.
@@ -1600,7 +1618,7 @@ async function keygen(config, args) {
 
 async function lockKey(config) {
   const key = requireKey(config);
-  if (process.platform !== "darwin") throw new SiwaError("lock-key needs a Mac: the key is locked with a Mac passkey");
+  if (process.platform !== "darwin") throw new SiwaError("lock-key needs a Mac: Touch ID protects the key");
   if (!key.private_key) {
     throw new SiwaError(key.locked ? "this key is already locked" : "your wallet tool keeps this key; lock-key locks a key this client keeps");
   }
@@ -1829,6 +1847,9 @@ async function acceptWorldId(config, args) {
 
 async function main(argv) {
   const [command, ...args] = argv;
+  if (command === undefined || ["-h", "--help", "help"].includes(command)) {
+    return process.stdout.write(USAGE + "\n\n" + HELP);
+  }
   const config = settings();
   switch (command) {
     case "keygen":
@@ -1837,6 +1858,7 @@ async function main(argv) {
       return lockKey(config);
     case "show-key":
       return showKey(config);
+    // Started by this client itself to keep an unlocked key until the Mac restarts; not in HELP.
     case "key-helper":
       return keyHelper(args);
     case "use-wallet":
@@ -1876,9 +1898,7 @@ async function main(argv) {
       return console.log(JSON.stringify(await signedHeaders(key, receipt, request.method, request.url, request.body), null, 2));
     }
     default:
-      throw new SiwaError(
-        "commands: keygen [--force], lock-key, show-key, use-wallet <address> --signer <command> [--chain base|ethereum], whoami, sites, sign-in <site>, pair <site> < pair.json, me <site>, request <method> <url>, headers <method> <url>, register-agent --name NAME --description TEXT [--image URL] [--tx-hash HASH], accept-world-id [--human-id NUMBER]",
-      );
+      throw new SiwaError(`unknown command '${command}'; run --help to see the commands`);
   }
 }
 

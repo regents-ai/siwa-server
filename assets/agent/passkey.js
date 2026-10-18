@@ -1,10 +1,12 @@
 const setup = __SETUP__;
 const words = {
-  lock: ["Secure your agent key", "Create a passkey with Touch ID to protect your agent’s key."],
-  unlock: ["Unlock your agent key", "Use Touch ID to let your agent sign in. Asked once after each Mac restart."],
-  show: ["Reveal your agent key", "Use Touch ID to reveal the private key in your terminal. Only continue if you requested it."],
+  lock: ["Protect your agent key", "Confirm with Touch ID to keep your agent’s key safe on this Mac."],
+  unlock: ["Unlock your agent key", "Confirm with Touch ID so your agent can sign in. You’re asked once after each restart."],
+  show: ["Show your agent key", "Confirm with Touch ID to show the key in the window where you asked for it. Only continue if you asked."],
 }[setup.mode];
 const $ = (id) => document.getElementById(id);
+// A message written for the person; any other error shows one plain line.
+class Plain extends Error {}
 document.title = words[0] + " · Regents";
 $("title").textContent = words[0];
 $("lead").textContent = words[1];
@@ -15,7 +17,7 @@ $("copy").onclick = async () => {
     await navigator.clipboard.writeText($("message").textContent);
     $("copy").textContent = "✓ Copied";
   } catch {
-    $("copy").textContent = "Couldn’t copy. Select the message and copy it.";
+    $("copy").textContent = "Couldn’t copy. Select the message instead.";
   }
 };
 const hex = (bytes) => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -32,7 +34,7 @@ async function secretOf(credentialId) {
     extensions: { prf: { eval: { first: await salt() } } },
   } });
   const first = credential.getClientExtensionResults().prf?.results?.first;
-  if (!first) throw new Error("This browser can't open the passkey. Open this page in Safari or Chrome.");
+  if (!first) throw new Plain("This browser can’t use Touch ID here. Open this page in Safari or Chrome.");
   return { credential_id: credentialId, secret: hex(first) };
 }
 
@@ -58,25 +60,30 @@ $("go").onclick = async () => {
   try {
     const answer = setup.mode === "lock" ? await makePasskey() : await secretOf(setup.credentialId);
     const sent = await fetch(location.pathname, { method: "POST", body: JSON.stringify(answer) }).catch(() => null);
-    if (!sent?.ok) throw new Error("Your agent stopped waiting. Run its command again.");
+    if (!sent?.ok) throw new Plain("Your agent stopped waiting. Ask it to try again.");
     const result = {
-      lock: ["Passkey created", "Return to your agent to finish setup and pairing."],
-      unlock: ["Touch ID confirmed", "Return to your agent to continue."],
-      show: ["Touch ID confirmed", "Return to your terminal to view the key."],
+      lock: ["Agent key protected", "Go back to your agent to finish setting up."],
+      unlock: ["Agent key unlocked", "Go back to your agent to continue."],
+      show: ["Touch ID confirmed", "Go back to the window where you asked for the key."],
     }[setup.mode];
     $("title").textContent = result[0];
     $("lead").textContent = result[1];
     document.title = result[0] + " · Regents";
-    $("state").textContent = "✓ Confirmed";
     $("go").textContent = "✓ Touch ID complete";
     $("go").setAttribute("data-complete", "");
     $("done").setAttribute("data-shown", "");
+    $("share").hidden = true;
     $("go").setAttribute("aria-busy", "false");
     $("title").focus();
   } catch (error) {
-    $("note").textContent = error.name === "NotAllowedError"
-      ? "Touch ID was cancelled or timed out. Try again when you’re ready."
-      : error.message;
+    if (error.name === "NotAllowedError") {
+      $("note").textContent = "Touch ID was cancelled or timed out. Try again when you’re ready.";
+    } else if (error instanceof Plain) {
+      $("note").textContent = error.message;
+    } else {
+      console.error(error);
+      $("note").textContent = "Touch ID couldn’t finish on this device. Try again, or use another device.";
+    }
     $("go").disabled = false;
     $("go").textContent = "Use Touch ID";
     $("go").setAttribute("aria-busy", "false");

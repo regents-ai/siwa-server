@@ -78,6 +78,42 @@ defmodule SiwaServer.AgentClientsConformanceTest do
     end
   end
 
+  @tag :tmp_dir
+  test "both clients show an agent the same help and answer a wrong command the same way",
+       %{tmp_dir: home} do
+    {python_help, 0} = run_client(:python, home, ["--help"])
+    {node_help, 0} = run_client(:node, home, ["--help"])
+
+    # Only the first line, how to start each client, differs.
+    assert ["Usage: uv run siwa_agent.py COMMAND", "" | python_rest] =
+             String.split(python_help, "\n")
+
+    assert ["Usage: node siwa-agent.mjs COMMAND (first, once: npm install viem)", "" | node_rest] =
+             String.split(node_help, "\n")
+
+    assert python_rest == node_rest
+    refute python_help =~ "key-helper"
+
+    for client <- [:python, :node] do
+      assert {output, 2} = run_client(client, home, ["unpair"])
+
+      assert Jason.decode!(output) == %{
+               "error" => "unknown command 'unpair'; run --help to see the commands"
+             }
+    end
+  end
+
+  defp run_client(:python, home, args),
+    do:
+      System.cmd("python3", ["-I", @python | args],
+        env: [{"SIWA_AGENT_HOME", home}],
+        stderr_to_stdout: true
+      )
+
+  defp run_client(:node, home, args),
+    do:
+      System.cmd("node", [@node | args], env: [{"SIWA_AGENT_HOME", home}], stderr_to_stdout: true)
+
   defp seed_home(home, fixtures, signature_header) do
     principal = fixtures["principal"]
     "sig1=:" <> encoded = signature_header

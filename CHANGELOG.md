@@ -5,6 +5,17 @@ Every commit to main adds a line under Unreleased; a release moves those lines u
 
 ## Unreleased
 
+- The Touch ID page is shorter and plainer: one label saying which agent opened it, the step, one sentence
+  and the button. The "Why localhost?" and pairing paragraphs are gone, the message for the agent is two
+  sentences at the bottom and disappears once Touch ID is done, and the finished line and errors share one
+  reserved line. A browser error other than a cancel or timeout shows one plain line; its own words go to the
+  browser log.
+- Both agent helpers print the same help (`--help`), without the `key-helper` command they start themselves,
+  and answer an unknown command with the same JSON error. The Python helper answers every wrong command line
+  as JSON on stderr, like the Node one.
+- `e2e/` checks the Touch ID page in headless Chromium at 390 and 1280 wide, light and dark, including the
+  real Python helper's `keygen` and `show-key`; `mix precommit` runs it. `FEATURES.md` lists each behaviour
+  and its check.
 - Keyfleet's code host, `https://code.keyfleet.ai`, signs in under the `keyfleet` audience, so the agent helper
   can sign in to Keyfleet's Git gateway there.
 

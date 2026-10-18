@@ -166,8 +166,12 @@ mix precommit
 
 It compiles with warnings as errors, checks unused dependency locks and formatting, runs
 Sobelow, verifies the served services contract, holds the compile-connected `xref` graph
-at zero, and runs the test suite with warnings as errors. It
-needs a local PostgreSQL, because the test alias creates and migrates a database first.
+at zero, runs the test suite with warnings as errors, then runs the Touch ID page checks in
+headless Chromium (`e2e/`, Playwright 1.64.1, on a Mac). It needs a local PostgreSQL,
+because the test alias creates and migrates a database first.
+
+[FEATURES.md](FEATURES.md) lists what this service does and the check that proves each part,
+with the gaps that have no check yet.
 
 ## Deployment
 
@@ -243,7 +247,8 @@ the page makes no external asset requests. The page confirms the passkey step;
 only the agent's subsequent `me` request confirms account pairing. It names the agent
 app that opened it ("Opened by Claude Code"; Codex, Cursor, Gemini CLI, Hermes and
 OpenCode are known, anything else is "your agent"), found by each client from its
-parent processes, and after Touch ID it says "You can safely close this page".
+parent processes, and after Touch ID it says "You can safely close this page".. What the page
+shows in each step, and that nothing on it moves, is checked by `e2e/touch-id-page.spec.mjs`.
 Regenerate both clients and the Regents CLI page from sibling checkouts with:
 
 ```sh
