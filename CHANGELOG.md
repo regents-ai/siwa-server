@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 19 October 2026
+
 - A signed request that carries every signature header but whose signature doesn't verify is told that, in its
   hint, instead of being told its headers are missing. Only a request without them hears they are missing.
 - The Touch ID page is shorter and plainer: one label saying which agent opened it, the step, one sentence
