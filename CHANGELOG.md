@@ -9,6 +9,16 @@ a release moves those lines under its date. Which version and commit each releas
   connection it makes, so the eMudhra certificates compromised on 20 October 2026 are no longer trusted.
 - The hint for a request without signature headers no longer reads "Then Send the request": its last
   sentence starts on its own.
+- When Touch ID doesn't finish, the Touch ID page says just that, in place of "cancelled or timed out". When
+  unlocking or showing a key, it adds: if it keeps failing, ask your agent to make a new key, since this Mac
+  may no longer hold the key's passkey.
+- The crown on the Touch ID page no longer sits in a white square in light mode, or a near-black one in dark
+  mode. Only its 13 blocks show.
+- The two help links under the Touch ID page are at least 44px tall, so each is easy to tap on a phone.
+- The Touch ID page runs only its own style and script and loads nothing from anywhere else; both helpers
+  tell the browser so each time they open it.
+- The wallet sign-in message is unchanged: the code that would have added a port number to it is removed,
+  since no site's sign-in address can carry one.
 
 ## 21 October 2026
 

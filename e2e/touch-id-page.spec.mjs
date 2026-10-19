@@ -6,16 +6,24 @@ import { test, expect } from "@playwright/test";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const helper = new URL("../priv/static/agent/siwa_agent.py", import.meta.url).pathname;
+const nodeHelper = new URL("../priv/static/agent/siwa-agent.mjs", import.meta.url).pathname;
 const source = readFileSync(helper, "utf8");
 const template = source.slice(source.indexOf('PASSKEY_PAGE = """') + 18, source.indexOf('"""', source.indexOf('PASSKEY_PAGE = """') + 18));
 const address = "0x00000000000000000000000000000000000a11ce";
 const pageUrl = "http://localhost:4999/page";
+
+// What both helpers send with the page: only its own style and script, its embedded pictures and
+// fonts, and its answer back to the helper.
+const policy = (nonce) =>
+  `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; img-src data:; ` +
+  "font-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+const nonce = "e2e-nonce";
 
 // Words that belong to how the page works, not to what a person needs to read.
 const internal = /localhost|passkey|private key|terminal|credential|prf|webauthn/i;
@@ -64,11 +72,23 @@ async function open(page, mode, credentialId, status = 204) {
       posts.push(JSON.parse(route.request().postData()));
       return route.fulfill({ status });
     }
-    return route.fulfill({ contentType: "text/html; charset=utf-8", body: template.replace("__SETUP__", setup) });
+    return route.fulfill({
+      contentType: "text/html; charset=utf-8",
+      headers: { "content-security-policy": policy(nonce) },
+      body: template.replaceAll("__NONCE__", nonce).replace("__SETUP__", setup),
+    });
   });
   await page.goto(pageUrl);
   return posts;
 }
+
+// Every part of the page the policy refused to load or run.
+const watchPolicy = (page) =>
+  page.addInitScript(() => {
+    window.refused = [];
+    document.addEventListener("securitypolicyviolation", (event) => window.refused.push(event.violatedDirective));
+  });
+const refused = (page) => page.evaluate(() => window.refused);
 
 const visibleText = (page) => page.locator("body").innerText();
 const top = async (page, selector) => (await page.locator(selector).boundingBox()).y;
@@ -78,6 +98,7 @@ const layout = async (page) => [await top(page, "#go"), await top(page, ".identi
 for (const scheme of ["light", "dark"]) {
   test(`a person locks, unlocks and shows a key in ${scheme} mode`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: scheme });
+    await watchPolicy(page);
     await touchId(page);
     let credentialId = null;
 
@@ -112,8 +133,17 @@ for (const scheme of ["light", "dark"]) {
       expect(posts[0].secret).toMatch(/^[0-9a-f]{64}$/);
       if (credentialId) expect(posts[0].credential_id).toBe(credentialId);
       credentialId = posts[0].credential_id;
+      expect(await refused(page)).toEqual([]);
       await page.unroute(pageUrl);
     }
+  });
+}
+
+for (const name of ["Questions? Ask on patchbay.help ↗", "Regents agent guide ↗"]) {
+  test(`the "${name}" link is a full tap target`, async ({ page }) => {
+    await open(page, "lock", null);
+    const box = await page.getByRole("link", { name }).boundingBox();
+    expect(box.height).toBeGreaterThanOrEqual(44);
   });
 }
 
@@ -146,11 +176,51 @@ test("cancelled Touch ID says so and lets the person try again", async ({ page }
   await open(page, "lock", null);
   const placed = await layout(page);
   await page.getByRole("button", { name: "Use Touch ID" }).click();
-  await expect(page.locator("#note")).toHaveText("Touch ID was cancelled or timed out. Try again when you’re ready.");
+  await expect(page.locator("#note")).toHaveText("Touch ID didn’t finish. Try again when you’re ready.");
   await expect(page.getByRole("button", { name: "Use Touch ID" })).toBeEnabled();
   await expect(page.locator("#share")).toBeVisible();
   expect(await layout(page)).toEqual(placed);
 });
+
+// A Mac whose passkey was removed: the browser reports it the same way as a cancel.
+for (const mode of ["unlock", "show"]) {
+  test(`a missing passkey in ${mode} mode says what to do if it keeps failing`, async ({ page }) => {
+    await touchId(page);
+    await open(page, mode, "00".repeat(32));
+    const placed = await layout(page);
+    await page.getByRole("button", { name: "Use Touch ID" }).click();
+    await expect(page.locator("#note")).toHaveText("Touch ID didn’t finish. Try again. If it keeps failing, ask your agent to make a new key.");
+    await expect(page.getByRole("button", { name: "Use Touch ID" })).toBeEnabled();
+    expect(await visibleText(page)).not.toMatch(internal);
+    expect(await layout(page)).toEqual(placed);
+  });
+}
+
+// The crown files carry their own square; on the page only the blocks may show.
+for (const scheme of ["light", "dark"]) {
+  test(`the crown shows no box around it in ${scheme} mode`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await watchPolicy(page);
+    await open(page, "lock", null);
+    const mark = page.locator(".mark:visible");
+    await expect(mark).toHaveCount(1);
+    const shot = await mark.screenshot();
+    const [corner, background] = await page.evaluate(async (png) => {
+      const image = new Image();
+      image.src = "data:image/png;base64," + png;
+      await image.decode();
+      const canvas = Object.assign(document.createElement("canvas"), { width: image.width, height: image.height });
+      const context = canvas.getContext("2d");
+      context.drawImage(image, 0, 0);
+      const probe = Object.assign(document.createElement("canvas"), { width: 1, height: 1 }).getContext("2d");
+      probe.fillStyle = getComputedStyle(document.body).backgroundColor;
+      probe.fillRect(0, 0, 1, 1);
+      return [[...context.getImageData(1, 1, 1, 1).data], [...probe.getImageData(0, 0, 1, 1).data]];
+    }, shot.toString("base64"));
+    expect(corner).toEqual(background);
+    expect(await refused(page)).toEqual([]);
+  });
+}
 
 test("an agent that stopped waiting is named in plain words", async ({ page }) => {
   await touchId(page);
@@ -186,10 +256,21 @@ test("any other browser error shows one plain line and keeps the browser's words
   expect(await layout(page)).toEqual(placed);
 });
 
-// The real Python helper, its own page server and the key file it writes.
-test("keygen locks a new key with Touch ID and show-key opens it again", async ({ page }, info) => {
+// Each real helper, its own page server with its page lock, and the key file it writes.
+// How each helper starts a command, and what it leaves to remove afterwards.
+const helpers = {
+  Python: () => ({ start: (command) => ["uv", ["run", "-q", helper, command]], leftover: [] }),
+  // The Node helper runs from its own folder beside its one library, as a person installs it.
+  Node: () => {
+    const folder = mkdtempSync(join(tmpdir(), "siwa-e2e-node-"));
+    copyFileSync(nodeHelper, join(folder, "siwa-agent.mjs"));
+    symlinkSync(new URL("node_modules", import.meta.url).pathname, join(folder, "node_modules"));
+    return { start: (command) => ["node", [join(folder, "siwa-agent.mjs"), command]], leftover: [folder] };
+  },
+};
+for (const [name, install] of Object.entries(helpers)) test(`the ${name} helper locks a new key with Touch ID and opens it again`, async ({ page }, info) => {
   test.skip(process.platform !== "darwin", "the helper locks keys with Touch ID only on a Mac");
-  test.skip(info.project.name !== "1280", "one run of the real helper is enough");
+  test.skip(info.project.name !== "1280", "one run of each real helper is enough");
   // uv starts the helper twice, and the first start may install its two libraries.
   test.setTimeout(120_000);
   const home = mkdtempSync(join(tmpdir(), "siwa-e2e-"));
@@ -198,12 +279,14 @@ test("keygen locks a new key with Touch ID and show-key opens it again", async (
   writeFileSync(join(bin, "open"), "#!/bin/sh\nexit 0\n");
   chmodSync(join(bin, "open"), 0o755);
   const env = { ...process.env, SIWA_AGENT_HOME: home, PATH: `${bin}:${process.env.PATH}` };
+  const { start, leftover } = install();
   const children = [];
+  await watchPolicy(page);
   await touchId(page);
 
   // The page address the helper prints, and how it ended; an early end fails with its own words.
   const run = (command) => {
-    const child = spawn("uv", ["run", "-q", helper, command], { env });
+    const child = spawn(...start(command), { env });
     children.push(child);
     const out = [];
     let err = "";
@@ -220,9 +303,18 @@ test("keygen locks a new key with Touch ID and show-key opens it again", async (
     return { pageAddress, done };
   };
 
+  // The page under the helper's own lock, which names this page's nonce and nothing else.
+  const visit = async (pageAddress) => {
+    const response = await page.goto(pageAddress);
+    const served = await page.evaluate(() => document.querySelector("script").nonce);
+    expect(served).toMatch(/^[A-Za-z0-9_-]{24}$/);
+    expect(response.headers()["content-security-policy"]).toBe(policy(served));
+    return served;
+  };
+
   try {
     const keygen = run("keygen");
-    await page.goto(await keygen.pageAddress);
+    const first = await visit(await keygen.pageAddress);
     await page.getByRole("button", { name: "Use Touch ID" }).click();
     await expect(page.locator("h1")).toHaveText("Agent key protected");
     const made = await keygen.done;
@@ -232,12 +324,13 @@ test("keygen locks a new key with Touch ID and show-key opens it again", async (
     expect(key.locked.box).toMatch(/^[0-9a-f]+$/);
 
     const show = run("show-key");
-    await page.goto(await show.pageAddress);
+    expect(await visit(await show.pageAddress)).not.toBe(first);
     await page.getByRole("button", { name: "Use Touch ID" }).click();
     await expect(page.locator("h1")).toHaveText("Touch ID confirmed");
     const shown = await show.done;
     expect(shown.code, shown.err).toBe(0);
     expect(JSON.parse(shown.out)).toMatchObject({ address: key.address, private_key: expect.stringMatching(/^0x[0-9a-f]{64}$/) });
+    expect(await refused(page)).toEqual([]);
   } finally {
     for (const child of children) child.kill();
     // keygen leaves a helper holding the unlocked key until the Mac restarts; stop it.
@@ -252,5 +345,6 @@ test("keygen locks a new key with Touch ID and show-key opens it again", async (
     }
     rmSync(home, { recursive: true, force: true });
     rmSync(bin, { recursive: true, force: true });
+    for (const folder of leftover) rmSync(folder, { recursive: true, force: true });
   }
 });

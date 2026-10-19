@@ -246,6 +246,11 @@ const PASSKEY_ASKS = {
   unlock: "Ask your person to unlock your key: they press Use Touch ID on the page that just opened on this Mac. They are asked once after each restart.",
   show: "Ask your person to confirm with Touch ID on the page that just opened on this Mac.",
 };
+// The page may run only its own style and script, show only its embedded pictures and fonts,
+// and send its answer only back to this helper.
+const passkeyPolicy = (nonce) =>
+  `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; img-src data:; ` +
+  "font-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
 // The page where the person confirms with Touch ID. The passkey belongs to
 // localhost, so only a page served on this Mac can use it.
@@ -352,7 +357,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>Agent key · Regents</title>
-<style>
+<style nonce="__NONCE__">
 /* Regent shared design tokens.
  *
  * Consumers set data-brand, and data-theme once the person has chosen on the site:
@@ -896,7 +901,9 @@ body { margin: 0; min-height: 100svh; padding: 48px 24px; background: var(--colo
 .shell { max-width: 560px; margin: 8vh auto 0; }
 header { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
 .mark { width: 48px; height: 36px; }
-.mark-light { display: none; }
+/* The crown's square takes the page colour, so no box shows around it. */
+.mark-dark { mix-blend-mode: lighten; }
+.mark-light { display: none; mix-blend-mode: darken; }
 .brand { font-family: var(--font-family-title); font-size: 24px; }
 .local { margin-left: auto; font-size: 12px; color: var(--color-muted); }
 main { border: 1px solid var(--color-border); background: var(--color-surface); }
@@ -922,7 +929,9 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--color-fg); outl
 .label { display: block; color: var(--color-muted); font-size: 12px; margin-bottom: 8px; }
 code { font-family: var(--font-family-mono); font-size: 12px; overflow-wrap: anywhere; }
 footer { padding-top: 24px; color: var(--color-muted); font-size: 13px; line-height: 1.6; }
-footer p { margin: 0 0 8px; }
+footer p { margin: 0; }
+/* Each link is a full-height tap target on a phone. */
+footer a { display: inline-flex; align-items: center; min-height: 44px; }
 .share { margin-top: 24px; border-top: 1px solid var(--color-border); padding-top: 24px; }
 .share[hidden] { display: none; }
 .share h2 { margin: 0 0 12px; font-size: 12px; font-weight: 400; letter-spacing: .08em; text-transform: uppercase; }
@@ -970,7 +979,7 @@ a { color: inherit; text-underline-offset: 3px; }
     </section>
   </footer>
 </div>
-<script>
+<script nonce="__NONCE__">
 const setup = __SETUP__;
 // Each step's title and sentence, before Touch ID and after it.
 const [words, result] = {
@@ -1058,7 +1067,10 @@ $("go").onclick = async () => {
     $("title").focus();
   } catch (error) {
     if (error.name === "NotAllowedError") {
-      $("note").textContent = "Touch ID was cancelled or timed out. Try again when you’re ready.";
+      // Cancelled, timed out, or this Mac no longer holds the passkey: the browser says only that.
+      $("note").textContent = setup.mode === "lock"
+        ? "Touch ID didn’t finish. Try again when you’re ready."
+        : "Touch ID didn’t finish. Try again. If it keeps failing, ask your agent to make a new key.";
     } else if (error instanceof Plain) {
       $("note").textContent = error.message;
     } else {
@@ -1226,9 +1238,10 @@ function opener() {
 // Open a page on this Mac where the person confirms with Touch ID; resolve to the passkey's id and secret.
 function passkeySecret(mode, address, credentialId) {
   const token = randomBytes(18).toString("base64url");
+  const nonce = randomBytes(18).toString("base64url");
   // Written inside the page's script: "<" is escaped so no value can end the script early.
   const setup = JSON.stringify({ mode, address, credentialId, opener: opener() }).replaceAll("<", "\\u003c");
-  const page = PASSKEY_PAGE.replace("__SETUP__", () => setup);
+  const page = PASSKEY_PAGE.replaceAll("__NONCE__", nonce).replace("__SETUP__", () => setup);
   return new Promise((resolve, reject) => {
     let answered = false;
     const finish = () => {
@@ -1239,7 +1252,11 @@ function passkeySecret(mode, address, credentialId) {
     const server = createServer((request, response) => {
       if (request.url !== `/${token}`) return response.writeHead(404).end();
       if (request.method === "GET") {
-        return response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" }).end(page);
+        return response.writeHead(200, {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-store",
+          "content-security-policy": passkeyPolicy(nonce),
+        }).end(page);
       }
       if (request.method !== "POST" || answered) return response.writeHead(404).end();
       let body = "";

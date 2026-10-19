@@ -85,7 +85,10 @@ $("go").onclick = async () => {
     $("title").focus();
   } catch (error) {
     if (error.name === "NotAllowedError") {
-      $("note").textContent = "Touch ID was cancelled or timed out. Try again when you’re ready.";
+      // Cancelled, timed out, or this Mac no longer holds the passkey: the browser says only that.
+      $("note").textContent = setup.mode === "lock"
+        ? "Touch ID didn’t finish. Try again when you’re ready."
+        : "Touch ID didn’t finish. Try again. If it keeps failing, ask your agent to make a new key.";
     } else if (error instanceof Plain) {
       $("note").textContent = error.message;
     } else {

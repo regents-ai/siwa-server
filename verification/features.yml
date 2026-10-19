@@ -197,8 +197,7 @@ features:
       - cli: node siwa-agent.mjs
     proofs:
       - test/siwa_server/agent_clients_conformance_test.exs
-    gaps:
-      - The Node helper's own Touch ID run (its page is the same bytes as Python's).
+      - e2e/touch-id-page.spec.mjs
 
   - id: touch-id-page
     what: A person confirms with Touch ID to protect, unlock or show their agent's key, on a page their agent opens.

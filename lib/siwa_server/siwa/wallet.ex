@@ -195,12 +195,9 @@ defmodule SiwaServer.Siwa.Wallet do
   end
 
   defp message(fields, origin, nonce, issued, expires) do
-    uri = URI.parse(origin)
-    authority = if uri.port == 443, do: uri.host, else: "#{uri.host}:#{uri.port}"
-
     Enum.join(
       [
-        "#{authority} wants you to sign in with your Ethereum account:",
+        "#{URI.parse(origin).host} wants you to sign in with your Ethereum account:",
         checksum_address(fields["wallet_address"]),
         "",
         "Authorize wallet-signed requests for #{fields["audience"]}. No human profile or agent registration is asserted.",
