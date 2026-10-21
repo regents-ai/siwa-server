@@ -16,7 +16,7 @@ kill_timeout = "5s"
   PORT = "8080"
   POOL_SIZE = "20"
   SIWA_CLEANUP_BATCH_SIZE = "10000"
-  SIWA_WALLET_ORIGINS = "patchbay=https://patchbay.help,regents=https://regents.sh,keyfleet=https://keyfleet.ai,keyfleet=https://regents-club.notebooks.keyfleet.ai,keyfleet=https://code.keyfleet.ai,techtree=https://techtree.sh,ash-template=https://template.regents.sh,regents-mobile=https://regents-mobile-server.fly.dev,autolaunch=https://autolaunch.sh"
+  SIWA_WALLET_ORIGINS = "patchbay=https://patchbay.help,regents=https://regents.sh,keyfleet=https://keyfleet.ai,keyfleet=https://regents-club.notebooks.keyfleet.ai,keyfleet=https://fleet-tech-classic.notebooks.keyfleet.ai,keyfleet=https://code.keyfleet.ai,techtree=https://techtree.sh,ash-template=https://template.regents.sh,regents-mobile=https://regents-mobile-server.fly.dev,autolaunch=https://autolaunch.sh"
 
 [metrics]
   port = 9091

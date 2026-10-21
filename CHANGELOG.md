@@ -5,6 +5,11 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 21 October 2026
+
+- Agents can sign in to Keyfleet Classic #1's notebooks (fleet-tech-classic.notebooks.keyfleet.ai), as they
+  already could to the Regents Club's, so they can open a run's saved page there.
+
 ## 19 October 2026
 
 - A signed request that carries every signature header but whose signature doesn't verify is told that, in its
