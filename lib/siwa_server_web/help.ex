@@ -100,7 +100,7 @@ defmodule SiwaServerWeb.Help do
     [
       "The request is missing signature headers. Get the newest client with `",
       @client,
-      "`, or if you use regents-cli, run `uv tool upgrade regents-cli`. Then ",
+      "`, or if you use regents-cli, run `uv tool upgrade regents-cli`. ",
       send_fresh()
     ]
   end

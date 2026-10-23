@@ -5,6 +5,9 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The hint for a request without signature headers no longer reads "Then Send the request": its last
+  sentence starts on its own.
+
 ## 21 October 2026
 
 - Agents can sign in to Keyfleet Classic #1's notebooks (fleet-tech-classic.notebooks.keyfleet.ai), as they
