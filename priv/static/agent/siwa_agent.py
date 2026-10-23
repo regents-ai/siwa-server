@@ -513,7 +513,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 }
 
 /* Supporting compartments are identity constants, paired in both light and dark.
- * The main theme and action semantics below remain unchanged. */
+ * The main theme and action semantics below remain unchanged. Techtree's Canopy
+ * compartments change with the theme, so they sit in its theme blocks instead.
+ * A brand may set its own button marks and theme-switch beams here; the others
+ * keep Powder Blue and Tangerine. */
 :root[data-brand="platform"] {
   --support-figure-surface: var(--palette-powder-blue);
   --support-figure-ink: var(--palette-charcoal);
@@ -541,12 +544,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
   --rg-button-border-color: var(--palette-tangerine-tango);
 }
 :root[data-brand="techtree"] {
-  --support-figure-surface: var(--palette-platinum);
-  --support-figure-ink: var(--palette-charcoal);
-  --support-band-surface: var(--palette-tangerine-tango);
-  --support-band-ink: var(--palette-charcoal);
-  --support-panel-surface: var(--palette-charcoal);
-  --support-panel-ink: var(--palette-platinum);
+  --rg-shimmer-color: var(--color-accent);
+  --rg-button-border-color: #238450;
+  --rg-button-mark-color: #238450;
+  --rg-theme-laser-light: #2FA866;
+  --rg-theme-laser-dark: #C8F25C;
 }
 
 :root[data-brand="platform"][data-theme="light"] {
@@ -646,48 +648,60 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 :root[data-brand="techtree"][data-theme="light"] {
   color-scheme: light;
 
-  --brand-accent: #FF5B19;
-  --color-bg: #F6F4EA;
-  --color-surface: #FAF8F2;
-  --color-surface-elevated: #FAF8F2;
-  --color-border: #E0DED3;
-  --color-fg: #161616;
+  --brand-accent: #C8F25C;
+  --color-bg: #F3F5EF;
+  --color-surface: #FAFBF7;
+  --color-surface-elevated: #FAFBF7;
+  --color-border: #DCE3D6;
+  --color-fg: #0F1B14;
   --color-fg-muted: color-mix(in srgb, var(--color-fg) 65%, var(--color-bg));
-  --color-accent: #AECACD;
-  --color-accent-secondary: #FF5B19;
-  --color-fg-on-accent: #161616;
+  --color-accent: #C8F25C;
+  --color-accent-secondary: #2FA866;
+  --color-fg-on-accent: #0F1B14;
   --color-success: #145C3B;
   --color-error: #9C2525;
   --color-warning: #754600;
-  --color-info: #365D62;
-  --color-primary-shade: #8FB8BA;
-  --color-focus: #A33208;
-  --color-link: #161616;
-  --color-muted: #B8B6A6;
+  --color-info: #2E5E45;
+  --color-primary-shade: #B4E03F;
+  --color-focus: #1E6B45;
+  --color-link: #0F1B14;
+  --color-muted: #B3BDB2;
+  --support-figure-surface: #E6EBDF;
+  --support-figure-ink: #0F1B14;
+  --support-band-surface: #1E6B45;
+  --support-band-ink: #F3F5EF;
+  --support-panel-surface: #0F1B14;
+  --support-panel-ink: #E8F0EA;
 }
 
 :root[data-brand="techtree"][data-theme="dark"],
 :root[data-brand="techtree"]:not([data-theme]) {
   color-scheme: dark;
 
-  --brand-accent: #FF5B19;
-  --color-bg: #161616;
-  --color-surface: #1F1F1F;
-  --color-surface-elevated: #1F1F1F;
-  --color-border: #2C2C2C;
-  --color-fg: #E5E3D2;
+  --brand-accent: #C8F25C;
+  --color-bg: #0D1611;
+  --color-surface: #142019;
+  --color-surface-elevated: #142019;
+  --color-border: #2A3B30;
+  --color-fg: #E4EEE6;
   --color-fg-muted: color-mix(in srgb, var(--color-fg) 65%, var(--color-bg));
-  --color-accent: #AECACD;
-  --color-accent-secondary: #FF5B19;
-  --color-fg-on-accent: #161616;
+  --color-accent: #C8F25C;
+  --color-accent-secondary: #2FA866;
+  --color-fg-on-accent: #0D1611;
   --color-success: #7ED8A9;
   --color-error: #FF9B8F;
   --color-warning: #F5C16C;
-  --color-info: #AECACD;
-  --color-primary-shade: #85AEB0;
-  --color-focus: #AECACD;
-  --color-link: #AECACD;
-  --color-muted: #8C8C8C;
+  --color-info: #CFE2D2;
+  --color-primary-shade: #B4E03F;
+  --color-focus: #C8F25C;
+  --color-link: #C8F25C;
+  --color-muted: #8FA595;
+  --support-figure-surface: #1A2820;
+  --support-figure-ink: #E4EEE6;
+  --support-band-surface: #C8F25C;
+  --support-band-ink: #0D1611;
+  --support-panel-surface: #142019;
+  --support-panel-ink: #E4EEE6;
 }
 
 html {
@@ -875,24 +889,30 @@ samp {
   :root[data-brand="techtree"]:not([data-theme]) {
     color-scheme: light;
 
-    --brand-accent: #FF5B19;
-    --color-bg: #F6F4EA;
-    --color-surface: #FAF8F2;
-    --color-surface-elevated: #FAF8F2;
-    --color-border: #E0DED3;
-    --color-fg: #161616;
+    --brand-accent: #C8F25C;
+    --color-bg: #F3F5EF;
+    --color-surface: #FAFBF7;
+    --color-surface-elevated: #FAFBF7;
+    --color-border: #DCE3D6;
+    --color-fg: #0F1B14;
     --color-fg-muted: color-mix(in srgb, var(--color-fg) 65%, var(--color-bg));
-    --color-accent: #AECACD;
-    --color-accent-secondary: #FF5B19;
-    --color-fg-on-accent: #161616;
+    --color-accent: #C8F25C;
+    --color-accent-secondary: #2FA866;
+    --color-fg-on-accent: #0F1B14;
     --color-success: #145C3B;
     --color-error: #9C2525;
     --color-warning: #754600;
-    --color-info: #365D62;
-    --color-primary-shade: #8FB8BA;
-    --color-focus: #A33208;
-    --color-link: #161616;
-    --color-muted: #B8B6A6;
+    --color-info: #2E5E45;
+    --color-primary-shade: #B4E03F;
+    --color-focus: #1E6B45;
+    --color-link: #0F1B14;
+    --color-muted: #B3BDB2;
+    --support-figure-surface: #E6EBDF;
+    --support-figure-ink: #0F1B14;
+    --support-band-surface: #1E6B45;
+    --support-band-ink: #F3F5EF;
+    --support-panel-surface: #0F1B14;
+    --support-panel-ink: #E8F0EA;
   }
 
   :root[data-brand="patchbay"]:not([data-theme]) {
