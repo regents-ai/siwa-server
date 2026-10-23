@@ -2,13 +2,13 @@ defmodule SiwaServer.MixProject do
   use Mix.Project
 
   @elixir_utils "https://github.com/regents-ai/elixir-utils.git"
-  @elixir_utils_ref "17141b274f51ed528973038867d5a48af186b202"
+  @elixir_utils_ref "554f15d71886be597f3a22f9ada1c3e5d550fa3f"
 
   def project do
     [
       app: :siwa_server,
       version: "0.1.0",
-      elixir: "~> 1.19.5",
+      elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
