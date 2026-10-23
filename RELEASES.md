@@ -7,6 +7,7 @@ the version before it. Times are UTC.
 
 | Fly version | Commit | Released | Notes |
 | --- | --- | --- | --- |
+| v64 | 9d23ebb | 2026-10-23 15:24Z | Settings only, on v63's image: Keyfleet Classic #1's notebooks sign in |
 | v63 | e436b61 | 2026-10-19 03:00Z | Touch ID page and helpers built from design-system 1107a28; Keyfleet code host signs in |
 | v62 | beba083 | 2026-10-17 01:12Z | Touch ID page rebuilt from design-system f9b0e25 |
 | v61 | 37e2a85 | 2026-10-16 16:14Z | |
