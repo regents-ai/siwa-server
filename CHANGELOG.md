@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The server trusts the same certificate list as current browsers (Mozilla's, through castore) for every
+  connection it makes, so the eMudhra certificates compromised on 20 October 2026 are no longer trusted.
 - The hint for a request without signature headers no longer reads "Then Send the request": its last
   sentence starts on its own.
 

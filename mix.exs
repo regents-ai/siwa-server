@@ -62,6 +62,7 @@ defmodule SiwaServer.MixProject do
       {:oban, "~> 2.24"},
       {:postgrex, ">= 0.0.0"},
       {:req, "~> 0.7"},
+      {:castore, "~> 1.0"},
       {:finch, "~> 0.21"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_metrics_prometheus_core, "~> 1.2"},
