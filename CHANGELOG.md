@@ -5,11 +5,10 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
-- The agent guide (`/skill.md`) says that a pairing message ending "Once paired, start at <page>" names the
-  page where the agent's person wants it to begin, in the template's words.
-
 ## 27 October 2026
 
+- The agent guide (`/skill.md`) says that a pairing message ending "Once paired, start at <page>" names the
+  page where the agent's person wants it to begin, in the template's words.
 - The server keeps five database connections instead of twenty, as the template does, replaces each one in its
   tenth minute so they never all reconnect at once, and names them `siwa-server-web` in the database's list of
   connections. `POOL_SIZE` is no longer read.
