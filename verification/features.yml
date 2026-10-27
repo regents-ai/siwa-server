@@ -1,5 +1,5 @@
 # What siwa-server does, the code that serves it, its risk level and the checks that prove it.
-# The shape is control/verification/standard.md's. `mix precommit` runs every proof listed here
+# The shape is control/verification/standard.md's. `make check` (`mix precommit`) runs every proof listed here
 # except where a gap says otherwise. Almost everything here is sign-in, so most features are protected.
 repo: siwa-server
 features:
@@ -255,3 +255,16 @@ features:
       - id: R-20261020-settings-missing-from-example
         from: repo review 20 Oct 2026 (WORLD_RPC_URL, SIWA_HOSTED_SIGNERS, KEYSTORE_PATH and KEYSTORE_BACKEND read but not in .env.example)
         test: test/siwa_server/secret_allowlist_test.exs
+
+  - id: release
+    what: An operator releases one commit of origin/main to Fly and checks it is live, ready and serving the helpers in git.
+    who: operator
+    level: protected
+    paths:
+      - scripts/deploy.sh
+      - Makefile
+      - .tool-versions
+    proofs:
+      - scripts/deploy.sh
+    gaps:
+      - The script is never run by a check; its own checks after the deploy (image revision, /readyz, served sha256) are the proof, at release time.

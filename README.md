@@ -31,11 +31,13 @@ it against this server's routes.
 
 ## Quickstart
 
-You need Elixir and a local PostgreSQL.
+You need the toolchain in `.tool-versions` (Erlang 29.1.2, Elixir 1.20.4, Node 26.12.0: the
+Elixir and OTP the Dockerfile builds with; `mise` or `asdf` reads it) and a local
+PostgreSQL 17. Copy `.env.example` to `.env.local` for local settings, then run `direnv allow`.
 
 ```bash
 mix setup
-mix test
+make check
 mix phx.server
 ```
 
@@ -144,10 +146,10 @@ agent instead: its caller is a site's server, speaking for all of that site's ag
 One command must pass before a change is proposed:
 
 ```bash
-mix precommit
+make check
 ```
 
-It compiles with warnings as errors, checks unused dependency locks and formatting, runs
+`make check` runs `mix precommit` and nothing else. It compiles with warnings as errors, checks unused dependency locks and formatting, runs
 Sobelow, verifies the served services contract, holds the compile-connected `xref` graph
 at zero, runs the test suite with warnings as errors, then runs the Touch ID page checks in
 headless Chromium (`e2e/`, Playwright 1.64.1, on a Mac). It needs a local PostgreSQL,
@@ -165,10 +167,27 @@ level and the checks that prove each part, with the gaps that have no check yet.
 > encrypted key store — so a deploy touches both the live sign-in database and the volume the
 > signing keys live on. Confirm the target before running one.
 
-The launch and maintenance checklist is in `docs/regent-local-and-fly-launch-testing.md`.
+Release with the one script, from a clean checkout whose commit is on `origin/main`:
+
+```bash
+scripts/deploy.sh
+```
+
+It refuses a changed working tree, a commit that is not on `origin/main`, and a commit that does
+not contain the live one (the `revision` label on the running image, read with
+`fly image show`). It builds from `git archive` of the commit in a fresh release folder,
+`tmp/releases/<time>-<commit>/`, and deploys it with `--remote-only`, labelling the image with
+the commit (`revision`) and the elixir-utils commit `mix.exs` pins (`elixir-utils`). Fly's logs
+stream into that folder from before the deploy until the checks after it end. The checks: the
+running image names the commit, `/readyz` answers ready with every check true, and the served
+helpers (`/agent/siwa_agent.py`, `/agent/siwa-agent.mjs`, `/agent/siwa-contract.json`) and guide
+(`/skill.md`) have the same sha256 as the files in git. The folder stays as the release record;
+then add the release to `RELEASES.md`.
 
 [RELEASES.md](RELEASES.md) records each release's Fly version and commit; [CHANGELOG.md](CHANGELOG.md)
 says what changed for agents, people and sites.
+
+The launch and maintenance checklist is in `docs/regent-local-and-fly-launch-testing.md`.
 
 ## The other repositories
 

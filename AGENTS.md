@@ -1,7 +1,7 @@
 # siwa-server
 
 Sign-in with an agent wallet for Regent sites. Setup and checks are in README.md;
-run `mix precommit` before committing.
+run `make check` (it runs `mix precommit`) before committing.
 
 <!-- usage-rules-start -->
 <!-- usage_rules-start -->

@@ -12,7 +12,7 @@ Use this mirror when you are working from `siwa-server/`.
 cd /Users/sean/Documents/regent/repos/siwa-server
 direnv allow
 direnv exec . mix test
-direnv exec . mix precommit
+direnv exec . make check
 direnv exec . mix release --overwrite
 ```
 
@@ -59,13 +59,13 @@ direnv exec . bash -lc 'fly secrets set --app "$SIWA_FLY_APP" \
   SIWA_CLEANUP_BATCH_SIZE="$SIWA_CLEANUP_BATCH_SIZE"'
 ```
 
-Deploy from this repository: the image builds from it alone and fetches the shared
-libraries from GitHub at the commits `mix.lock` pins.
+Deploy with `scripts/deploy.sh` (README.md, Deployment): the image builds from a `git archive`
+of the commit alone and fetches the shared libraries from GitHub at the commits `mix.lock` pins.
+The script checks `/readyz` and the served helpers afterwards.
 
 ```bash
 cd /Users/sean/Documents/regent/repos/siwa-server
-fly deploy --app "$SIWA_FLY_APP" --remote-only
-curl -fsS "https://<siwa-host>/healthz"
+scripts/deploy.sh
 curl -fsS "https://<siwa-host>/regent-services-contract.openapiv3.yaml" >/tmp/regent-services-contract.openapiv3.yaml
 ```
 

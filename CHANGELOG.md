@@ -9,6 +9,10 @@ a release moves those lines under its date. Which version and commit each releas
   `KEYSTORE_BACKEND` and `KEYSTORE_PATH` are added, with the production-only ones named. The
   settings allowlist adds `WORLD_RPC_URL` and `SIWA_RELEASE_COMMAND`, and a test now fails when the
   server reads a setting that either file leaves out.
+- `make check` is the one check, as in the template; it runs `mix precommit`.
+- Releases go through `scripts/deploy.sh`: it refuses a changed tree, a commit not on `origin/main`
+  or one without the live commit, builds from `git archive`, keeps Fly's logs from before the deploy
+  to after its checks, then checks `/readyz` and that the served helpers and guide match git.
 
 ## 27 October 2026
 
