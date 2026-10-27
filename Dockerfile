@@ -33,8 +33,10 @@ RUN mix release
 # debian:bookworm-20261020-slim
 FROM docker.io/library/debian@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8 AS app
 
+# OTP 29 opens libsctp when it starts and prints a warning on every boot and
+# `bin/siwa_server rpc` without it.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends libstdc++6 openssl libncurses6 && \
+    apt-get install -y --no-install-recommends libstdc++6 openssl libncurses6 libsctp1 && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
