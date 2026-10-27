@@ -5,15 +5,14 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 27 October 2026
+
 - The internet can no longer reach the server's internal signing routes (`/api/shared/keyring/...`: make a
   wallet, sign a message, a transaction or an authorization). Nothing called them; they now answer 404, and
   the shared secret that guarded them is gone. Hosted signing for ChatGPT connections is unchanged.
 - Wallet sign-in, agent registration and AgentBook steps keep their limit per wallet address, and each
   computer now also has one ceiling across all of them (300 a minute), so naming new addresses buys no more
   requests. Request checks from sites' servers are limited as before.
-
-## 27 October 2026
-
 - Every library is at its newest version. That closes the plug_crypto 2.2.0 advisory (EEF-CVE-2026-105963),
   which this server never reached, and the web server's (Bandit 1.14.0) request-handling advisories.
 - The server trusts the same certificate list as current browsers (Mozilla's, through castore) for every
