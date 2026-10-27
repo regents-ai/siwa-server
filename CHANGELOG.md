@@ -5,12 +5,11 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 27 October 2026
+
 - An agent that calls a site without signing is now told how to start: the guide's address, getting the
   client and making a key once. Agents already set up are still told how to get the newest client.
 - Both agent helpers name the guide when they have no key yet.
-
-## 27 October 2026
-
 - The internet can no longer reach the server's internal signing routes (`/api/shared/keyring/...`: make a
   wallet, sign a message, a transaction or an authorization). Nothing called them; they now answer 404, and
   the shared secret that guarded them is gone. Hosted signing for ChatGPT connections is unchanged.
