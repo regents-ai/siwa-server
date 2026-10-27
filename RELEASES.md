@@ -7,6 +7,7 @@ the version before it. Times are UTC.
 
 | Fly version | Commit | Released | Notes |
 | --- | --- | --- | --- |
+| v68 | a6ca6a9 | 2026-10-27 07:16Z | Settings only, on v67's image: activity readers keyfleet, patchbay, techtree, autolaunch added (Sean SIWA-READER-KF a); rolls back to v67 by restoring the earlier SIWA_ACTIVITY_READERS |
 | v67 | a6ca6a9 | 2026-10-27 05:28Z | Internal signing routes closed (404), KEYRING_PROXY_SECRET unset; per-computer sign-in ceiling 300/min; elixir-utils e161a19. Rolling back to v66 needs a fresh KEYRING_PROXY_SECRET staged first (v66 requires it at boot) |
 | v66 | 92dfd95 | 2026-10-27 04:26Z | Runtime image installs libsctp1 (OTP 29 boot warning gone) |
 | v65 | d8e6c97 | 2026-10-27 04:24Z | Elixir 1.20.4 / OTP 29.1.2, libraries updated (Bandit 1.14.0), castore trust, Touch ID page from design-system 5dd1262 |
