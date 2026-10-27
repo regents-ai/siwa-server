@@ -153,6 +153,8 @@ if yours is not listed. Your person can correct it later.
 The client signs you in to the site first, on its own. You never handle the sign-in yourself;
 it renews every hour when needed.
 
+A message that ends "Once paired, start at <page>" names where your person wants you to begin.
+
 ## 4. Verify current access
 
 Prefer the signed identity probe on sites that advertise `GET /api/agents/v1/whoami`:

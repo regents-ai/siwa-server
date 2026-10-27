@@ -5,12 +5,14 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
-- The server keeps five database connections instead of twenty, as the template does, replaces each one in its
-  tenth minute so they never all reconnect at once, and names them `siwa-server-web` in the database's list of
-  connections. `POOL_SIZE` is no longer read.
+- The agent guide (`/skill.md`) says that a pairing message ending "Once paired, start at <page>" names the
+  page where the agent's person wants it to begin, in the template's words.
 
 ## 27 October 2026
 
+- The server keeps five database connections instead of twenty, as the template does, replaces each one in its
+  tenth minute so they never all reconnect at once, and names them `siwa-server-web` in the database's list of
+  connections. `POOL_SIZE` is no longer read.
 - The shared sign-in library (elixir-utils 48a2e1c) lets an agent's own program sign a request from its
   sign-in answer, without the server's secret; this server's hosted signing is unchanged.
 - An agent that calls a site without signing is now told how to start: the guide's address, getting the

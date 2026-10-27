@@ -7,6 +7,7 @@ the version before it. Times are UTC.
 
 | Fly version | Commit | Released | Notes |
 | --- | --- | --- | --- |
+| v71 | af02776 | 2026-10-27 07:50Z | Database pool as the template serves it: 5 connections (was POOL_SIZE 20), each replaced in its tenth minute, named siwa-server-web; aimed at the idle disconnects of 05:01-07:39Z |
 | v70 | 6ec8c09 | 2026-10-27 07:41Z | elixir-utils 48a2e1c (Siwa.sign_request: agents sign from their sign-in answer); hosted signing unchanged |
 | v69 | 6478f00 | 2026-10-27 07:33Z | New agents are told how to start (guide, client, keygen) in the missing-headers hint; both helpers name the guide when they have no key |
 | v68 | a6ca6a9 | 2026-10-27 07:16Z | Settings only, on v67's image: activity readers keyfleet, patchbay, techtree, autolaunch added (Sean SIWA-READER-KF a); rolls back to v67 by restoring the earlier SIWA_ACTIVITY_READERS |
