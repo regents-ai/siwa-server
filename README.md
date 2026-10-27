@@ -128,7 +128,7 @@ agent instead: its caller is a site's server, speaking for all of that site's ag
 | `SIWA_NONCE_TTL_SECONDS` | `300` | How long an issued nonce stays valid. |
 | `SIWA_RECEIPT_TTL_SECONDS` | `3600` | How long a receipt stays valid. |
 | `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS` | `300` | Clock skew allowed on a signed HTTP request. |
-| `SIWA_HOSTED_SIGNERS` | unset | Each site's own key for hosted ChatGPT signing, as `site=key` pairs. Unset lets no site sign. |
+| `SIWA_HOSTED_SIGNERS` | unset | Each site's own key for signing its connected apps' requests (ChatGPT and Claude), as `site=key` pairs. Unset lets no site sign. |
 | `SIWA_WALLET_ORIGINS` | unset | Approved `audience=origin` pairs for wallet sign-in, comma separated; an audience may repeat with more origins. Unset disables it. |
 | `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Expired nonce, replay and activity rows removed per batch. A sweep runs once a minute and repeats batches until one comes back short, at most 20 for each kind. |
 | `KEYSTORE_BACKEND` | `encrypted_file` | Key store backend. `encrypted_file` is the only accepted value; anything else stops the boot. |
@@ -318,13 +318,14 @@ in `mix.exs`, the way the template pins them. The image builds from this reposit
 alone and Docker fetches that exact commit, so the shared commit must be on GitHub
 before a release.
 
-Hosted ChatGPT connections use `POST /api/shared/siwa/hosted`. Each site asks with its
-own hosted signing key from `SIWA_HOSTED_SIGNERS` (`site=key` pairs, like
+Connected apps (ChatGPT and Claude) use `POST /api/shared/siwa/hosted`. Each site asks
+with its own hosted signing key from `SIWA_HOSTED_SIGNERS` (`site=key` pairs, like
 `SIWA_ACTIVITY_READERS`); that key opens no other route, and unset lets no site sign.
 Everything signed is bound to the calling site's audience, and the stored signer is
 named from the site and its account key together, so one site cannot reach another
 site's connections. Registration reuses an encrypted signer by account key; signing
-accepts only approved identity probes, pairing, and free Patchbay questions and
+accepts only, for Patchbay and Keyfleet, the identity probe (`whoami`), the check-in
+(`me`) and pairing as `chatgpt` or `claude`, and for Patchbay alone free questions and
 replies. It never exports keys or signs arbitrary messages or
 transactions. Products still verify each resulting request through http-verify and
 apply their own pairing and permissions. The hosted signers live beside the key store

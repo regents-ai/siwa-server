@@ -5,6 +5,10 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- Hosted signing serves Keyfleet's connected apps as well as Patchbay's, and Claude as well as ChatGPT: for
+  either site it signs the identity probe, the check-in and pairing as `chatgpt` or `claude`. Free questions
+  and replies stay Patchbay's alone. Keyfleet needs its own `keyfleet=<key>` entry in `SIWA_HOSTED_SIGNERS`.
+
 ## 27 October 2026
 
 - The agent guide (`/skill.md`) says that a pairing message ending "Once paired, start at <page>" names the
