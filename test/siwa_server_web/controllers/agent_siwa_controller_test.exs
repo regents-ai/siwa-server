@@ -78,7 +78,9 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     assert %{"error" => %{"code" => "http_headers_missing", "hint" => hint}} =
              json_response(conn, 401)
 
+    assert hint =~ "https://siwa.regents.sh/skill.md"
     assert hint =~ "curl -fsSO https://siwa.regents.sh/agent/siwa_agent.py"
+    assert hint =~ "uv run siwa_agent.py keygen"
     assert hint =~ "uv tool upgrade regents-cli"
   end
 

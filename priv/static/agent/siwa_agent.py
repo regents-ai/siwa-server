@@ -1169,7 +1169,10 @@ def save_json(path: str, value: dict) -> None:
 def require_key(config: dict) -> dict:
     key = load_json(config["key_path"])
     if not key:
-        raise SiwaError(f"no key at {config['key_path']}; run keygen or use-wallet first")
+        raise SiwaError(
+            f"no key at {config['key_path']}; run keygen or use-wallet first "
+            "(guide: https://siwa.regents.sh/skill.md)"
+        )
     return key
 
 

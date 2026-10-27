@@ -1158,7 +1158,11 @@ function saveJson(path, value) {
 
 function requireKey(config) {
   const key = loadJson(config.keyPath);
-  if (!key) throw new SiwaError(`no key at ${config.keyPath}; run keygen or use-wallet first`);
+  if (!key) {
+    throw new SiwaError(
+      `no key at ${config.keyPath}; run keygen or use-wallet first (guide: https://siwa.regents.sh/skill.md)`,
+    );
+  }
   return key;
 }
 

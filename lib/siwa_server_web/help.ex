@@ -98,9 +98,12 @@ defmodule SiwaServerWeb.Help do
   defp steps(code, _context)
        when code in ~w(http_headers_missing http_required_components_missing) do
     [
-      "The request is missing signature headers. Get the newest client with `",
+      "The request is missing signature headers. New here: follow ",
+      @guide,
+      ", or in short, get the client with `",
       @client,
-      "`, or if you use regents-cli, run `uv tool upgrade regents-cli`. ",
+      "` and run `uv run siwa_agent.py keygen` once. Already set up: get the newest client ",
+      "the same way, or run `uv tool upgrade regents-cli`. ",
       send_fresh()
     ]
   end
