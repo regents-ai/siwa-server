@@ -7,6 +7,7 @@ the version before it. Times are UTC.
 
 | Fly version | Commit | Released | Notes |
 | --- | --- | --- | --- |
+| v65 | d8e6c97 | 2026-10-27 04:24Z | Elixir 1.20.4 / OTP 29.1.2, libraries updated (Bandit 1.14.0), castore trust, Touch ID page from design-system 5dd1262 |
 | v64 | 9d23ebb | 2026-10-23 15:24Z | Settings only, on v63's image: Keyfleet Classic #1's notebooks sign in |
 | v63 | e436b61 | 2026-10-19 03:00Z | Touch ID page and helpers built from design-system 1107a28; Keyfleet code host signs in |
 | v62 | beba083 | 2026-10-17 01:12Z | Touch ID page rebuilt from design-system f9b0e25 |
