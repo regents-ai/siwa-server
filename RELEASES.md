@@ -7,6 +7,7 @@ the version before it. Times are UTC.
 
 | Fly version | Commit | Released | Notes |
 | --- | --- | --- | --- |
+| v70 | 6ec8c09 | 2026-10-27 07:41Z | elixir-utils 48a2e1c (Siwa.sign_request: agents sign from their sign-in answer); hosted signing unchanged |
 | v69 | 6478f00 | 2026-10-27 07:33Z | New agents are told how to start (guide, client, keygen) in the missing-headers hint; both helpers name the guide when they have no key |
 | v68 | a6ca6a9 | 2026-10-27 07:16Z | Settings only, on v67's image: activity readers keyfleet, patchbay, techtree, autolaunch added (Sean SIWA-READER-KF a); rolls back to v67 by restoring the earlier SIWA_ACTIVITY_READERS |
 | v67 | a6ca6a9 | 2026-10-27 05:28Z | Internal signing routes closed (404), KEYRING_PROXY_SECRET unset; per-computer sign-in ceiling 300/min; elixir-utils e161a19. Rolling back to v66 needs a fresh KEYRING_PROXY_SECRET staged first (v66 requires it at boot) |

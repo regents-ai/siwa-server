@@ -5,11 +5,10 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
-- The shared sign-in library (elixir-utils 48a2e1c) lets an agent's own program sign a request from its
-  sign-in answer, without the server's secret; this server's hosted signing is unchanged.
-
 ## 27 October 2026
 
+- The shared sign-in library (elixir-utils 48a2e1c) lets an agent's own program sign a request from its
+  sign-in answer, without the server's secret; this server's hosted signing is unchanged.
 - An agent that calls a site without signing is now told how to start: the guide's address, getting the
   client and making a key once. Agents already set up are still told how to get the newest client.
 - Both agent helpers name the guide when they have no key yet.
