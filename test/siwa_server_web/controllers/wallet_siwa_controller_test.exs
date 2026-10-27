@@ -306,14 +306,17 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
         })
       )
 
+    # Signed as an agent signs: from its sign-in answer, without the receipt's secret.
     {:ok, signed} =
-      Siwa.sign_authenticated_request(
+      Siwa.sign_request(
         %{method: "POST", path: "/api/agent/payment-intents?mode=create", body: "{}"},
-        verified["data"]["receipt"],
-        signer,
-        secret: secret(),
-        audience: "patchbay",
-        wallet_audiences: ["patchbay"]
+        %{
+          receipt: verified["data"]["receipt"],
+          key_id: verified["data"]["keyId"],
+          wallet_address: signer.address,
+          chain_id: 8453
+        },
+        signer
       )
 
     request = %{
