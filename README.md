@@ -189,6 +189,45 @@ says what changed for agents, people and sites.
 
 The launch and maintenance checklist is in `docs/regent-local-and-fly-launch-testing.md`.
 
+### Key store backup and restore
+
+The volume `siwa_data` (`vol_42k97729y72yy334`, 1 GB, `iad`, encrypted at rest) is mounted at
+`/data` on the one machine. It holds one file per hosted ChatGPT connection in
+`/data/siwa-server-keystore.bin.hosted/`, named from `KEYSTORE_PATH`
+(`/data/siwa-server-keystore.bin`). Nothing in this server writes `KEYSTORE_PATH` itself any
+more; whether an older file is there is unconfirmed (no read of the volume). Each file is
+encrypted with AES-256-GCM under a key made from `KEYSTORE_PASSWORD` (PBKDF2-SHA256, 100,000 rounds, a salt of its own) and is readable
+by the service alone (mode 0600; `SiwaKeyring.Keystore` and `SiwaKeyring.HostedIdentity` in the
+pinned elixir-utils). The sign-in database is not on this volume.
+
+**Backup.** Fly snapshots the volume once a day, at about 23:55 UTC, and keeps each snapshot 5
+days (the volume's `auto_backup_enabled` and `snapshot_retention`; `fly.toml` sets neither). List
+them read-only:
+
+```bash
+fly volumes list --app siwa-server
+fly volumes snapshots list vol_42k97729y72yy334
+```
+
+A snapshot holds the files still encrypted, so it is useless without `KEYSTORE_PASSWORD`, which
+is in Fly's secrets for `siwa-server` and in no snapshot. Losing the password loses every hosted
+signer. Whether a copy of the password is kept anywhere else is unconfirmed.
+
+**Restore. Never rehearsed: every step below is unconfirmed.**
+
+1. Snapshot the current volume first (`fly volumes snapshots create vol_42k97729y72yy334`), so
+   the restore can be undone.
+2. Make a new volume from the chosen snapshot: `fly volumes create siwa_data --snapshot-id
+   <snapshot id> --app siwa-server --region iad --size 1`.
+3. Move the one machine onto the new volume. A machine keeps the volume it was made with, so
+   this most likely means removing the current machine and deploying again, so that the new
+   machine mounts the restored volume. Sign-in is down until the new machine answers.
+4. `KEYSTORE_PASSWORD` must be the password in use when the snapshot was taken.
+5. Check `/readyz` (`keystore_path` true), then that Patchbay's hosted connections still sign.
+
+A restore loses every hosted signer made after the snapshot. The next registration for such a
+connection makes a new signer with a new address, so that connection pairs again.
+
 ## The other repositories
 
 | Repository | What it is | What it deliberately does not do |

@@ -13,6 +13,8 @@ a release moves those lines under its date. Which version and commit each releas
 - Releases go through `scripts/deploy.sh`: it refuses a changed tree, a commit not on `origin/main`
   or one without the live commit, builds from `git archive`, keeps Fly's logs from before the deploy
   to after its checks, then checks `/readyz` and that the served helpers and guide match git.
+- README.md says how the key store volume is backed up (Fly's daily snapshots, kept 5 days) and
+  what a restore would take; the restore has never been rehearsed.
 
 ## 27 October 2026
 
