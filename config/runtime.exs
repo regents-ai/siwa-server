@@ -90,15 +90,6 @@ keystore_password =
     do: required_env.("KEYSTORE_PASSWORD"),
     else: env_value.("KEYSTORE_PASSWORD", Keyword.get(current_keyring, :password, "change-me"))
 
-keyring_proxy_secret =
-  if prod?,
-    do: required_env.("KEYRING_PROXY_SECRET"),
-    else:
-      env_value.(
-        "KEYRING_PROXY_SECRET",
-        Keyword.get(current_keyring, :secret, "siwa-dev-keyring-secret")
-      )
-
 activity_readers =
   case env_value.("SIWA_ACTIVITY_READERS", nil) do
     nil when prod? -> required_env.("SIWA_ACTIVITY_READERS")
@@ -151,12 +142,7 @@ config :siwa_keyring,
     env_value.(
       "KEYSTORE_PATH",
       Keyword.get(current_keyring, :path, "/data/siwa-server-keystore.bin")
-    ),
-  start_server: false,
-  port: Keyword.get(current_keyring, :port, 3100),
-  host: Keyword.get(current_keyring, :host, "127.0.0.1"),
-  secret: keyring_proxy_secret,
-  replay_store: Keyword.get(current_keyring, :replay_store)
+    )
 
 if prod? do
   database_url =

@@ -146,32 +146,19 @@ features:
     gaps:
       - No property proof that a hosted signer never signs for another audience.
 
-  - id: key-store
-    what: The internal key store creates wallets and signs for them, and refuses bad signatures.
-    who: operator
-    level: protected
-    paths:
-      - lib/siwa_server_web/keyring_forwarder.ex
-    entry:
-      - route: /api/shared/keyring
-    proofs:
-      - test/siwa_server_web/internal/keyring_router_test.exs
-
   - id: request-handling
-    what: Every request is parsed and routed the same way; key store requests pass through unread.
+    what: Every request is parsed and routed the same way.
     who: agent
     level: protected
     paths:
       - lib/siwa_server_web.ex
       - lib/siwa_server_web/endpoint.ex
-      - lib/siwa_server_web/json_parser.ex
       - lib/siwa_server/text.ex
     proofs:
       - test/siwa_server_web/controllers/agent_siwa_controller_test.exs
-      - test/siwa_server_web/internal/keyring_router_test.exs
 
   - id: rate-limits
-    what: Requests are limited per wallet, chain, audience and address, with a wait in Retry-After.
+    what: Requests are limited per wallet, chain, audience and address, and each computer has one ceiling across the wallets it names, with a wait in Retry-After.
     who: agent
     level: protected
     paths:

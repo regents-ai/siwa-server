@@ -49,7 +49,6 @@ defmodule SiwaServer.HostedRequestsTest do
 
     assert post.(nil).status == 401
     assert post.("Bearer siwa-test-patchbay-activity-read-key-1").status == 401
-    assert post.("Bearer " <> Application.fetch_env!(:siwa_keyring, :secret)).status == 401
 
     patchbay = post.("Bearer siwa-test-patchbay-hosted-signing-key-1")
     assert patchbay.status == 200

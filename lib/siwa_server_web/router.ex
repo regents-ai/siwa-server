@@ -72,6 +72,4 @@ defmodule SiwaServerWeb.Router do
     pipe_through :agent_profile
     get "/agent-profiles/:profile_id", AgentRegistrationController, :profile
   end
-
-  forward "/api/shared/keyring", SiwaServerWeb.KeyringForwarder
 end

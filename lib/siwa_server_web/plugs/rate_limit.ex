@@ -20,22 +20,21 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
     siwa_register: [limit: 60, window_ms: 60_000],
     agent_book: [limit: 60, window_ms: 60_000],
     agent_profile: [limit: 600, window_ms: 60_000],
-    keyring_internal: [limit: 600, window_ms: 60_000]
+    siwa_computer: [limit: 300, window_ms: 60_000]
   }
+
+  # These steps come from an agent's own computer and are counted per wallet
+  # address the caller names, so they also share one ceiling per computer: naming
+  # new addresses does not buy a computer more requests. http-verify is left out
+  # because its caller is a site's server, which speaks for all of that site's agents.
+  @address_keyed [:siwa_nonce, :siwa_verify, :siwa_register, :agent_book]
 
   def init(opts), do: opts
 
   def call(conn, opts) do
     name = Keyword.fetch!(opts, :name)
-    config = configured_limit(name)
-    key = client_key(conn, name)
 
-    case RateLimiter.check(
-           name,
-           key,
-           Keyword.fetch!(config, :limit),
-           Keyword.fetch!(config, :window_ms)
-         ) do
+    case check(conn, name) do
       :ok ->
         conn
 
@@ -51,6 +50,25 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
         )
         |> halt()
     end
+  end
+
+  defp check(conn, name) when name in @address_keyed do
+    with :ok <- check_bucket(name, client_key(conn, name)) do
+      check_bucket(:siwa_computer, client_ip(conn))
+    end
+  end
+
+  defp check(conn, name), do: check_bucket(name, client_key(conn, name))
+
+  defp check_bucket(name, key) do
+    config = configured_limit(name)
+
+    RateLimiter.check(
+      name,
+      key,
+      Keyword.fetch!(config, :limit),
+      Keyword.fetch!(config, :window_ms)
+    )
   end
 
   defp configured_limit(name) do
@@ -72,10 +90,6 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   defp client_key(conn, :siwa_activity), do: "activity:#{client_ip(conn)}"
   defp client_key(conn, :siwa_hosted), do: "hosted:#{client_ip(conn)}"
   defp client_key(conn, :agent_profile), do: "agent-profile:#{client_ip(conn)}"
-
-  defp client_key(conn, :keyring_internal) do
-    "keyring:#{conn.method}:#{conn.request_path}:#{client_ip(conn)}"
-  end
 
   defp client_key(conn, _name) do
     body = fetched_body_params(conn)

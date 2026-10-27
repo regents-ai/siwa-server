@@ -189,7 +189,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     assert checks["receipt_secret"] == true
     assert checks["keyring_backend"] == true
     assert checks["keyring_password"] == true
-    assert checks["keyring_secret"] == true
     assert checks["keystore_path"] == true
     assert checks["base_rpc_url"] == true
     assert checks["base_rpc_chain_id"] == true
@@ -200,9 +199,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     assert contract =~ "Regent Shared Services Contract"
     assert contract =~ "/agent-profiles/{profile_id}"
     assert contract =~ "agentRegistration"
-    assert contract =~ "KeyringHmacSignature"
     refute contract =~ "AgentSiwaHeaders"
-    assert contract =~ "KeyringSignTransactionRequest"
     refute contract =~ "/v1/agent/regent/staking"
 
     contract_paths =
@@ -227,15 +224,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/api/shared/siwa/agent-book/challenge",
                "/api/shared/siwa/agent-book/accept",
                "/agent-profiles/{profile_id}",
-               "/api/shared/keyring/health",
-               "/api/shared/siwa/hosted",
-               "/api/shared/keyring/create-wallet",
-               "/api/shared/keyring/has-wallet",
-               "/api/shared/keyring/get-address",
-               "/api/shared/keyring/sign-message",
-               "/api/shared/keyring/sign-raw-message",
-               "/api/shared/keyring/sign-transaction",
-               "/api/shared/keyring/sign-authorization"
+               "/api/shared/siwa/hosted"
              ])
 
     assert operation_response_codes(contract, "/api/shared/siwa/http-verify", "post") ==
@@ -252,9 +241,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
     assert operation_response_codes(contract, "/agent-profiles/{profile_id}", "get") ==
              MapSet.new(~w(200 404 429))
-
-    assert operation_response_codes(contract, "/api/shared/keyring/sign-authorization", "post") ==
-             MapSet.new(~w(200 400 401 413 415 422 429))
   end
 
   test "readyz fails without exposing configured secrets when RPC is unreachable", %{conn: conn} do
@@ -269,7 +255,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
     refute body =~ "siwa-server-test-receipt-secret"
     refute body =~ "siwa-server-test-password"
-    refute body =~ "siwa-server-test-keyring-secret"
   end
 
   test "readyz fails when the RPC reports a non-Base chain", %{conn: conn} do

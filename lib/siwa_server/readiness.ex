@@ -18,8 +18,7 @@ defmodule SiwaServer.Readiness do
       receipt_secret: receipt_secret_check(),
       siwa_ttls: siwa_ttl_check(),
       keyring_backend: keyring_backend_check(),
-      keyring_password: keyring_secret_check(:password),
-      keyring_secret: keyring_secret_check(:secret),
+      keyring_password: keyring_password_check(),
       keystore_path: keystore_path_check(),
       base_rpc_url: rpc_url_check("BASE_RPC_URL", RuntimeConfig.base_rpc_url()),
       base_rpc_chain_id:
@@ -85,10 +84,10 @@ defmodule SiwaServer.Readiness do
     end
   end
 
-  defp keyring_secret_check(key) do
+  defp keyring_password_check do
     :siwa_keyring
-    |> Application.get_env(key)
-    |> secret_check("keyring #{key} is not configured")
+    |> Application.get_env(:password)
+    |> secret_check("keyring password is not configured")
   end
 
   defp keystore_path_check do

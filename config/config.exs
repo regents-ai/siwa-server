@@ -49,12 +49,7 @@ config :siwa_server, :metrics_listener, ip: {127, 0, 0, 1}, port: 0
 config :siwa_keyring,
   backend: "encrypted_file",
   password: nil,
-  path: "/tmp/siwa-server-keystore.bin",
-  secret: nil,
-  start_server: false,
-  port: 3100,
-  host: "127.0.0.1",
-  replay_store: {SiwaServer.Siwa.ReplayStore, :consume_keyring_request}
+  path: "/tmp/siwa-server-keystore.bin"
 
 # Configure Elixir's Logger
 config :logger, :default_formatter,

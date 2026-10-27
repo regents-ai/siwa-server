@@ -7,7 +7,6 @@ owns:
   - shared_siwa_http
   - nonce_state
   - replay_state
-  - internal_keyring_surface
 source_of_truth:
   repo_contract: repo.yaml
   http_contracts: []

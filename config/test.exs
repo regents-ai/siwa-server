@@ -46,8 +46,7 @@ config :siwa_server, :readiness_keep_ms, 0
 config :siwa_keyring,
   backend: "encrypted_file",
   password: "siwa-server-test-password",
-  path: Path.join(System.tmp_dir!(), "siwa-server-test-keystore.bin"),
-  secret: "siwa-server-test-keyring-secret"
+  path: Path.join(System.tmp_dir!(), "siwa-server-test-keystore.bin")
 
 # Print only warnings and errors during test
 config :logger, level: :warning

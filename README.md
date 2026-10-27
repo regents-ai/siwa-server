@@ -10,15 +10,13 @@ Regents Labs on Fly.io. It answers one kind of question — is this request real
 agent, for this audience, and has it been seen before — and nothing else.
 
 > [!IMPORTANT]
-> This service holds signing keys. It runs an encrypted key store on a mounted volume and
-> exposes internal signer routes. Treat every deployment and every secret here as
-> security-critical.
+> This service holds signing keys. It runs an encrypted key store on a mounted volume for
+> hosted signing. Treat every deployment and every secret here as security-critical.
 
 It owns:
 
 - public SIWA sign-in routes under `/api/shared/siwa`
 - protected request verification
-- internal keyring routes under `/api/shared/keyring` for signer operations
 - health and the served shared services contract, with metrics on a private port
 - strict receipt, request-expiry, and replay checks for shared agent sign-in
 
@@ -29,7 +27,7 @@ request identity and audience when a product route needs a signed agent request.
 
 This repository owns the shared services HTTP contract, at
 `priv/static/regent-services-contract.openapiv3.yaml`. `mix siwa_server.contract_check` checks
-it against this server's routes and the `siwa_keyring` router.
+it against this server's routes.
 
 ## Quickstart
 
@@ -101,23 +99,10 @@ one is present, and callers must send the app audience that owns the request.
 Malformed expiry values, expired requests, receipt-binding mismatches, and replayed requests
 must fail closed. The SIWA library and the service tests cover these cases.
 
-## Internal signer routes
-
-| Route | Method | Purpose |
-| --- | --- | --- |
-| `/api/shared/keyring/health` | GET | Keyring liveness. |
-| `/api/shared/keyring/create-wallet` | POST | Create a wallet in the key store. |
-| `/api/shared/keyring/has-wallet` | POST | Ask whether a wallet exists. |
-| `/api/shared/keyring/get-address` | POST | Read a wallet address. |
-| `/api/shared/keyring/sign-message` | POST | Sign a message. |
-| `/api/shared/keyring/sign-raw-message` | POST | Sign raw bytes. |
-| `/api/shared/keyring/sign-transaction` | POST | Sign a transaction. |
-| `/api/shared/keyring/sign-authorization` | POST | Sign an authorization. |
-
-> [!WARNING]
-> These routes produce real signatures from real keys. They are internal by design. Do not
-> expose them beyond the private network, and do not point them at a key store you would not
-> want used.
+Wallet sign-in, agent registration and AgentBook steps are limited per wallet address
+the caller names, and every computer also has one ceiling across all of them (300 a
+minute), so naming new addresses buys no more requests. `http-verify` is limited per
+agent instead: its caller is a site's server, speaking for all of that site's agents.
 
 ## Required configuration
 
@@ -128,7 +113,6 @@ must fail closed. The SIWA library and the service tests cover these cases.
 | `PHX_HOST` | Yes in production | Public hostname the endpoint builds URLs from. |
 | `SIWA_RECEIPT_SECRET` | Yes in production | Secret that binds and validates receipts. |
 | `KEYSTORE_PASSWORD` | Yes in production | Password for the encrypted key store. |
-| `KEYRING_PROXY_SECRET` | Yes in production | Shared secret guarding the internal keyring routes. |
 | `BASE_RPC_URL` | Yes in production | Base mainnet JSON-RPC endpoint. |
 | `ETHEREUM_RPC_URL` | Yes in production | Ethereum mainnet JSON-RPC endpoint, for smart wallets that sign in on Ethereum. |
 | `WORLD_RPC_URL` | Yes in production | World Chain JSON-RPC endpoint, for reading World's AgentBook. |
@@ -152,8 +136,8 @@ must fail closed. The SIWA library and the service tests cover these cases.
 | `KEYSTORE_PATH` | `/data/siwa-server-keystore.bin` | Where the encrypted key store lives. |
 
 > [!WARNING]
-> `SIWA_RECEIPT_SECRET`, `KEYSTORE_PASSWORD`, and `KEYRING_PROXY_SECRET` are the three values
-> that keep this service honest. Supply them from the deployment's secret store. Never commit
+> `SIWA_RECEIPT_SECRET` and `KEYSTORE_PASSWORD` are the two values that keep this service
+> honest. Supply them from the deployment's secret store. Never commit
 > one, and never write one into a checked-in example file.
 
 ## Checks
@@ -292,8 +276,8 @@ be lost. That is about 600 ms normally and as long as the pause while the disk i
 pausing (pauses of up to about 7 seconds have been measured). A request used in
 that time could be accepted once more before its 120 second life ends. The day's
 count of verified requests is written the same way; a lost count changes no
-decision, and a count that cannot be written never refuses the request. Nonces,
-keyring requests and every other write wait for the disk.
+decision, and a count that cannot be written never refuses the request. Nonces
+and every other write wait for the disk.
 
 ### Optional agent registry listing
 

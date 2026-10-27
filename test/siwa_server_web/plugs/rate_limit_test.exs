@@ -14,7 +14,7 @@ defmodule SiwaServerWeb.Plugs.RateLimitTest do
 
     Application.put_env(:siwa_server, :rate_limits,
       siwa_nonce: [limit: 2, window_ms: 60_000],
-      keyring_internal: [limit: 2, window_ms: 60_000]
+      siwa_computer: [limit: 3, window_ms: 60_000]
     )
 
     on_exit(fn ->
@@ -79,15 +79,23 @@ defmodule SiwaServerWeb.Plugs.RateLimitTest do
     assert %Plug.Conn{halted: false} = call(unfetched_conn({1, 2, 3, 4}), :siwa_nonce)
   end
 
-  test "keyring requests with unparsed bodies are rate limited per method, path, and IP" do
-    build = fn -> %{conn(:post, "/api/shared/keyring/sign-message") | remote_ip: {9, 9, 9, 9}} end
+  test "one computer naming a new wallet address each time still reaches its ceiling" do
+    wallet = fn n -> "0x" <> String.pad_leading(Integer.to_string(n), 40, "0") end
 
-    assert %Plug.Conn{halted: false} = call(build.(), :keyring_internal)
-    assert %Plug.Conn{halted: false} = call(build.(), :keyring_internal)
+    for n <- 1..3 do
+      assert %Plug.Conn{halted: false} = call(parsed_conn({1, 2, 3, 4}, wallet.(n)), :siwa_nonce)
+    end
 
-    conn = call(build.(), :keyring_internal)
+    conn = call(parsed_conn({1, 2, 3, 4}, wallet.(4)), :siwa_nonce)
     assert conn.halted
     assert conn.status == 429
+
+    # The ceiling spans every address-keyed step from that computer.
+    assert %Plug.Conn{halted: true, status: 429} =
+             call(parsed_conn({1, 2, 3, 4}, wallet.(5)), :siwa_verify)
+
+    # Another computer has its own ceiling.
+    assert %Plug.Conn{halted: false} = call(parsed_conn({5, 6, 7, 8}, wallet.(6)), :siwa_nonce)
   end
 
   # Sean SIWA-ADDRESS-TEST a (13 Oct 2026)
