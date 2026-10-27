@@ -5,6 +5,11 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- `.env.example` lists every setting the server reads: `WORLD_RPC_URL`, `SIWA_HOSTED_SIGNERS`,
+  `KEYSTORE_BACKEND` and `KEYSTORE_PATH` are added, with the production-only ones named. The
+  settings allowlist adds `WORLD_RPC_URL` and `SIWA_RELEASE_COMMAND`, and a test now fails when the
+  server reads a setting that either file leaves out.
+
 ## 27 October 2026
 
 - The agent guide (`/skill.md`) says that a pairing message ending "Once paired, start at <page>" names the

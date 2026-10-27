@@ -24,21 +24,24 @@ defmodule SiwaServer.SecretAllowlistTest do
     refute allowlist =~ "PRIVY_APP_SECRET"
   end
 
-  test "local environment example lists local setup knobs" do
+  # The settings are the names the runtime configuration reads: config/runtime.exs
+  # and SiwaServer.RuntimeConfig, which reads a few at request time.
+  test "every setting the server reads is in the allowlist and the environment example" do
+    read =
+      ["config/runtime.exs", "lib/siwa_server/runtime_config.ex"]
+      |> Enum.map_join("\n", &File.read!/1)
+      |> then(&Regex.scan(~r/"([A-Z][A-Z0-9_]+)"/, &1, capture: :all_but_first))
+      |> List.flatten()
+      |> Enum.uniq()
+
+    allowlist = File.read!("docs/secret-allowlist.yaml")
     env_example = File.read!(".env.example")
 
-    for name <- ~w(
-      BASE_RPC_URL
-      DATABASE_URL
-      ETHEREUM_RPC_URL
-      KEYSTORE_PASSWORD
-      PHX_HOST
-      PORT
-      SIWA_ACTIVITY_READERS
-      SIWA_CLEANUP_BATCH_SIZE
-      SIWA_RECEIPT_SECRET
-    ) do
-      assert env_example =~ "export #{name}="
+    assert "WORLD_RPC_URL" in read
+
+    for name <- read do
+      assert allowlist =~ "  - #{name}\n", "#{name} is read but not in docs/secret-allowlist.yaml"
+      assert env_example =~ ~r/\b#{name}\b/, "#{name} is read but not in .env.example"
     end
   end
 end

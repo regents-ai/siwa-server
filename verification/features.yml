@@ -245,7 +245,13 @@ features:
       - fly.toml
       - Dockerfile
       - priv/repo/migrations/**
+      - .env.example
+      - docs/secret-allowlist.yaml
     proofs:
       - test/siwa_server/runtime_config_test.exs
       - test/siwa_server/secret_allowlist_test.exs
       - test/siwa_server/database_config_test.exs
+    regressions:
+      - id: R-20261020-settings-missing-from-example
+        from: repo review 20 Oct 2026 (WORLD_RPC_URL, SIWA_HOSTED_SIGNERS, KEYSTORE_PATH and KEYSTORE_BACKEND read but not in .env.example)
+        test: test/siwa_server/secret_allowlist_test.exs
