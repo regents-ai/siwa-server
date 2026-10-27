@@ -5,6 +5,10 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The server keeps five database connections instead of twenty, as the template does, replaces each one in its
+  tenth minute so they never all reconnect at once, and names them `siwa-server-web` in the database's list of
+  connections. `POOL_SIZE` is no longer read.
+
 ## 27 October 2026
 
 - The shared sign-in library (elixir-utils 48a2e1c) lets an agent's own program sign a request from its

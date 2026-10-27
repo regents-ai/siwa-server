@@ -123,7 +123,6 @@ agent instead: its caller is a site's server, speaking for all of that site's ag
 | --- | --- | --- |
 | `PHX_SERVER` | unset | `true` starts the HTTP server in a release. |
 | `PORT` | `4000` | HTTP port. The Fly deployment uses `8080`. |
-| `POOL_SIZE` | `10` | Database connection pool size. |
 | `ECTO_IPV6` | unset | `true` connects to PostgreSQL over IPv6. |
 | `DNS_CLUSTER_QUERY` | unset | DNS query used for clustering. |
 | `SIWA_NONCE_TTL_SECONDS` | `300` | How long an issued nonce stays valid. |

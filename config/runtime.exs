@@ -157,14 +157,7 @@ if prod? do
       SiwaServer.DatabaseConfig.runtime_config!(database_url, maybe_ipv6)
     end
 
-  config :siwa_server,
-         SiwaServer.Repo,
-         database_config ++
-           [
-             pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
-             # For machines with several cores, consider starting multiple pools of `pool_size`
-             # pool_count: 4,
-           ]
+  config :siwa_server, SiwaServer.Repo, database_config
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

@@ -18,6 +18,19 @@ defmodule SiwaServer.DatabaseConfigTest do
     assert is_function(config[:ssl][:customize_hostname_check][:match_fun], 2)
   end
 
+  test "serves with the template's pool shape and leaves release commands without it" do
+    runtime = DatabaseConfig.runtime_config!(@pooled_url, [])
+    release = DatabaseConfig.release_config!(@pooled_url, [])
+
+    assert runtime[:pool_size] == 5
+    assert runtime[:max_lifetime] == 540_000..600_000
+    assert runtime[:show_sensitive_data_on_connection_error] == false
+    assert runtime[:parameters] == [application_name: "siwa-server-web"]
+
+    for key <- [:pool_size, :max_lifetime, :parameters],
+        do: refute(Keyword.has_key?(release, key))
+  end
+
   test "derives the direct Fly MPG host for release migrations" do
     config = DatabaseConfig.release_config!(@pooled_url, [:inet6])
 
@@ -88,14 +101,18 @@ defmodule SiwaServer.DatabaseConfigTest do
   test "preserves the existing behavior for a non-Fly PostgreSQL URL" do
     url = "postgres://postgres:postgres@database.internal/siwa_server"
 
-    assert DatabaseConfig.runtime_config!(url, []) == [url: url, socket_options: []]
+    assert Keyword.take(DatabaseConfig.runtime_config!(url, []), [:url, :socket_options, :ssl]) ==
+             [url: url, socket_options: []]
+
     assert DatabaseConfig.release_config!(url, [:inet6]) == [url: url, socket_options: [:inet6]]
   end
 
   test "preserves a passwordless non-Fly PostgreSQL URL" do
     url = "postgres://postgres@database.internal/siwa_server"
 
-    assert DatabaseConfig.runtime_config!(url, []) == [url: url, socket_options: []]
+    assert Keyword.take(DatabaseConfig.runtime_config!(url, []), [:url, :socket_options, :ssl]) ==
+             [url: url, socket_options: []]
+
     assert DatabaseConfig.release_config!(url, [:inet6]) == [url: url, socket_options: [:inet6]]
   end
 end

@@ -7,12 +7,26 @@ defmodule SiwaServer.DatabaseConfig do
     database_url
     |> parse_url!()
     |> runtime_options(socket_options)
+    |> serving()
   end
 
   def release_config!(database_url, socket_options) do
     database_url
     |> parse_url!()
     |> release_options(socket_options)
+  end
+
+  # The template's serving shape: five connections, each replaced at a random point
+  # in its tenth minute so the pool never reconnects at once, named in
+  # pg_stat_activity, with connection details kept out of errors. Release commands
+  # connect with none of these.
+  defp serving(options) do
+    Keyword.merge(options,
+      pool_size: 5,
+      max_lifetime: 540_000..600_000,
+      show_sensitive_data_on_connection_error: false,
+      parameters: [application_name: "siwa-server-web"]
+    )
   end
 
   defp runtime_options({database_url, %URI{host: host}}, socket_options) do
