@@ -1,20 +1,13 @@
 defmodule SiwaServer.SecretAllowlistTest do
   use ExUnit.Case, async: true
 
+  # A setting is read by System.get_env or System.fetch_env, by config/runtime.exs's
+  # env_value, env_integer, env_boolean and required_env, or by
+  # SiwaServer.RuntimeConfig's fetch and fetch_integer, always with the name written out.
+  @setting_read ~r/(?:System\.(?:get_env|fetch_env!?)|\b(?:env_value|env_integer|env_boolean|required_env)\.|(?<![.\w])fetch(?:_integer)?)\(\s*"([A-Z][A-Z0-9_]*)"/
+
   test "secret allowlist keeps shared SIWA secrets inside this repo boundary" do
     allowlist = File.read!("docs/secret-allowlist.yaml")
-
-    for name <- ~w(
-      DATABASE_URL
-      SECRET_KEY_BASE
-      SIWA_RECEIPT_SECRET
-      KEYSTORE_PASSWORD
-      SIWA_ACTIVITY_READERS
-      BASE_RPC_URL
-      ETHEREUM_RPC_URL
-    ) do
-      assert allowlist =~ "  - #{name}"
-    end
 
     assert allowlist =~ "  - shared_siwa_receipt_signing"
     assert allowlist =~ "  - per_site_siwa_activity_read_keys"
@@ -24,13 +17,10 @@ defmodule SiwaServer.SecretAllowlistTest do
     refute allowlist =~ "PRIVY_APP_SECRET"
   end
 
-  # The settings are the names the runtime configuration reads: config/runtime.exs
-  # and SiwaServer.RuntimeConfig, which reads a few at request time.
   test "every setting the server reads is in the allowlist and the environment example" do
     read =
-      ["config/runtime.exs", "lib/siwa_server/runtime_config.ex"]
-      |> Enum.map_join("\n", &File.read!/1)
-      |> then(&Regex.scan(~r/"([A-Z][A-Z0-9_]+)"/, &1, capture: :all_but_first))
+      ["config/runtime.exs" | Path.wildcard("lib/**/*.ex")]
+      |> Enum.flat_map(&Regex.scan(@setting_read, File.read!(&1), capture: :all_but_first))
       |> List.flatten()
       |> Enum.uniq()
 
@@ -40,8 +30,11 @@ defmodule SiwaServer.SecretAllowlistTest do
     assert "WORLD_RPC_URL" in read
 
     for name <- read do
-      assert allowlist =~ "  - #{name}\n", "#{name} is read but not in docs/secret-allowlist.yaml"
-      assert env_example =~ ~r/\b#{name}\b/, "#{name} is read but not in .env.example"
+      assert allowlist =~ ~r/^  - #{name}$/m,
+             "#{name} is read but not in docs/secret-allowlist.yaml"
+
+      assert env_example =~ ~r/^(# )?export #{name}=/m,
+             "#{name} is read but has no export line in .env.example"
     end
   end
 end

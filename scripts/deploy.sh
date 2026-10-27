@@ -5,15 +5,18 @@
 #
 # It refuses a working tree with any change, a commit that is not on
 # origin/main, and a commit that does not contain the one already live, so what
-# runs is always what the repository holds and never takes live work out. The
-# build context is `git archive` of the commit in a fresh release folder, so no
-# local file outside git reaches the image. The image is labelled with the full
-# commit (revision) and the elixir-utils commit mix.exs pins (elixir-utils).
+# runs is always what the repository holds and never takes live work out. It
+# also refuses unless the app runs exactly one machine: only one machine can
+# mount the key store volume. The build context is `git archive` of the commit
+# in a fresh release folder, so no local file outside git reaches the image. The
+# image is labelled with the full commit (revision) and the elixir-utils commit
+# mix.exs pins (elixir-utils).
 #
 # Fly's logs stream into the release folder from before the deploy until the
-# checks after it are done. The checks: the live image names this commit,
-# /readyz answers ready with every check true, and the served agent helpers and
-# guide are byte for byte the files in git.
+# checks after it are done. Every check runs even when another fails: the app
+# runs exactly one machine and its image names this commit, /readyz answers
+# ready with every check true, and the served agent helpers and guide are byte
+# for byte the files in git.
 #
 # The release folder, tmp/releases/<time>-<commit>/, is kept as the record:
 # context/ (what was built), fly-deploy.txt, fly-logs.txt, readyz.json and
@@ -44,12 +47,27 @@ if ! git merge-base --is-ancestor "$commit" origin/main; then
   exit 1
 fi
 
-# The running image carries the commit it was built from in its revision label.
-# A commit that does not contain it would take live work back out, which
-# happens when two releases cross: bring this checkout up to origin/main and
-# deploy again.
-live="$(fly image show --app "$app" --json | jq -r '.[0].Labels | fromjson | .revision // empty')"
-if [[ -z $live ]]; then
+# One word per machine of the app: the commit its image was built from (the
+# image's revision label), or "none" when the image has no such label.
+machine_revisions() {
+  fly image show --app "$app" --json |
+    jq -r '[.[]? | (.Labels | fromjson? | .revision) // "none"] | join(" ")'
+}
+
+# A commit that does not contain the live one would take live work back out,
+# which happens when two releases cross: bring this checkout up to origin/main
+# and deploy again.
+if ! revisions="$(machine_revisions)"; then
+  echo "Refusing to deploy: Fly did not say which image $app runs." >&2
+  exit 1
+fi
+read -r -a machines <<<"$revisions"
+if [[ ${#machines[@]} -ne 1 ]]; then
+  echo "Refusing to deploy: $app runs ${#machines[@]} machines; the key store needs exactly one." >&2
+  exit 1
+fi
+live="${machines[0]}"
+if [[ $live == none ]]; then
   echo "Refusing to deploy: the live image has no revision label to compare with." >&2
   exit 1
 fi
@@ -80,6 +98,7 @@ fly deploy "$release/context" \
   --config "$release/context/fly.toml" \
   --app "$app" \
   --remote-only \
+  --ha=false \
   --label revision="$commit" \
   --label elixir-utils="$elixir_utils" 2>&1 | tee "$release/fly-deploy.txt"
 
@@ -88,17 +107,18 @@ check() {
   echo "$1" | tee -a "$release/checks.txt"
 }
 
-served="$(fly image show --app "$app" --json | jq -r '.[0].Labels | fromjson | .revision // empty')"
-if [[ $served == "$commit" ]]; then
-  check "ok   live image revision $commit"
+revisions="$(machine_revisions)" || revisions="unreadable"
+read -r -a machines <<<"$revisions"
+if [[ ${#machines[@]} -eq 1 && ${machines[0]} == "$commit" ]]; then
+  check "ok   one machine, image revision $commit"
 else
-  check "FAIL live image revision is \"$served\", not $commit"
+  check "FAIL machines run \"$revisions\", not exactly one on $commit"
   failed=1
 fi
 
 ready=0
 for _attempt in {1..12}; do
-  if curl -fsS "https://$host/readyz" >"$release/readyz.json" 2>&1 &&
+  if curl -fsS --max-time 10 "https://$host/readyz" >"$release/readyz.json" 2>&1 &&
     jq -e '.ready == true and ([.checks[]] | all)' "$release/readyz.json" >/dev/null; then
     ready=1
     break
@@ -113,8 +133,8 @@ else
 fi
 
 for file in "${served_files[@]}"; do
-  expected="$(git show "$commit:priv/static/$file" | shasum -a 256 | cut -d' ' -f1)"
-  actual="$(curl -fsS "https://$host/$file" | shasum -a 256 | cut -d' ' -f1)" || actual="unreachable"
+  expected="$(git show "$commit:priv/static/$file" | shasum -a 256 | cut -d' ' -f1)" || expected="missing from git"
+  actual="$(curl -fsS --max-time 10 "https://$host/$file" | shasum -a 256 | cut -d' ' -f1)" || actual="unreachable"
   if [[ $expected == "$actual" ]]; then
     check "ok   /$file sha256 $expected"
   else

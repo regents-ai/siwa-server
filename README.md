@@ -134,7 +134,7 @@ agent instead: its caller is a site's server, speaking for all of that site's ag
 | `SIWA_WALLET_ORIGINS` | unset | Approved `audience=origin` pairs for wallet sign-in, comma separated; an audience may repeat with more origins. Unset disables it. |
 | `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Expired nonce, replay and activity rows removed per batch. A sweep runs once a minute and repeats batches until one comes back short, at most 20 for each kind. |
 | `KEYSTORE_BACKEND` | `encrypted_file` | Key store backend. `encrypted_file` is the only accepted value; anything else stops the boot. |
-| `KEYSTORE_PATH` | `/data/siwa-server-keystore.bin` | Where the encrypted key store lives. |
+| `KEYSTORE_PATH` | `/tmp/siwa-server-keystore.bin` | Where the encrypted key store lives. Production's path is set by the `KEYSTORE_PATH` Fly secret, on the `siwa_data` volume at `/data`. |
 
 > [!WARNING]
 > `SIWA_RECEIPT_SECRET` and `KEYSTORE_PASSWORD` are the two values that keep this service
@@ -173,13 +173,16 @@ Release with the one script, from a clean checkout whose commit is on `origin/ma
 scripts/deploy.sh
 ```
 
-It refuses a changed working tree, a commit that is not on `origin/main`, and a commit that does
-not contain the live one (the `revision` label on the running image, read with
-`fly image show`). It builds from `git archive` of the commit in a fresh release folder,
-`tmp/releases/<time>-<commit>/`, and deploys it with `--remote-only`, labelling the image with
-the commit (`revision`) and the elixir-utils commit `mix.exs` pins (`elixir-utils`). Fly's logs
-stream into that folder from before the deploy until the checks after it end. The checks: the
-running image names the commit, `/readyz` answers ready with every check true, and the served
+It refuses a changed working tree, a commit that is not on `origin/main`, an app that does not
+run exactly one machine (only one can mount the key store volume), and a commit that does not
+contain the live one (the `revision` label on the running image, read with `fly image show`).
+It builds from `git archive` of the commit in a fresh release folder,
+`tmp/releases/<time>-<commit>/`, and deploys it with `--remote-only` and `--ha=false`, labelling
+the image with the commit (`revision`) and the elixir-utils commit `mix.exs` pins
+(`elixir-utils`). Fly's logs stream into that folder from before the deploy until the checks
+after it end. Every check runs even when another fails, and any failure ends with a line saying
+the commit is deployed but a check failed. The checks: the app runs exactly one machine and its
+image names the commit, `/readyz` answers ready with every check true, and the served
 helpers (`/agent/siwa_agent.py`, `/agent/siwa-agent.mjs`, `/agent/siwa-contract.json`) and guide
 (`/skill.md`) have the same sha256 as the files in git. The folder stays as the release record;
 then add the release to `RELEASES.md`.
@@ -192,10 +195,11 @@ The launch and maintenance checklist is in `docs/regent-local-and-fly-launch-tes
 ### Key store backup and restore
 
 The volume `siwa_data` (`vol_42k97729y72yy334`, 1 GB, `iad`, encrypted at rest) is mounted at
-`/data` on the one machine. It holds one file per hosted ChatGPT connection in
-`/data/siwa-server-keystore.bin.hosted/`, named from `KEYSTORE_PATH`
-(`/data/siwa-server-keystore.bin`). Nothing in this server writes `KEYSTORE_PATH` itself any
-more; whether an older file is there is unconfirmed (no read of the volume). Each file is
+`/data` on the one machine. It holds one file per hosted ChatGPT connection in the folder
+`<KEYSTORE_PATH>.hosted/`, where the path is set by the `KEYSTORE_PATH` Fly secret (its value
+was not read; that it points under `/data` is unconfirmed). Nothing in this server writes the
+`KEYSTORE_PATH` file itself any more; whether an older one is there is unconfirmed (no read of
+the volume). Each file is
 encrypted with AES-256-GCM under a key made from `KEYSTORE_PASSWORD` (PBKDF2-SHA256, 100,000 rounds, a salt of its own) and is readable
 by the service alone (mode 0600; `SiwaKeyring.Keystore` and `SiwaKeyring.HostedIdentity` in the
 pinned elixir-utils). The sign-in database is not on this volume.
@@ -217,13 +221,26 @@ signer. Whether a copy of the password is kept anywhere else is unconfirmed.
 
 1. Snapshot the current volume first (`fly volumes snapshots create vol_42k97729y72yy334`), so
    the restore can be undone.
-2. Make a new volume from the chosen snapshot: `fly volumes create siwa_data --snapshot-id
-   <snapshot id> --app siwa-server --region iad --size 1`.
-3. Move the one machine onto the new volume. A machine keeps the volume it was made with, so
-   this most likely means removing the current machine and deploying again, so that the new
-   machine mounts the restored volume. Sign-in is down until the new machine answers.
-4. `KEYSTORE_PASSWORD` must be the password in use when the snapshot was taken.
-5. Check `/readyz` (`keystore_path` true), then that Patchbay's hosted connections still sign.
+2. `KEYSTORE_PASSWORD` must be the password in use when the snapshot was taken.
+3. Put a machine on the snapshot in place of the current one. Sign-in is down from the stop
+   until the new machine answers.
+   - `fly machine list --app siwa-server` gives the one machine's id.
+   - `fly machine stop <id> --app siwa-server`.
+   - `fly machine clone <id> --from-snapshot <snapshot id> --region iad --app siwa-server`
+     makes a new machine with a new volume filled from the snapshot. Without
+     `--from-snapshot` the clone gets an empty volume. To use a volume made beforehand with
+     `fly volumes create siwa_data --snapshot-id <snapshot id> --region iad --size 1 --app
+     siwa-server`, clone with `--attach-volume <volume id>:/data` instead. The clone asks for
+     a zone apart from the old volume's unless `--volume-requires-unique-zone=false` is given.
+   - Check the new machine (step 4) before anything else.
+   - Only then `fly machine destroy <old id> --app siwa-server`. Keep the old volume until the
+     restore is settled.
+4. Check with a real signature, not `/readyz`: `/readyz` reads the settings, not the files.
+   From Patchbay, ask this server to `sign` `GET /api/agents/v1/whoami` for a connection that
+   paired before the snapshot, send the signed request to Patchbay, and check that Patchbay
+   answers with the agent and wallet address it already holds for that connection. A refused
+   sign means that connection's file is missing or the password is wrong; a different address
+   means the file is not the one from the snapshot.
 
 A restore loses every hosted signer made after the snapshot. The next registration for such a
 connection makes a new signer with a new address, so that connection pairs again.

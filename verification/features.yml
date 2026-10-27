@@ -253,7 +253,7 @@ features:
       - test/siwa_server/database_config_test.exs
     regressions:
       - id: R-20261020-settings-missing-from-example
-        from: repo review 20 Oct 2026 (WORLD_RPC_URL, SIWA_HOSTED_SIGNERS, KEYSTORE_PATH and KEYSTORE_BACKEND read but not in .env.example)
+        from: repo review 20 Oct 2026 (WORLD_RPC_URL, SIWA_HOSTED_SIGNERS, KEYSTORE_PATH and KEYSTORE_BACKEND read but not in .env.example); the test reads config/runtime.exs and lib/**/*.ex
         test: test/siwa_server/secret_allowlist_test.exs
 
   - id: release
@@ -267,5 +267,5 @@ features:
     proofs:
       - scripts/deploy.sh
     gaps:
-      - The script is never run by a check; its own checks after the deploy (image revision, /readyz, served sha256) are the proof, at release time.
+      - The script is never run by a check; its own checks after the deploy (exactly one machine on the commit, /readyz, served sha256) are the proof, at release time. It was walked once with a stand-in fly and curl (27 Oct 2026), not against Fly.
       - The key store restore in README.md has never been rehearsed.

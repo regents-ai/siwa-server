@@ -7,14 +7,20 @@ a release moves those lines under its date. Which version and commit each releas
 
 - `.env.example` lists every setting the server reads: `WORLD_RPC_URL`, `SIWA_HOSTED_SIGNERS`,
   `KEYSTORE_BACKEND` and `KEYSTORE_PATH` are added, with the production-only ones named. The
-  settings allowlist adds `WORLD_RPC_URL` and `SIWA_RELEASE_COMMAND`, and a test now fails when the
-  server reads a setting that either file leaves out.
+  settings allowlist adds `WORLD_RPC_URL` and `SIWA_RELEASE_COMMAND`, and a test now fails when
+  `config/runtime.exs` or any file under `lib/` reads a setting that either file leaves out.
+  Production's key store path is set by the `KEYSTORE_PATH` Fly secret; the docs no longer name a
+  `/data` default.
 - `make check` is the one check, as in the template; it runs `mix precommit`.
-- Releases go through `scripts/deploy.sh`: it refuses a changed tree, a commit not on `origin/main`
-  or one without the live commit, builds from `git archive`, keeps Fly's logs from before the deploy
-  to after its checks, then checks `/readyz` and that the served helpers and guide match git.
+- Releases go through `scripts/deploy.sh`: it refuses a changed tree, a commit not on `origin/main`,
+  an app without exactly one machine, or a commit without the live one; builds from `git archive`;
+  deploys with `--ha=false`; keeps Fly's logs from before the deploy to after its checks; then
+  checks that one machine runs the commit, `/readyz`, and that the served helpers and guide match
+  git. Every check runs even when one fails, and a failure always ends with a "deployed but a
+  check failed" line.
 - README.md says how the key store volume is backed up (Fly's daily snapshots, kept 5 days) and
-  what a restore would take; the restore has never been rehearsed.
+  how a restore would go (stop the machine, clone it from a snapshot, prove it with a real
+  signature, then remove the old machine); the restore has never been rehearsed.
 
 ## 27 October 2026
 
