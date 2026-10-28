@@ -52,15 +52,17 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
   end
 
   # Stands in for an app clock running ahead of the database's: a replay row whose
-  # end the database has not reached stays, so its key cannot be accepted again.
-  test "replay rows end by the database clock, not the clock the job is given" do
+  # end the database has not reached stays, so its key cannot be accepted again, and
+  # a nonce the database still lets be consumed stays, so its sign-in still works.
+  test "nonce and replay rows end by the database clock, not the clock the job is given" do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
     ahead = DateTime.add(now, 3600, :second)
 
     insert_nonce!("nonce-ending-soon", DateTime.add(now, 60, :second))
     insert_replay!("replay-ending-soon", DateTime.add(now, 60, :second))
 
-    assert {:ok, %{nonce_count: 1, replay_count: 0}} = CleanupWorker.cleanup_once(ahead, 10)
+    assert {:ok, %{nonce_count: 0, replay_count: 0}} = CleanupWorker.cleanup_once(ahead, 10)
+    assert nonce_count("nonce-ending-soon") == 1
     assert replay_count("replay-ending-soon") == 1
   end
 
