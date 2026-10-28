@@ -1,13 +1,15 @@
 defmodule SiwaServer.HostedRequests do
   @moduledoc """
-  Signing for an account's persistent ChatGPT connection, asked for by a site
-  with its own hosted signing key (`SiwaServer.HostedSigners`).
+  Signing for an account's persistent hosted connection (Patchbay's ChatGPT app,
+  Keyfleet's Claude connector), asked for by a site with its own hosted signing key
+  (`SiwaServer.HostedSigners`).
 
   The calling site is the audience of everything signed, and each connection's
   key belongs to the site that registered it: the stored signer is named from
   the site and the site's connection key together, so one site cannot reach
   another site's connections. Keys stay in the encrypted SIWA key store. This
-  service signs only pairing, identity probes and free Patchbay participation,
+  service signs only each site's pairing (for its own harness) and identity reads,
+  and free Patchbay participation,
   never arbitrary messages, transactions or payment requests. Products still
   verify every resulting request through the ordinary SIWA verifier and apply
   their own permissions.
@@ -57,20 +59,31 @@ defmodule SiwaServer.HostedRequests do
 
   defp identity(_site, _key), do: {:error, :hosted_request_not_allowed}
 
-  defp allowed_request("patchbay", %{"method" => "GET", "path" => "/api/agents/v1/whoami"} = r)
-       when map_size(r) == 2,
-       do: :ok
+  @identity_reads %{
+    "patchbay" => ["/api/agents/v1/whoami"],
+    "keyfleet" => ["/api/agents/v1/whoami", "/api/agents/v1/me"]
+  }
+  @pair_harness %{"patchbay" => "chatgpt", "keyfleet" => "claude"}
+
+  defp allowed_request(site, %{"method" => "GET", "path" => path} = r)
+       when map_size(r) == 2 do
+    if path in Map.get(@identity_reads, site, []),
+      do: :ok,
+      else: {:error, :hosted_request_not_allowed}
+  end
 
   defp allowed_request(
-         "patchbay",
+         site,
          %{
            "method" => "POST",
            "path" => "/api/agents/v1/pair",
            "body" => body
          } = r
        )
-       when map_size(r) == 3 do
-    with {:ok, %{"code" => code, "name" => name, "harness" => "chatgpt"} = args} <- decode(body),
+       when map_size(r) == 3 and is_map_key(@pair_harness, site) do
+    harness = Map.fetch!(@pair_harness, site)
+
+    with {:ok, %{"code" => code, "name" => name, "harness" => ^harness} = args} <- decode(body),
          true <- map_size(args) == 3 and is_binary(code) and byte_size(code) in 1..128,
          true <- is_binary(name) and String.length(name) in 1..100 do
       :ok

@@ -5,6 +5,10 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- Keyfleet's Claude connector can use hosted signing: with Keyfleet's own key in
+  `SIWA_HOSTED_SIGNERS`, it may sign only `GET /api/agents/v1/whoami`, `GET /api/agents/v1/me` and
+  pairing for the `claude` harness. Patchbay keeps exactly its own requests; neither site can sign
+  the other's.
 - A new agent's first signed request is now checked end to end on every `make check`: the served
   Python and Node clients each start from a new key, sign in and sign their first `whoami` and
   pairing requests for two sites against this server on a local port, and each site checks them
