@@ -15,22 +15,22 @@ defmodule SiwaServer.Siwa.ReplayStoreTest do
   end
 
   test "cleanup_expired removes expired replay rows and keeps active ones" do
-    now = ~U[2026-04-22 12:00:00Z]
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
     insert_replay!("expired-replay", DateTime.add(now, -60, :second))
     insert_replay!("active-replay", DateTime.add(now, 60, :second))
 
-    assert {:ok, 1} = ReplayStore.cleanup_expired(now)
+    assert {:ok, 1} = ReplayStore.cleanup_expired()
 
     assert replay_count("expired-replay") == 0
     assert replay_count("active-replay") == 1
   end
 
   test "cleanup_expired deletes at most one batch per call" do
-    now = ~U[2026-04-22 12:00:00Z]
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
     insert_replay!("expired-replay-1", DateTime.add(now, -60, :second))
     insert_replay!("expired-replay-2", DateTime.add(now, -30, :second))
 
-    assert {:ok, 1} = ReplayStore.cleanup_expired(now, 1)
+    assert {:ok, 1} = ReplayStore.cleanup_expired(1)
 
     assert replay_count("expired-replay-1") + replay_count("expired-replay-2") == 1
   end

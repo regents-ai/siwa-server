@@ -5,6 +5,9 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- Nothing changes for agents or sites. Used signed requests are forgotten by the database's
+  clock, the same clock that refuses a second use, so a clock gap between the server and its
+  database can no longer let one request through twice.
 - The Python helper no longer fails to make or open a key with Touch ID when another app on the
   Mac has certain Unicode line separators in its command line; it reads the list of running apps
   the way the Node helper does.
