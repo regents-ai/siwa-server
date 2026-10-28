@@ -1,6 +1,6 @@
 defmodule SiwaServerWeb.HostedController do
   @moduledoc """
-  Hosted signing for sites' ChatGPT connections (`SiwaServer.HostedRequests`).
+  Hosted signing for sites' hosted connections (`SiwaServer.HostedRequests`).
   Each site asks with its own hosted signing key, and only for itself. Every
   request is counted under the site whose key it presented, and every refused
   key under "refused".

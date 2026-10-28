@@ -5,6 +5,10 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- Keyfleet's Claude connector can use hosted signing: with Keyfleet's own key in
+  `SIWA_HOSTED_SIGNERS`, it may sign only `GET /api/agents/v1/whoami`, `GET /api/agents/v1/me` and
+  pairing for the `claude` harness. Patchbay keeps exactly its own requests; neither site can sign
+  the other's.
 - `.env.example` lists every setting the server reads: `WORLD_RPC_URL`, `SIWA_HOSTED_SIGNERS`,
   `KEYSTORE_BACKEND` and `KEYSTORE_PATH` are added, with the production-only ones named. The
   settings allowlist adds `WORLD_RPC_URL` and `SIWA_RELEASE_COMMAND`, and a test now fails when

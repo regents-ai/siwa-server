@@ -143,6 +143,92 @@ defmodule SiwaServer.HostedRequestsTest do
            )
   end
 
+  test "each site signs only its own identity reads and pairing for its own harness", %{
+    identity: identity
+  } do
+    pair = fn harness ->
+      %{
+        "method" => "POST",
+        "path" => "/api/agents/v1/pair",
+        "body" => Jason.encode!(%{code: "ABCD-1234", name: "Claude", harness: harness})
+      }
+    end
+
+    whoami = %{"method" => "GET", "path" => "/api/agents/v1/whoami"}
+    me = %{"method" => "GET", "path" => "/api/agents/v1/me"}
+
+    sign = fn site, request ->
+      {:ok, _} =
+        HostedRequests.handle(site, %{"operation" => "register", "identity_key" => identity})
+
+      HostedRequests.handle(site, %{
+        "operation" => "sign",
+        "identity_key" => identity,
+        "request" => request
+      })
+    end
+
+    for {site, request} <- [
+          {"keyfleet", whoami},
+          {"keyfleet", me},
+          {"keyfleet", pair.("claude")},
+          {"patchbay", whoami},
+          {"patchbay", pair.("chatgpt")}
+        ] do
+      assert {:ok, signed} = sign.(site, request)
+
+      {:ok, secret} = RuntimeConfig.siwa_receipt_secret()
+
+      envelope =
+        signed
+        |> Map.delete(:body)
+        |> Map.put(:body_digest, request["body"] && Siwa.content_digest_for_body(request["body"]))
+
+      assert match?(
+               {:ok, _},
+               Siwa.verify_authenticated_request(envelope,
+                 receipt_secret: secret,
+                 audience: site,
+                 wallet_audiences: [site]
+               )
+             )
+    end
+
+    for {site, request} <- [
+          {"keyfleet", pair.("chatgpt")},
+          {"patchbay", pair.("claude")},
+          {"patchbay", me},
+          {"keyfleet", Map.put(whoami, "body", "")},
+          {"keyfleet", %{whoami | "path" => "/api/agents/v1/whoami/"}},
+          {"keyfleet", %{me | "method" => "POST"}},
+          {"regents", whoami},
+          {"regents", pair.("claude")},
+          {"keyfleet",
+           %{
+             pair.("claude")
+             | "body" =>
+                 Jason.encode!(%{code: "ABCD-1234", name: "Claude", harness: "claude", extra: 1})
+           }},
+          {"keyfleet",
+           %{
+             pair.("claude")
+             | "body" => Jason.encode!(%{code: "", name: "Claude", harness: "claude"})
+           }},
+          {"keyfleet",
+           %{
+             pair.("claude")
+             | "body" =>
+                 Jason.encode!(%{
+                   code: "ABCD-1234",
+                   name: String.duplicate("a", 101),
+                   harness: "claude"
+                 })
+           }}
+        ] do
+      assert sign.(site, request) == {:error, :hosted_request_not_allowed}
+    end
+  end
+
   test "arbitrary signing, unsupported paths and another site's routes cannot reach a signer", %{
     identity: identity
   } do
