@@ -17,6 +17,9 @@ defmodule SiwaServer.Siwa.ReplayStore do
   # tried and met the key's row, or a row for the key was already there. It says
   # "expired" only when nothing else landed, so an agent told to sign again never
   # repeats a request that already took effect.
+  # A use refused as expired can still leave its row, so a later copy of the same
+  # signed request would read "replayed" here; the library's time check refuses
+  # that copy first, and a request signed again has a new key.
   #
   # "off" answers before the database's disk has confirmed the row. A database
   # crash can then lose every row written since the disk last confirmed (about

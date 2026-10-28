@@ -8,10 +8,11 @@ defmodule SiwaServer.ReplayEndLabelsTest do
   # A refused key is "expired" only when no other use of it landed; whenever one did,
   # it is "replayed", so an agent told to sign again never repeats a request that
   # already took effect. Each case makes a key's end pass while its use is in flight.
+  # Ends and waits are read from the database clock, the one the store compares with.
 
   test "a first use whose write waits past the key's end is refused as expired" do
     key = "replay-end:#{Ecto.UUID.generate()}"
-    ends = System.system_time(:second) + 3
+    ends = db_now() + 3
     parent = self()
 
     # Holds the key unwritten until after its end, then rolls back.
@@ -20,7 +21,7 @@ defmodule SiwaServer.ReplayEndLabelsTest do
         :ok = Sandbox.checkout(Repo)
         insert!(key, ends)
         send(parent, :holding)
-        Process.sleep(ends * 1000 - System.system_time(:millisecond) + 400)
+        sleep_past!(ends)
         Sandbox.checkin(Repo)
       end)
 
@@ -40,7 +41,7 @@ defmodule SiwaServer.ReplayEndLabelsTest do
 
   test "a use whose twin lands while it waits past the key's end is refused as replayed" do
     key = "replay-end:#{Ecto.UUID.generate()}"
-    ends = System.system_time(:second) + 3
+    ends = db_now() + 3
     parent = self()
     on_exit(fn -> Sandbox.unboxed_run(Repo, fn -> delete!(key) end) end)
 
@@ -51,7 +52,7 @@ defmodule SiwaServer.ReplayEndLabelsTest do
           Repo.transaction(fn ->
             insert!(key, ends)
             send(parent, :holding)
-            Process.sleep(ends * 1000 - System.system_time(:millisecond) + 400)
+            sleep_past!(ends)
           end)
         end)
       end)
@@ -70,7 +71,7 @@ defmodule SiwaServer.ReplayEndLabelsTest do
 
   test "a use whose twin already landed is refused as replayed after the key's end" do
     key = "replay-end:#{Ecto.UUID.generate()}"
-    ends = System.system_time(:second) - 1
+    ends = db_now() - 1
 
     :ok = Sandbox.checkout(Repo)
     insert!(key, ends)
@@ -92,6 +93,19 @@ defmodule SiwaServer.ReplayEndLabelsTest do
       ]
     )
   end
+
+  defp db_now do
+    %{rows: [[now]]} =
+      Sandbox.unboxed_run(Repo, fn ->
+        Repo.query!("SELECT floor(extract(epoch FROM clock_timestamp()))::bigint")
+      end)
+
+    now
+  end
+
+  # Waits on the holder's own connection, so its uncommitted row stays held.
+  defp sleep_past!(ends),
+    do: Repo.query!("SELECT pg_sleep_until(to_timestamp($1::bigint + 0.4))", [ends])
 
   defp rows(key) do
     %{rows: [[count]]} =
