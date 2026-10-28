@@ -40,6 +40,7 @@ defmodule SiwaServer.SiteVerifiers do
     if MapSet.size(missing) > 0 or MapSet.size(unknown) > 0 do
       raise ArgumentError,
             "SIWA_SITE_VERIFY_KEYS must name each SIWA_WALLET_ORIGINS audience once; " <>
+              "audiences #{inspect(Enum.sort(audiences))}, " <>
               "missing #{inspect(Enum.sort(missing))}, unknown #{inspect(Enum.sort(unknown))}"
     end
 
