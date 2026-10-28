@@ -7,6 +7,7 @@ the version before it. Times are UTC.
 
 | Fly version | Commit | Released | Notes |
 | --- | --- | --- | --- |
+| v73 | f209a97 | 2026-10-28 08:27Z | Keyfleet's Claude connector may use hosted signing (whoami, me, pairing as claude; inert until Keyfleet's key is in SIWA_HOSTED_SIGNERS); hosted bodies naming a key twice refused; first-signed-request check in make check; agent guide keep-it-working section |
 | v72 | 48eb736 | 2026-10-27 16:59Z | Agent guide names the pairing message's start page (template words) |
 | v71 | af02776 | 2026-10-27 07:50Z | Database pool as the template serves it: 5 connections (was POOL_SIZE 20), each replaced in its tenth minute, named siwa-server-web; aimed at the idle disconnects of 05:01-07:39Z |
 | v70 | 6ec8c09 | 2026-10-27 07:41Z | elixir-utils 48a2e1c (Siwa.sign_request: agents sign from their sign-in answer); hosted signing unchanged |

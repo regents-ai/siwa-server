@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 28 October 2026
+
 - The agent guide (`/skill.md`) says how to keep signing working: the client renews its hour-long
   sign-in itself, what to do when pairing ends or the signer stops, how long to wait after `429`,
   `502` or `503`, and to check whether a lost write landed before sending it again. A new
