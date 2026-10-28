@@ -30,7 +30,9 @@ defmodule SiwaServer.WalletConcurrencyTest do
           from n in NonceRecord, where: n.address == ^signer.address and n.nonce == ^nonce_value
         )
 
-        Repo.query!("DELETE FROM siwa_request_replays WHERE replay_key = $1", [replay_key])
+        Repo.query!("DELETE FROM siwa_request_replays WHERE replay_key = ANY($1)", [
+          [replay_key, replay_key <> ":expired"]
+        ])
       end)
     end)
 
@@ -66,7 +68,7 @@ defmodule SiwaServer.WalletConcurrencyTest do
     expired_results =
       concurrently(fn -> ReplayStore.consume(expired_key, System.system_time(:second) - 1) end)
 
-    assert expired_results == List.duplicate({:error, :replayed_request}, 4)
+    assert expired_results == List.duplicate({:error, :request_expired}, 4)
   end
 
   test "nonce lock wait crossing expiry never issues a successful consume" do

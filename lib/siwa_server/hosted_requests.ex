@@ -122,8 +122,8 @@ defmodule SiwaServer.HostedRequests do
   # reading the last would act on something that was never checked.
   defp decode(body) when is_binary(body) and byte_size(body) <= 32_768 do
     with {:ok, ordered} <- Jason.decode(body, objects: :ordered_objects),
-         true <- unique_keys?(ordered) do
-      Jason.decode(body)
+         {:ok, value} <- plain(ordered) do
+      {:ok, value}
     else
       _ -> {:error, :hosted_request_not_allowed}
     end
@@ -131,13 +131,27 @@ defmodule SiwaServer.HostedRequests do
 
   defp decode(_), do: {:error, :hosted_request_not_allowed}
 
-  defp unique_keys?(%Jason.OrderedObject{values: values}) do
-    keys = Enum.map(values, &elem(&1, 0))
-    keys == Enum.uniq(keys) and Enum.all?(values, fn {_key, value} -> unique_keys?(value) end)
+  defp plain(%Jason.OrderedObject{values: values}) do
+    Enum.reduce_while(values, {:ok, %{}}, fn {key, value}, {:ok, map} ->
+      with false <- is_map_key(map, key),
+           {:ok, value} <- plain(value) do
+        {:cont, {:ok, Map.put(map, key, value)}}
+      else
+        _ -> {:halt, :error}
+      end
+    end)
   end
 
-  defp unique_keys?(list) when is_list(list), do: Enum.all?(list, &unique_keys?/1)
-  defp unique_keys?(_value), do: true
+  defp plain(list) when is_list(list) do
+    Enum.reduce_while(Enum.reverse(list), {:ok, []}, fn value, {:ok, values} ->
+      case plain(value) do
+        {:ok, value} -> {:cont, {:ok, [value | values]}}
+        :error -> {:halt, :error}
+      end
+    end)
+  end
+
+  defp plain(value), do: {:ok, value}
 
   defp receipt(signer, address, audience) do
     fields = %{"wallet_address" => address, "chain_id" => 8453, "audience" => audience}

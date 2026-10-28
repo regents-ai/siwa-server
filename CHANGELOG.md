@@ -35,6 +35,13 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## 28 October 2026
 
+- A signed request is refused as expired (`401 http_signature_invalid`, "signed request has
+  expired") only when no other copy of it went through, including one whose time ran out while the
+  server was recording its single use; an agent then signs it again. Whenever another copy went
+  through, it is refused as a repeat (`409 request_replayed`), so an agent never sends again a request
+  that already took effect. Which requests are accepted is unchanged.
+- Hosted signing reads each request body once, and the checks now cover a key named twice inside a
+  Patchbay tool call's arguments and name the exact refusal for a pairing body changed after signing.
 - The agent guide (`/skill.md`) says how to keep signing working: the client renews its hour-long
   sign-in itself, what to do when pairing ends or the signer stops, how long to wait after `429`,
   `502` or `503`, and to check whether a lost write landed before sending it again. A new

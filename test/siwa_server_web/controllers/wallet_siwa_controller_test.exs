@@ -369,9 +369,9 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
   test "durable replay store refuses already expired entries even after cleanup" do
     key = "wallet-expiry-test:#{Ecto.UUID.generate()}"
     expired = System.system_time(:second) - 1
-    assert {:error, :replayed_request} = ReplayStore.consume(key, expired)
+    assert {:error, :request_expired} = ReplayStore.consume(key, expired)
     assert {:ok, _} = ReplayStore.cleanup_expired()
-    assert {:error, :replayed_request} = ReplayStore.consume(key, expired)
+    assert {:error, :request_expired} = ReplayStore.consume(key, expired)
   end
 
   defp params,
