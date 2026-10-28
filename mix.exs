@@ -73,7 +73,7 @@ defmodule SiwaServer.MixProject do
       {:ex_keccak, "~> 0.7.8"},
       {:ex_secp256k1, "~> 0.8.0"},
       {:dns_cluster, "~> 0.2.0"},
-      {:bandit, "~> 1.14"},
+      {:bandit, "~> 1.14 and >= 1.14.1"},
       {:siwa,
        git: @elixir_utils,
        ref: @elixir_utils_ref,
