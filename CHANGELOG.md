@@ -8,10 +8,10 @@ a release moves those lines under its date. Which version and commit each releas
 - The Python helper no longer fails to make or open a key with Touch ID when another app on the
   Mac has certain Unicode line separators in its command line; it reads the list of running apps
   the way the Node helper does.
-- A `409 request_replayed` refusal now says another copy of the request already went through,
-  and its hint and the agent guide tell agents to read whether a write landed before sending it
-  again. The guide also says to read each client answer from standard output only, since some
-  Python builds print warnings on standard error.
+- The hint on a `409 request_replayed` refusal now says another copy of the request already went
+  through, and it and the agent guide tell agents to read whether a write landed before sending it
+  again. The guide also says where each client's output goes: answers on standard output; the
+  Touch ID step and errors on standard error, where some Python builds also add warnings.
 
 ## 28 October 2026
 

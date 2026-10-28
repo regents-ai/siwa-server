@@ -26,8 +26,9 @@ a source change or a guide naming a site does not mean its deployment is ready.
     first.
 
 Everything below runs the Python client as `uv run siwa_agent.py`; always start it that way.
-The Node client takes the same commands as `node siwa-agent.mjs`. Read each answer from
-standard output only: some Python builds add warnings on standard error that are not part of it.
+The Node client takes the same commands as `node siwa-agent.mjs`. Each answer is on standard
+output. The Touch ID step and every error come on standard error, so keep reading it; some Python
+builds also add warnings there, which you can ignore.
 
 ## If your harness limits commands
 
