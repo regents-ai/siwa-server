@@ -50,10 +50,15 @@ defmodule SiwaServer.HostedRequestsTest do
     assert post.(nil).status == 401
     assert post.("Bearer siwa-test-patchbay-activity-read-key-1").status == 401
 
-    patchbay = post.("Bearer siwa-test-patchbay-hosted-signing-key-1")
-    assert patchbay.status == 200
-    {:ok, expected} = HostedRequests.handle("patchbay", Jason.decode!(body))
-    assert Jason.decode!(patchbay.resp_body) == %{"address" => expected.address}
+    for site <- ["patchbay", "keyfleet"] do
+      signed = post.("Bearer siwa-test-#{site}-hosted-signing-key-1")
+      assert signed.status == 200
+      {:ok, expected} = HostedRequests.handle(site, Jason.decode!(body))
+      assert Jason.decode!(signed.resp_body) == %{"address" => expected.address}
+    end
+
+    refute Jason.decode!(post.("Bearer siwa-test-patchbay-hosted-signing-key-1").resp_body) ==
+             Jason.decode!(post.("Bearer siwa-test-keyfleet-hosted-signing-key-1").resp_body)
   end
 
   test "an account connection reuses its key, never exports it, and belongs to one site", %{
@@ -213,6 +218,12 @@ defmodule SiwaServer.HostedRequestsTest do
            %{
              pair.("claude")
              | "body" => Jason.encode!(%{code: "", name: "Claude", harness: "claude"})
+           }},
+          {"keyfleet",
+           %{
+             pair.("claude")
+             | "body" =>
+                 ~s({"code":"ABCD-1234","name":"Claude","harness":"claude","harness":"chatgpt"})
            }},
           {"keyfleet",
            %{

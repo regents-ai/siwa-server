@@ -8,9 +8,9 @@ defmodule SiwaServer.HostedRequests do
   key belongs to the site that registered it: the stored signer is named from
   the site and the site's connection key together, so one site cannot reach
   another site's connections. Keys stay in the encrypted SIWA key store. This
-  service signs only each site's pairing (for its own harness) and identity reads,
-  and free Patchbay participation,
-  never arbitrary messages, transactions or payment requests. Products still
+  service signs only each site's identity reads and pairing (for its own harness),
+  and Patchbay's free participation; never arbitrary messages, transactions or
+  payment requests. Products still
   verify every resulting request through the ordinary SIWA verifier and apply
   their own permissions.
   """
@@ -118,10 +118,26 @@ defmodule SiwaServer.HostedRequests do
 
   defp allowed_request(_, _), do: {:error, :hosted_request_not_allowed}
 
-  defp decode(body) when is_binary(body) and byte_size(body) <= 32_768,
-    do: Jason.decode(body)
+  # A body naming one key twice is refused: the check reads the first copy, and a site
+  # reading the last would act on something that was never checked.
+  defp decode(body) when is_binary(body) and byte_size(body) <= 32_768 do
+    with {:ok, ordered} <- Jason.decode(body, objects: :ordered_objects),
+         true <- unique_keys?(ordered) do
+      Jason.decode(body)
+    else
+      _ -> {:error, :hosted_request_not_allowed}
+    end
+  end
 
   defp decode(_), do: {:error, :hosted_request_not_allowed}
+
+  defp unique_keys?(%Jason.OrderedObject{values: values}) do
+    keys = Enum.map(values, &elem(&1, 0))
+    keys == Enum.uniq(keys) and Enum.all?(values, fn {_key, value} -> unique_keys?(value) end)
+  end
+
+  defp unique_keys?(list) when is_list(list), do: Enum.all?(list, &unique_keys?/1)
+  defp unique_keys?(_value), do: true
 
   defp receipt(signer, address, audience) do
     fields = %{"wallet_address" => address, "chain_id" => 8453, "audience" => audience}

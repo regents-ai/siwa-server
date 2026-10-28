@@ -156,7 +156,8 @@ runs the Touch ID page checks in headless Chromium (`e2e/`, Playwright 1.64.1, o
 needs a local PostgreSQL, because the test alias creates and migrates a database first,
 Playwright's Chromium (`npx --prefix e2e playwright install --only-shell chromium`, once),
 and `uv` on the path. The first-signed-request test runs the served Python client through
-`uv` and the Node client beside `e2e/node_modules`, so a bare `mix test` on a fresh clone
+`uv` (its first run downloads the client's libraries, so it needs the network or a warm uv
+cache) and the Node client beside `e2e/node_modules`, so a bare `mix test` on a fresh clone
 needs `npm --prefix e2e ci` first.
 
 [verification/features.yml](verification/features.yml) lists what this service does, its risk
@@ -406,8 +407,10 @@ site's connections. Registration reuses an encrypted signer by account key; sign
 accepts only each site's approved requests: Patchbay's `whoami`, its pairing for the
 `chatgpt` harness and its free questions and replies; Keyfleet's `whoami`, `me` and its
 pairing for the `claude` harness. It never exports keys or signs arbitrary messages or
-transactions. Products still verify each resulting request through http-verify and
-apply their own pairing and permissions. The hosted signers live beside the key store
+transactions. A body that names one key twice is refused. A site's hosted signing works
+only while that site has an origin in `SIWA_WALLET_ORIGINS` (`fly.toml`), since each
+hosted signer signs in like any agent. Products still verify each resulting request
+through http-verify and apply their own pairing and permissions. The hosted signers live beside the key store
 on its encrypted volume, which only one machine can mount, so this service runs as exactly
 one machine: a second one would hold different signers for the same connections. A hosted
 connection creates no on-chain registry listing.

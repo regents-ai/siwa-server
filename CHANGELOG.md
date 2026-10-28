@@ -12,13 +12,15 @@ a release moves those lines under its date. Which version and commit each releas
 - Keyfleet's Claude connector can use hosted signing: with Keyfleet's own key in
   `SIWA_HOSTED_SIGNERS`, it may sign only `GET /api/agents/v1/whoami`, `GET /api/agents/v1/me` and
   pairing for the `claude` harness. Patchbay keeps exactly its own requests; neither site can sign
-  the other's.
+  the other's. It works only while `SIWA_WALLET_ORIGINS` lists a Keyfleet origin, as it does today.
+  Hosted signing now refuses a request body that names one key twice, for both sites.
 - A new agent's first signed request is now checked end to end on every `make check`: the served
   Python and Node clients each start from a new key, sign in and sign their first `whoami` and
   pairing requests for two sites against this server on a local port, and each site checks them
-  through the shared agent sign-in plug. Each is accepted once for the right agent and site, a
-  repeat is refused and the other site refuses it. `make check` now installs the e2e libraries
-  before the tests, and the tests need `uv`.
+  the way it checks every agent. Each is accepted once for the right agent and site, a repeat is
+  refused, the other site refuses it, and a pairing whose body changed after signing is refused.
+  `make check` now installs the e2e libraries before the tests, and the tests need `uv` (and the
+  network the first time).
 - `.env.example` lists every setting the server reads: `WORLD_RPC_URL`, `SIWA_HOSTED_SIGNERS`,
   `KEYSTORE_BACKEND` and `KEYSTORE_PATH` are added, with the production-only ones named. The
   settings allowlist adds `WORLD_RPC_URL` and `SIWA_RELEASE_COMMAND`, and a test now fails when

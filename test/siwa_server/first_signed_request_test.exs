@@ -101,6 +101,13 @@ defmodule SiwaServer.FirstSignedRequestTest do
         assert %{siwa_status: 409} = check.(audience).assigns.siwa_denied
         assert %{siwa_status: 401} = check.(other).assigns.siwa_denied
       end
+
+      # A pairing request whose body changed after signing is refused.
+      headers =
+        run.(["headers", "POST", @sites["keyfleet"] <> "/api/agents/v1/pair", "--body", body])
+
+      changed = site_check("keyfleet", "POST", "/api/agents/v1/pair", body <> " ", headers)
+      assert %{siwa_status: 401} = changed.assigns.siwa_denied
     end
   end
 
