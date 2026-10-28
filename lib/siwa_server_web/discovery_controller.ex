@@ -45,6 +45,16 @@ defmodule SiwaServerWeb.DiscoveryController do
         Enum.map(origins, &%{"audience" => audience, "origin" => &1})
       end)
 
-    json(conn, %{"code" => "audiences", "data" => %{"audiences" => audiences}})
+    resources =
+      SiwaServer.RuntimeConfig.siwa_mcp_resources()
+      |> Enum.sort()
+      |> Enum.map(fn {resource, audience} ->
+        %{"resource" => resource, "audience" => audience}
+      end)
+
+    json(conn, %{
+      "code" => "audiences",
+      "data" => %{"audiences" => audiences, "resources" => resources}
+    })
   end
 end

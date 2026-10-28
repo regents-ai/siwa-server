@@ -136,7 +136,7 @@ defmodule SiwaServer.HostedRequestsTest do
     verified =
       Plug.Test.conn(:post, "/api/shared/siwa/http-verify", Jason.encode!(params))
       |> Plug.Conn.put_req_header("content-type", "application/json")
-      |> Plug.Conn.put_req_header("x-siwa-audience", "patchbay")
+      |> SiwaServerWeb.ConnCase.put_site_verify_key("patchbay")
       |> Endpoint.call(Endpoint.init([]))
 
     assert verified.status == 200

@@ -28,6 +28,13 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
       MapSet.new(~w(200 400 401 403 404 413 415 429 500 502)),
     {"POST", "/api/shared/siwa/hosted"} => MapSet.new(~w(200 400 401 413 415 422 429))
   }
+  # Each route a Regent site calls with its own key names that key's scheme, so
+  # the contract says which key opens which route.
+  @expected_security %{
+    {"POST", "/api/shared/siwa/http-verify"} => "SiteVerifyKey",
+    {"POST", "/api/shared/siwa/activity"} => "ActivityReadToken",
+    {"POST", "/api/shared/siwa/hosted"} => "HostedSigningKey"
+  }
 
   @impl Mix.Task
   def run(_args) do
@@ -48,13 +55,16 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     unexpected_contract_routes = MapSet.difference(contract_routes, router_routes)
 
     response_code_drift = response_code_drift(contract_response_codes)
+    security_drift = security_drift(contract_security(contract))
 
     if MapSet.size(missing_from_contract) == 0 and
-         MapSet.size(unexpected_contract_routes) == 0 and response_code_drift == [] do
+         MapSet.size(unexpected_contract_routes) == 0 and response_code_drift == [] and
+         security_drift == [] do
       Mix.shell().info("shared services contract covers SIWA routes and expected responses")
     else
       report_drift(missing_from_contract, unexpected_contract_routes)
       report_response_code_drift(response_code_drift)
+      report_security_drift(security_drift)
       Mix.raise("shared services contract does not cover SIWA routes or responses")
     end
   end
@@ -158,6 +168,60 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
       else
         [{route, missing_codes}]
       end
+    end)
+  end
+
+  defp contract_security(contract) do
+    contract
+    |> String.split("\n")
+    |> Enum.reduce({nil, nil, false, %{}}, &collect_contract_security/2)
+    |> elem(3)
+  end
+
+  defp collect_contract_security(line, {path, method, in_security?, security}) do
+    cond do
+      path = path_from_line(line) ->
+        {path, nil, false, security}
+
+      method = method_from_line(line) ->
+        {path, method, false, security}
+
+      path && method && line == "      security:" ->
+        {path, method, true, security}
+
+      in_security? ->
+        add_security_scheme(line, path, method, security)
+
+      true ->
+        {path, method, in_security?, security}
+    end
+  end
+
+  defp add_security_scheme(line, path, method, security) do
+    case Regex.run(~r/^        - (\w+): \[\]$/, line) do
+      [_, scheme] -> {path, method, true, Map.put(security, {method, path}, scheme)}
+      _ -> {path, method, false, security}
+    end
+  end
+
+  defp security_drift(contract_security) do
+    Enum.flat_map(@expected_security, fn {route, scheme} ->
+      case Map.get(contract_security, route) do
+        ^scheme -> []
+        actual -> [{route, scheme, actual}]
+      end
+    end)
+  end
+
+  defp report_security_drift([]), do: :ok
+
+  defp report_security_drift(security_drift) do
+    Mix.shell().error("routes naming the wrong key:")
+
+    Enum.each(security_drift, fn {route, expected, actual} ->
+      Mix.shell().error(
+        "  #{format_route(route)} expects #{expected}, contract names #{actual || "none"}"
+      )
     end)
   end
 

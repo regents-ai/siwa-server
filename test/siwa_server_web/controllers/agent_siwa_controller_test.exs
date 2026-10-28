@@ -45,7 +45,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     first_conn =
       conn
       |> recycle()
-      |> put_req_header("x-siwa-audience", "patchbay")
+      |> put_site_verify_key("patchbay")
       |> json_post("/api/shared/siwa/http-verify", payload)
 
     assert first_conn.status in [400, 401]
@@ -53,7 +53,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     conn =
       conn
       |> recycle()
-      |> put_req_header("x-siwa-audience", "patchbay")
+      |> put_site_verify_key("patchbay")
       |> json_post("/api/shared/siwa/http-verify", payload)
 
     assert_retry_after(conn)
@@ -72,7 +72,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
     conn =
       conn
-      |> put_req_header("x-siwa-audience", "regents")
+      |> put_site_verify_key("patchbay")
       |> json_post("/api/shared/siwa/http-verify", payload)
 
     assert %{"error" => %{"code" => "http_headers_missing", "hint" => hint}} =
@@ -103,7 +103,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     # The same headers, signed rightly, are accepted: only the signature differs below.
     good =
       conn
-      |> put_req_header("x-siwa-audience", "patchbay")
+      |> put_site_verify_key("patchbay")
       |> json_post("/api/shared/siwa/http-verify", %{
         "method" => "GET",
         "path" => "/api/agents/v1/me",
@@ -127,7 +127,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       conn =
         conn
         |> recycle()
-        |> put_req_header("x-siwa-audience", "patchbay")
+        |> put_site_verify_key("patchbay")
         |> json_post("/api/shared/siwa/http-verify", payload)
 
       assert %{"error" => %{"code" => ^code, "hint" => hint}} = json_response(conn, 401)

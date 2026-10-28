@@ -88,7 +88,15 @@ config :siwa_server, SiwaServerWeb.Endpoint,
 config :siwa_server, dev_routes: true
 
 config :siwa_server, :siwa,
-  activity_readers: %{"regents" => "siwa-dev-regents-activity-read-key-0001"}
+  activity_readers: %{"regents" => "siwa-dev-regents-activity-read-key-0001"},
+  site_verifiers: %{
+    "ash-template" => "siwa-dev-ash-template-site-verify-key-01",
+    "autolaunch" => "siwa-dev-autolaunch-site-verify-key-0001",
+    "keyfleet" => "siwa-dev-keyfleet-site-verify-key-000001",
+    "patchbay" => "siwa-dev-patchbay-site-verify-key-000001",
+    "regents" => "siwa-dev-regents-site-verify-key-0000001",
+    "techtree" => "siwa-dev-techtree-site-verify-key-000001"
+  }
 
 config :siwa_keyring, password: "change-me"
 

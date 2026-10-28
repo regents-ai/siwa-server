@@ -37,6 +37,11 @@ config :siwa_server, :siwa,
   hosted_signers: %{
     "patchbay" => "siwa-test-patchbay-hosted-signing-key-1",
     "keyfleet" => "siwa-test-keyfleet-hosted-signing-key-1"
+  },
+  site_verifiers: %{
+    "keyfleet" => "siwa-test-keyfleet-site-verify-key-0001",
+    "patchbay" => "siwa-test-patchbay-site-verify-key-0001",
+    "techtree" => "siwa-test-techtree-site-verify-key-0001"
   }
 
 config :siwa_server, Oban, testing: :manual

@@ -29,13 +29,11 @@ defmodule SiwaServerWeb.Help do
     %{audience: audience(conn), signer: signer(get_req_header(conn, "x-agent-signer"))}
   end
 
-  defp audience(conn) do
-    case {get_req_header(conn, "x-siwa-audience"), conn.body_params} do
-      {[audience | _rest], _body} -> audience
-      {[], %{"audience" => audience}} when is_binary(audience) -> audience
-      _unnamed -> nil
-    end
-  end
+  # A site's verify key names the audience on `http-verify`; sign-in requests
+  # name it in the body.
+  defp audience(%{assigns: %{site_audience: audience}}), do: audience
+  defp audience(%{body_params: %{"audience" => audience}}) when is_binary(audience), do: audience
+  defp audience(_conn), do: nil
 
   defp signer([value | _rest]) do
     value = value |> String.trim() |> String.downcase()
@@ -85,13 +83,6 @@ defmodule SiwaServerWeb.Help do
       for_site(context.audience),
       " has ended or was made for another site. Run the command again: ",
       "the client signs in afresh for the site in the address you give it."
-    ]
-  end
-
-  defp steps("receipt_audience_required", _context) do
-    [
-      "The site did not say who it is, so this is the site's problem, not yours. ",
-      "Tell your person which site answered this."
     ]
   end
 
@@ -184,7 +175,7 @@ defmodule SiwaServerWeb.Help do
   end
 
   defp steps(code, _context)
-       when code in ~w(activity_read_unauthorized invalid_activity_request hosted_unauthorized hosted_request_refused) do
+       when code in ~w(activity_read_unauthorized invalid_activity_request hosted_unauthorized hosted_request_refused site_verify_unauthorized) do
     "This request is for Regent sites, not agents."
   end
 

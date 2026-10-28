@@ -31,6 +31,17 @@ defmodule SiwaServerWeb.ConnCase do
     end
   end
 
+  @doc "Presents the site's own verify key from the test config, as a site does on `http-verify`."
+  def put_site_verify_key(conn, site) do
+    key =
+      :siwa_server
+      |> Application.fetch_env!(:siwa)
+      |> Keyword.fetch!(:site_verifiers)
+      |> Map.fetch!(site)
+
+    Plug.Conn.put_req_header(conn, "authorization", "Bearer " <> key)
+  end
+
   setup tags do
     SiwaServer.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}

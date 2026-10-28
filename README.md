@@ -96,7 +96,19 @@ Sign-in has one path: the agent's wallet. A signed request binds the wallet, cha
 audience and the request body when it has one. A site checking a request sends
 `body_digest`, the content-digest of the body it read, and never the body itself.
 Protected request verification also expects the signed path to include the query string when
-one is present, and callers must send the app audience that owns the request.
+one is present.
+
+Each site calls `http-verify` with its own verify key from `SIWA_SITE_VERIFY_KEYS`, sent as
+`Authorization: Bearer <key>`. The key names the one audience the request is checked for; nothing
+in the request can name another, so one site's key never accepts a sign-in made for a different
+site. A missing or unknown key is refused with `401 site_verify_unauthorized` before the rate limit.
+The key opens no other route, and no verify key may also be an activity-read or hosted-signing
+key. In production every audience in `SIWA_WALLET_ORIGINS` needs exactly one key. Each check is
+logged with the request id, mode, audience, verified wallet, decision and refusal code only.
+
+`GET /api/shared/siwa/audiences` also lists `resources`: each site's exact MCP address and the
+audience an agent signs in for to use it, from `SIWA_MCP_RESOURCES`. A request's `Host` or
+forwarded headers never change this table.
 
 Malformed expiry values, expired requests, receipt-binding mismatches, and replayed requests
 must fail closed. The SIWA library and the service tests cover these cases.
@@ -118,6 +130,7 @@ agent instead: its caller is a site's server, speaking for all of that site's ag
 | `BASE_RPC_URL` | Yes in production | Base mainnet JSON-RPC endpoint. |
 | `ETHEREUM_RPC_URL` | Yes in production | Ethereum mainnet JSON-RPC endpoint, for smart wallets that sign in on Ethereum. |
 | `WORLD_RPC_URL` | Yes in production | World Chain JSON-RPC endpoint, for reading World's AgentBook. |
+| `SIWA_SITE_VERIFY_KEYS` | Yes in production | Each site's own key for `http-verify`, as `site=key` pairs; the site name is the one audience that key checks requests for. Keys are 32+ letters, digits, `-` or `_`, and no two sites share one. In production the sites must be exactly the audiences in `SIWA_WALLET_ORIGINS`. |
 
 ## Optional configuration
 
@@ -132,6 +145,7 @@ agent instead: its caller is a site's server, speaking for all of that site's ag
 | `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS` | `300` | Clock skew allowed on a signed HTTP request. |
 | `SIWA_HOSTED_SIGNERS` | unset | Each site's own key for hosted signing (Patchbay's ChatGPT app, Keyfleet's Claude connector), as `site=key` pairs. Unset lets no site sign. |
 | `SIWA_WALLET_ORIGINS` | unset | Approved `audience=origin` pairs for wallet sign-in, comma separated; an audience may repeat with more origins. Unset disables it. |
+| `SIWA_MCP_RESOURCES` | unset | Each site's exact MCP address and its audience, as `audience=https://origin/path` pairs, for example `patchbay=https://patchbay.help/mcp`. The origin must be one of that audience's origins in `SIWA_WALLET_ORIGINS`. Unset lists none. |
 | `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Expired nonce, replay and activity rows removed per batch. A sweep runs once a minute and repeats batches until one comes back short, at most 20 for each kind. |
 | `KEYSTORE_BACKEND` | `encrypted_file` | Key store backend. `encrypted_file` is the only accepted value; anything else stops the boot. |
 | `KEYSTORE_PATH` | `/tmp/siwa-server-keystore.bin` | Where the encrypted key store lives. Production's path is set by the `KEYSTORE_PATH` Fly secret, on the `siwa_data` volume at `/data`. |

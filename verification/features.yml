@@ -13,6 +13,7 @@ features:
       - lib/siwa_server/siwa/nonce_store.ex
       - lib/siwa_server/siwa/nonce_record.ex
       - lib/siwa_server/wallet_origins.ex
+      - lib/siwa_server/mcp_resources.ex
       - lib/siwa_server/ethereum.ex
     entry:
       - route: POST /api/shared/siwa/wallet/nonce
@@ -23,6 +24,7 @@ features:
       - test/siwa_server/nonce_store_test.exs
       - test/siwa_server/wallet_concurrency_test.exs
       - test/siwa_server/wallet_origins_test.exs
+      - test/siwa_server/mcp_resources_test.exs
       - test/siwa_server/ethereum_test.exs
       - test/siwa_server/nonce_redeem_once_property_test.exs
       - test/siwa_server/siwa_message_round_trip_property_test.exs
@@ -39,11 +41,12 @@ features:
       - The sign-in message has no parser; its property proves the issued text is the only text accepted.
 
   - id: signed-request-check
-    what: A site asks whether a signed agent request is genuine (window, body, path and query, audience, receipt, used once).
+    what: A site asks, with its own verify key, whether a signed agent request is genuine for that key's audience (window, exact body bytes, path and query, audience, receipt, used once).
     who: agent
     level: protected
     paths:
       - lib/siwa_server_web/agent_siwa_controller.ex
+      - lib/siwa_server/site_verifiers.ex
       - lib/siwa_server_web/agent_siwa_request.ex
       - lib/siwa_server_web/agent_siwa_request/http_verify.ex
       - lib/siwa_server/siwa/http_verifier.ex
@@ -54,6 +57,8 @@ features:
       - route: POST /api/shared/siwa/http-verify
     proofs:
       - test/siwa_server_web/controllers/agent_siwa_controller_test.exs
+      - test/siwa_server_web/controllers/http_verify_site_key_test.exs
+      - test/siwa_server/site_verifiers_test.exs
       - test/siwa_server/first_signed_request_test.exs
       - test/siwa_server/http_verifier_test.exs
       - test/siwa_server/replay_store_test.exs
@@ -62,6 +67,9 @@ features:
     gaps:
       - No browser e2e: API only.
       - The window property reads the real clock around each check; the verifier takes no clock of its own.
+      - The site does not yet send the byte length it read or a per-request correlation id; the log's correlation is this server's request id.
+      - The request names no MCP resource, so a key is scoped to its audience, not to one resource; this holds while each audience owns its own resources.
+      - The python and node first-request checks need the shared library that sends the site's verify key, and stay red until siwa-server re-pins it.
 
   - id: refusal-help
     what: Every refusal tells the agent what to do next, in words shaped by the site and how it signs.

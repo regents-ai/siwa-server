@@ -224,14 +224,16 @@ paths:
   /api/shared/siwa/http-verify:
     post:
       operationId: verifySharedSiwaHttpEnvelope
+      description: >-
+        Check an agent's signed request for the Regent site that received it.
+        The site sends its own verify key, one per site (SIWA_SITE_VERIFY_KEYS),
+        and that key alone sets the audience the sign-in must match; nothing in
+        the request body or headers can name another. The site sends the method,
+        path, signed headers and the digest it computed from the body bytes it
+        received, never the body itself.
       tags: [auth]
-      parameters:
-        - in: header
-          name: x-siwa-audience
-          required: true
-          schema:
-            type: string
-          description: App audience that the SIWA receipt must match for this protected request
+      security:
+        - SiteVerifyKey: []
       requestBody:
         required: true
         content:
@@ -252,7 +254,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "401":
-          description: Envelope verification failed
+          description: No site verify key was presented, or envelope verification failed
           content:
             application/json:
               schema:
@@ -699,6 +701,10 @@ components:
       type: http
       scheme: bearer
       description: A site's own key for hosted signing, one per site (SIWA_HOSTED_SIGNERS); it opens no other route.
+    SiteVerifyKey:
+      type: http
+      scheme: bearer
+      description: A site's own key for checking agents' signed requests, one per site (SIWA_SITE_VERIFY_KEYS). The key names the one audience it checks for; it opens no other route.
   responses:
     RateLimitError:
       description: Too many requests
@@ -777,7 +783,7 @@ components:
           enum: [audiences]
         data:
           type: object
-          required: [audiences]
+          required: [audiences, resources]
           properties:
             audiences:
               type: array
@@ -790,6 +796,19 @@ components:
                   origin:
                     type: string
                     format: uri
+                additionalProperties: false
+            resources:
+              type: array
+              description: Each site's exact MCP address and the audience an agent signs in for to use it.
+              items:
+                type: object
+                required: [resource, audience]
+                properties:
+                  resource:
+                    type: string
+                    format: uri
+                  audience:
+                    type: string
                 additionalProperties: false
           additionalProperties: false
       additionalProperties: false

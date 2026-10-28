@@ -10,7 +10,6 @@ defmodule SiwaServerWeb.Router do
   for name <- [
         :siwa_nonce,
         :siwa_verify,
-        :siwa_http_verify,
         :siwa_activity,
         :siwa_hosted,
         :siwa_register,
@@ -21,6 +20,14 @@ defmodule SiwaServerWeb.Router do
       plug :accepts, ["json"]
       plug SiwaServerWeb.Plugs.RateLimit, name: name
     end
+  end
+
+  # A site's server calls http-verify for its agents: its own key is checked
+  # before the rate limit, so a caller without one never spends the site's budget.
+  pipeline :siwa_http_verify do
+    plug :accepts, ["json"]
+    plug SiwaServerWeb.Plugs.SiteVerifyKey
+    plug SiwaServerWeb.Plugs.RateLimit, name: :siwa_http_verify
   end
 
   scope "/", SiwaServerWeb do

@@ -15,6 +15,7 @@ kill_timeout = "5s"
   PHX_SERVER = "true"
   PORT = "8080"
   SIWA_CLEANUP_BATCH_SIZE = "10000"
+  SIWA_MCP_RESOURCES = "patchbay=https://patchbay.help/mcp"
   SIWA_WALLET_ORIGINS = "patchbay=https://patchbay.help,regents=https://regents.sh,keyfleet=https://keyfleet.ai,keyfleet=https://regents-club.notebooks.keyfleet.ai,keyfleet=https://fleet-tech-classic.notebooks.keyfleet.ai,keyfleet=https://code.keyfleet.ai,techtree=https://techtree.sh,ash-template=https://template.regents.sh,regents-mobile=https://regents-mobile-server.fly.dev,autolaunch=https://autolaunch.sh"
 
 [metrics]

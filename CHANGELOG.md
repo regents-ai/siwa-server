@@ -5,6 +5,31 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- A site now checks an agent's signed request with its own verify key: `http-verify` takes
+  `Authorization: Bearer <key>` from the new required production secret `SIWA_SITE_VERIFY_KEYS`
+  (`site=key` pairs, one per site), and the key alone names the audience the request is checked
+  for. The `x-siwa-audience` header is gone, so a site can no longer ask for another site's
+  audience. A missing or unknown key is refused with `401 site_verify_unauthorized` before the
+  request is checked or rate-limited, so it spends neither the agent's request nor the site's
+  budget. A verify key never opens activity reads or hosted signing, and the server will not start
+  if one is reused as either, or if in production any sign-in audience in `SIWA_WALLET_ORIGINS`
+  lacks a key or a key names an unknown site. Each check is counted under the site
+  whose key was presented (`siwa_server.siwa.http_verify.sites.total`) and logged with the request
+  id, mode, audience, verified wallet, decision and refusal code only. Every site must stage its key and move to the
+  shared library that sends it before this release goes live.
+- `GET /api/shared/siwa/audiences` lists `resources`: each site's exact MCP address and the
+  audience an agent signs in for to use it, from the new `SIWA_MCP_RESOURCES` setting
+  (`patchbay=https://patchbay.help/mcp`). Each address must sit on one of its audience's
+  origins and is written one way (no `.` or `..` path segments), so the table never opens a new
+  origin.
+- New checks for `http-verify`: through the route, a body digest made from any other bytes than
+  the ones signed is refused (spacing, key order, Unicode form, an escaped character and a
+  trailing byte each), a `content-digest` the agent claims is checked against the digest the site
+  sends, and another site's key and an ended sign-in are refused; through the verifier, the same
+  request raced on twelve separate database connections is accepted exactly once. Each site still
+  proves that the digest it sends is of the exact bytes it received. `mix siwa_server.contract_check` now also checks
+  which key each site-only route names.
+
 ## 28 October 2026
 
 - The agent guide (`/skill.md`) says how to keep signing working: the client renews its hour-long

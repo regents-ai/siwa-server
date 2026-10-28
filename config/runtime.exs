@@ -118,6 +118,19 @@ hosted_signers =
     value -> SiwaServer.HostedSigners.parse!(value)
   end
 
+site_verifiers =
+  case env_value.("SIWA_SITE_VERIFY_KEYS", nil) do
+    nil when prod? -> required_env.("SIWA_SITE_VERIFY_KEYS")
+    nil -> Keyword.fetch!(current_siwa, :site_verifiers)
+    value -> SiwaServer.SiteVerifiers.parse!(value)
+  end
+
+SiwaServer.SiteVerifiers.ensure_own_keys!(site_verifiers, [activity_readers, hosted_signers])
+if prod?, do: SiwaServer.SiteVerifiers.ensure_every_audience!(site_verifiers, wallet_origins)
+
+mcp_resources =
+  SiwaServer.McpResources.parse!(System.get_env("SIWA_MCP_RESOURCES"), wallet_origins)
+
 config :siwa_server, :siwa,
   wallet_origins: wallet_origins,
   nonce_ttl_seconds:
@@ -129,7 +142,9 @@ config :siwa_server, :siwa,
     ),
   receipt_secret: receipt_secret,
   activity_readers: activity_readers,
-  hosted_signers: hosted_signers
+  hosted_signers: hosted_signers,
+  site_verifiers: site_verifiers,
+  mcp_resources: mcp_resources
 
 config :siwa_server, :siwa_cleanup,
   batch_size:

@@ -41,12 +41,17 @@ defmodule SiwaServer.FirstSignedRequestTest do
     alias Siwa.AgentAuthPlug.BrokerClient
 
     # What a site's own client does: the shared broker client over HTTP, here to this
-    # test's local server.
+    # test's local server, with the site's own verify key.
     @impl true
-    def verify_http_request(payload, opts) do
-      BrokerClient.verify_http_request(
-        payload,
-        Keyword.merge(opts, http: Req, base_url: Process.get(:siwa_broker))
+    def verify_http_request(payload, audience: audience) do
+      BrokerClient.verify_http_request(payload,
+        http: Req,
+        base_url: Process.get(:siwa_broker),
+        site_key:
+          :siwa_server
+          |> Application.fetch_env!(:siwa)
+          |> Keyword.fetch!(:site_verifiers)
+          |> Map.fetch!(audience)
       )
     end
   end

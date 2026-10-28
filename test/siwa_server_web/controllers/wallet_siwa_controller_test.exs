@@ -27,16 +27,19 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     end)
   end
 
-  test "lists the audiences open to wallet sign-in, one row for each origin", %{conn: conn} do
+  test "lists the audiences open to wallet sign-in, one row for each origin, and each MCP address",
+       %{conn: conn} do
     config = Application.fetch_env!(:siwa_server, :siwa)
 
     Application.put_env(
       :siwa_server,
       :siwa,
-      Keyword.put(config, :wallet_origins, %{
+      config
+      |> Keyword.put(:wallet_origins, %{
         "patchbay" => ["https://patchbay.help"],
         "keyfleet" => ["https://keyfleet.ai", "https://regents-club.notebooks.keyfleet.ai"]
       })
+      |> Keyword.put(:mcp_resources, %{"https://patchbay.help/mcp" => "patchbay"})
     )
 
     assert %{
@@ -49,6 +52,9 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
                    "origin" => "https://regents-club.notebooks.keyfleet.ai"
                  },
                  %{"audience" => "patchbay", "origin" => "https://patchbay.help"}
+               ],
+               "resources" => [
+                 %{"resource" => "https://patchbay.help/mcp", "audience" => "patchbay"}
                ]
              }
            } = json_response(get(conn, "/api/shared/siwa/audiences"), 200)
@@ -397,6 +403,6 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     do:
       build_conn()
       |> put_req_header("content-type", "application/json")
-      |> put_req_header("x-siwa-audience", audience)
+      |> put_site_verify_key(audience)
       |> post("/api/shared/siwa/http-verify", Jason.encode!(params))
 end

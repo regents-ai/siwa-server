@@ -16,7 +16,9 @@ config :siwa_server, :siwa,
   receipt_ttl_seconds: 3_600,
   receipt_secret: nil,
   activity_readers: %{},
-  hosted_signers: %{}
+  hosted_signers: %{},
+  site_verifiers: %{},
+  mcp_resources: %{}
 
 config :siwa_server, Oban,
   repo: SiwaServer.Repo,
