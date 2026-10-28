@@ -11,6 +11,11 @@ defmodule SiwaServer.Siwa.ReplayStore do
   # anything else: the setting would last to that transaction's end and cover those
   # writes too.
   #
+  # A key is accepted only when its row is written and its end is still ahead of the
+  # database clock after the write; that rule is the whole replay guard. A refused
+  # key whose end has passed is answered as expired, any other refused key as
+  # replayed.
+  #
   # "off" answers before the database's disk has confirmed the row. A database
   # crash can then lose every row written since the disk last confirmed (about
   # 600 ms normally, the whole pause while the disk is pausing), so a signed
@@ -32,8 +37,12 @@ defmodule SiwaServer.Siwa.ReplayStore do
              ON CONFLICT (replay_key) DO NOTHING
              RETURNING id, expires_at
            )
-           SELECT id FROM consumed
-           WHERE expires_at > (clock_timestamp() AT TIME ZONE 'UTC')
+           SELECT
+             EXISTS (
+               SELECT 1 FROM consumed
+               WHERE expires_at > (clock_timestamp() AT TIME ZONE 'UTC')
+             ),
+             $3::timestamp > (clock_timestamp() AT TIME ZONE 'UTC')
            """,
            [
              Ecto.UUID.generate() |> Ecto.UUID.dump!(),
@@ -42,11 +51,14 @@ defmodule SiwaServer.Siwa.ReplayStore do
              now
            ]
          ) do
-      {:ok, %{rows: [[_id]]}} ->
+      {:ok, %{rows: [[true, _live]]}} ->
         :ok
 
-      {:ok, %{rows: []}} ->
+      {:ok, %{rows: [[false, true]]}} ->
         {:error, :replayed_request}
+
+      {:ok, %{rows: [[false, false]]}} ->
+        {:error, :request_expired}
 
       {:error, reason} ->
         {:error, reason}

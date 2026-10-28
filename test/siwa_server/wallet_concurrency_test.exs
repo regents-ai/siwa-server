@@ -68,7 +68,7 @@ defmodule SiwaServer.WalletConcurrencyTest do
     expired_results =
       concurrently(fn -> ReplayStore.consume(expired_key, System.system_time(:second) - 1) end)
 
-    assert expired_results == List.duplicate({:error, :replayed_request}, 4)
+    assert expired_results == List.duplicate({:error, :request_expired}, 4)
   end
 
   test "nonce lock wait crossing expiry never issues a successful consume" do
