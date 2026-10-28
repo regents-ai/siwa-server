@@ -257,6 +257,14 @@ defmodule SiwaServer.HostedRequestsTest do
                  params: %{name: "mark_solution", arguments: %{}}
                })
            }},
+          {"patchbay",
+           %{
+             "method" => "POST",
+             "path" => "/chatgpt/agent/mcp",
+             "body" =>
+               ~s({"jsonrpc":"2.0","method":"tools/call","params":{"name":"post_reply",) <>
+                 ~s("arguments":{"thread_id":"a","body_markdown":"b","body_markdown":"c"}}})
+           }},
           {"keyfleet",
            %{
              "method" => "POST",

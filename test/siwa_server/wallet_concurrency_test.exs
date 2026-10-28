@@ -30,7 +30,9 @@ defmodule SiwaServer.WalletConcurrencyTest do
           from n in NonceRecord, where: n.address == ^signer.address and n.nonce == ^nonce_value
         )
 
-        Repo.query!("DELETE FROM siwa_request_replays WHERE replay_key = $1", [replay_key])
+        Repo.query!("DELETE FROM siwa_request_replays WHERE replay_key = ANY($1)", [
+          [replay_key, replay_key <> ":expired"]
+        ])
       end)
     end)
 

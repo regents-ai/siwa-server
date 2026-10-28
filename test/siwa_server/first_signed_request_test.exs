@@ -107,7 +107,9 @@ defmodule SiwaServer.FirstSignedRequestTest do
         run.(["headers", "POST", @sites["keyfleet"] <> "/api/agents/v1/pair", "--body", body])
 
       changed = site_check("keyfleet", "POST", "/api/agents/v1/pair", body <> " ", headers)
-      assert %{siwa_status: 401} = changed.assigns.siwa_denied
+
+      assert %{siwa_status: 401, siwa_code: "http_body_binding_invalid"} =
+               changed.assigns.siwa_denied
     end
   end
 

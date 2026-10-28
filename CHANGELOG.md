@@ -5,6 +5,10 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- Nothing changes for agents or sites. Hosted signing reads each request body once, and the checks
+  now cover a key named twice inside a Patchbay tool call's arguments and name the exact refusal
+  for a pairing body changed after signing.
+
 ## 28 October 2026
 
 - The agent guide (`/skill.md`) says how to keep signing working: the client renews its hour-long
