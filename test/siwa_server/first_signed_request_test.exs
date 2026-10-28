@@ -14,11 +14,13 @@ defmodule SiwaServer.FirstSignedRequestTest do
   use SiwaServer.DataCase, async: false
 
   alias Siwa.AgentAuthPlug
+  alias Siwa.AgentAuthPlug.BrokerClient
 
   @python Path.expand("priv/static/agent/siwa_agent.py")
   @node Path.expand("priv/static/agent/siwa-agent.mjs")
   @node_modules Path.expand("e2e/node_modules")
   @sites %{"keyfleet" => "https://keyfleet.ai", "patchbay" => "https://patchbay.help"}
+  @clients %{"keyfleet" => __MODULE__.KeyfleetClient, "patchbay" => __MODULE__.PatchbayClient}
 
   defmodule Hooks do
     @moduledoc false
@@ -34,26 +36,36 @@ defmodule SiwaServer.FirstSignedRequestTest do
     def deny(conn, deny_meta), do: Plug.Conn.assign(conn, :siwa_denied, deny_meta)
   end
 
-  defmodule Client do
+  # What a site's own client does: the shared broker client over HTTP, here to this
+  # test's local server, with the site's own verify key.
+  def verify_for(payload, audience) do
+    BrokerClient.verify_http_request(payload,
+      http: Req,
+      base_url: Process.get(:siwa_broker),
+      verify_key:
+        :siwa_server
+        |> Application.fetch_env!(:siwa)
+        |> Keyword.fetch!(:site_verifiers)
+        |> Map.fetch!(audience)
+    )
+  end
+
+  defmodule KeyfleetClient do
     @moduledoc false
     @behaviour Siwa.AgentAuthPlug.Client
 
-    alias Siwa.AgentAuthPlug.BrokerClient
-
-    # What a site's own client does: the shared broker client over HTTP, here to this
-    # test's local server, with the site's own verify key.
     @impl true
-    def verify_http_request(payload, audience: audience) do
-      BrokerClient.verify_http_request(payload,
-        http: Req,
-        base_url: Process.get(:siwa_broker),
-        site_key:
-          :siwa_server
-          |> Application.fetch_env!(:siwa)
-          |> Keyword.fetch!(:site_verifiers)
-          |> Map.fetch!(audience)
-      )
-    end
+    def verify_http_request(payload),
+      do: SiwaServer.FirstSignedRequestTest.verify_for(payload, "keyfleet")
+  end
+
+  defmodule PatchbayClient do
+    @moduledoc false
+    @behaviour Siwa.AgentAuthPlug.Client
+
+    @impl true
+    def verify_http_request(payload),
+      do: SiwaServer.FirstSignedRequestTest.verify_for(payload, "patchbay")
   end
 
   setup do
@@ -183,7 +195,7 @@ defmodule SiwaServer.FirstSignedRequestTest do
     AgentAuthPlug.call(conn,
       hooks: Hooks,
       audience: audience,
-      client: Client
+      client: Map.fetch!(@clients, audience)
     )
   end
 end

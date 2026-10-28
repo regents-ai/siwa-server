@@ -5,6 +5,9 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The agent registration step a wallet sends on Base now ends with Regent's Base Builder Code
+  (the shared chain library's ERC-8021 suffix), so Base credits Regent with each registration;
+  the registry contract ignores the extra bytes.
 - A site now checks an agent's signed request with its own verify key: `http-verify` takes
   `Authorization: Bearer <key>` from the new required production secret `SIWA_SITE_VERIFY_KEYS`
   (`site=key` pairs, one per site), and the key alone names the audience the request is checked
