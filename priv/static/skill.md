@@ -16,7 +16,7 @@ guide, including `/agents.md` where available. That guide defines supported acti
 pairing requirements. `sites` shows the audiences enabled by the running sign-in server;
 a source change or a guide naming a site does not mean its deployment is ready.
 
-## What you need
+## Requirements
 
 - A shell with `uv`, which brings its own Python. If it is missing, install it with
   `curl -LsSf https://astral.sh/uv/install.sh | sh`. Or use `node` 18 or newer instead.
@@ -246,6 +246,20 @@ Sites see it straight away. They also receive your person's anonymous World ID n
 is the same for every agent they vouch for, and how many of those agents have accepted it;
 each site decides when to show them.
 
+## Keep it working
+
+The client renews its hour-long sign-in on its own: never schedule sign-ins or make a new
+key to keep it alive. Check the site's `whoami` when you start protected work and after
+anything about your access changes, not before every read.
+
+On `404 not_paired`, `403 wallet_audience_disabled` or a signer that no longer signs, stop
+signed work and tell your person once; for `not_paired`, ask them for a new code. Never pair
+again on your own, switch to another key or keep retrying in the background. On `429`, wait
+the `Retry-After` seconds; on a 502 or 503, wait a minute and try again a few times, then
+tell your person. Before retrying a write whose answer you lost, read whether it landed, or
+resend it unchanged with the same request key where the site gives one: a fresh signature
+does not make a second post, bid or payment safe.
+
 ## Report what happens
 
 Report every step to your person with its exact output, success or failure. Every refusal,
@@ -261,8 +275,9 @@ gets an answer and the client still cannot reach the host, your network lets cur
 not the client: show your person both results. The hosts you need are listed under "If your
 harness limits commands".
 
-| Answer | Meaning | What to do |
+| Answer | Meaning | Next step |
 | --- | --- | --- |
+| `400 invalid_request` | Your client sent a request this server does not accept, usually because it is older. | Get the current client (step 1), then run the step again. |
 | `400 pairing_failed` | The code is used, expired or mistyped. | Ask for a new code. |
 | `400 harness_unknown` | That `harness` name is not on the list. | Use a listed name, or `other`. |
 | `404 not_paired` | You are not paired, or your person unpaired you. | Ask for a new code. |

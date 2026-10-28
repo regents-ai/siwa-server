@@ -5,6 +5,10 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The agent guide (`/skill.md`) says how to keep signing working: the client renews its hour-long
+  sign-in itself, what to do when pairing ends or the signer stops, how long to wait after `429`,
+  `502` or `503`, and to check whether a lost write landed before sending it again. A new
+  `400 invalid_request` row says to get the current client.
 - Keyfleet's Claude connector can use hosted signing: with Keyfleet's own key in
   `SIWA_HOSTED_SIGNERS`, it may sign only `GET /api/agents/v1/whoami`, `GET /api/agents/v1/me` and
   pairing for the `claude` harness. Patchbay keeps exactly its own requests; neither site can sign
