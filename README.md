@@ -151,10 +151,13 @@ make check
 
 `make check` runs `mix precommit` and nothing else. It compiles with warnings as errors, checks unused dependency locks and formatting, runs
 Sobelow, verifies the served services contract, holds the compile-connected `xref` graph
-at zero, runs the test suite with warnings as errors, then runs the Touch ID page checks in
-headless Chromium (`e2e/`, Playwright 1.64.1, on a Mac). It needs a local PostgreSQL,
-because the test alias creates and migrates a database first, and Playwright's Chromium
-(`npx --prefix e2e playwright install --only-shell chromium`, once).
+at zero, installs the `e2e/` libraries, runs the test suite with warnings as errors, then
+runs the Touch ID page checks in headless Chromium (`e2e/`, Playwright 1.64.1, on a Mac). It
+needs a local PostgreSQL, because the test alias creates and migrates a database first,
+Playwright's Chromium (`npx --prefix e2e playwright install --only-shell chromium`, once),
+and `uv` on the path. The first-signed-request test runs the served Python client through
+`uv` and the Node client beside `e2e/node_modules`, so a bare `mix test` on a fresh clone
+needs `npm --prefix e2e ci` first.
 
 [verification/features.yml](verification/features.yml) lists what this service does, its risk
 level and the checks that prove each part, with the gaps that have no check yet.

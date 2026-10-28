@@ -5,6 +5,12 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- A new agent's first signed request is now checked end to end on every `make check`: the served
+  Python and Node clients each start from a new key, sign in and sign their first `whoami` and
+  pairing requests for two sites against this server on a local port, and each site checks them
+  through the shared agent sign-in plug. Each is accepted once for the right agent and site, a
+  repeat is refused and the other site refuses it. `make check` now installs the e2e libraries
+  before the tests, and the tests need `uv`.
 - `.env.example` lists every setting the server reads: `WORLD_RPC_URL`, `SIWA_HOSTED_SIGNERS`,
   `KEYSTORE_BACKEND` and `KEYSTORE_PATH` are added, with the production-only ones named. The
   settings allowlist adds `WORLD_RPC_URL` and `SIWA_RELEASE_COMMAND`, and a test now fails when

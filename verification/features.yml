@@ -54,6 +54,7 @@ features:
       - route: POST /api/shared/siwa/http-verify
     proofs:
       - test/siwa_server_web/controllers/agent_siwa_controller_test.exs
+      - test/siwa_server/first_signed_request_test.exs
       - test/siwa_server/http_verifier_test.exs
       - test/siwa_server/replay_store_test.exs
       - test/siwa_server/replay_store_commit_test.exs
@@ -184,7 +185,14 @@ features:
       - cli: node siwa-agent.mjs
     proofs:
       - test/siwa_server/agent_clients_conformance_test.exs
+      - test/siwa_server/first_signed_request_test.exs
       - e2e/touch-id-page.spec.mjs
+    regressions:
+      - id: R-20261028-first-signed-request-unproven
+        from: new-agent walk 27 Oct (a fresh agent set up and paired; its first signed request was never shown to pass a site's check)
+        test: test/siwa_server/first_signed_request_test.exs
+    gaps:
+      - The first-request walk starts from the key file keygen writes off a Mac; a Mac's Touch ID lock is walked by e2e/touch-id-page.spec.mjs.
 
   - id: touch-id-page
     what: A person confirms with Touch ID to protect, unlock or show their agent's key, on a page their agent opens.
