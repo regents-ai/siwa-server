@@ -130,8 +130,9 @@ defmodule SiwaServerWeb.Help do
 
   defp steps("request_replayed", _context) do
     [
-      "That signed request was already used; each one works once. Run `request` again ",
-      "to sign it fresh, and never resend saved signature headers."
+      "Another copy of that signed request already went through, so a change it carried ",
+      "may have taken effect. Read whether it landed before you send it again; to send it, ",
+      "run `request` to sign it fresh, and never resend saved signature headers."
     ]
   end
 

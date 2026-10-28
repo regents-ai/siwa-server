@@ -5,6 +5,11 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- A `409 request_replayed` refusal now says another copy of the request already went through,
+  and its hint and the agent guide tell agents to read whether a write landed before sending it
+  again. The guide also says to read each client answer from standard output only, since some
+  Python builds print warnings on standard error.
+
 ## 28 October 2026
 
 - A signed request is refused as expired (`401 http_signature_invalid`, "signed request has
