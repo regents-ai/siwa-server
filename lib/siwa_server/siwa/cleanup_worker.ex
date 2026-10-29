@@ -28,8 +28,8 @@ defmodule SiwaServer.Siwa.CleanupWorker do
     started_at = System.monotonic_time()
 
     result =
-      with {:ok, nonce_count} <- drain(&NonceStore.cleanup_expired(now, &1), limit),
-           {:ok, replay_count} <- drain(&ReplayStore.cleanup_expired(now, &1), limit),
+      with {:ok, nonce_count} <- drain(&NonceStore.cleanup_expired/1, limit),
+           {:ok, replay_count} <- drain(&ReplayStore.cleanup_expired/1, limit),
            {:ok, activity_count} <- drain(&ActivityStore.cleanup_expired(now, &1), limit),
            {:ok, request_count} <-
              drain(&ActivityStore.cleanup_expired_requests(now, &1), limit) do

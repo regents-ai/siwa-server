@@ -63,19 +63,23 @@ defmodule SiwaServer.Siwa.NonceStore do
     end
   end
 
-  def cleanup_expired(now \\ DateTime.utc_now(), limit \\ @default_cleanup_limit) do
+  # Ended nonces are judged by the database clock, the one `consume/1` checks with.
+  # By the app's clock running ahead, a nonce could go while it can still be
+  # consumed, and a valid sign-in would be refused. `statement_timestamp()` is
+  # read once, so the `expiration_time` index finds the rows.
+  def cleanup_expired(limit \\ @default_cleanup_limit) do
     case Repo.query(
            """
            DELETE FROM siwa_nonces
            WHERE id IN (
              SELECT id
              FROM siwa_nonces
-             WHERE expiration_time <= $1
+             WHERE expiration_time <= (statement_timestamp() AT TIME ZONE 'UTC')
              ORDER BY expiration_time
-             LIMIT $2
+             LIMIT $1
            )
            """,
-           [DateTime.truncate(now, :second), limit],
+           [limit],
            log: false
          ) do
       {:ok, %{num_rows: count}} -> {:ok, count}

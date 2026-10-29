@@ -1,8 +1,8 @@
 defmodule SiwaServer.HostedRequests do
   @moduledoc """
   Signing for an account's persistent hosted connection (Patchbay's ChatGPT app,
-  Keyfleet's Claude connector), asked for by a site with its own hosted signing key
-  (`SiwaServer.HostedSigners`).
+  and the Claude connectors of Keyfleet and the template, `ash-template`), asked
+  for by a site with its own hosted signing key (`SiwaServer.HostedSigners`).
 
   The calling site is the audience of everything signed, and each connection's
   key belongs to the site that registered it: the stored signer is named from
@@ -59,15 +59,17 @@ defmodule SiwaServer.HostedRequests do
 
   defp identity(_site, _key), do: {:error, :hosted_request_not_allowed}
 
-  @identity_reads %{
-    "patchbay" => ["/api/agents/v1/whoami"],
-    "keyfleet" => ["/api/agents/v1/whoami", "/api/agents/v1/me"]
+  # Each site's identity reads and the one harness it may pair.
+  @claude_connector %{reads: ["/api/agents/v1/whoami", "/api/agents/v1/me"], harness: "claude"}
+  @site_requests %{
+    "patchbay" => %{reads: ["/api/agents/v1/whoami"], harness: "chatgpt"},
+    "keyfleet" => @claude_connector,
+    "ash-template" => @claude_connector
   }
-  @pair_harness %{"patchbay" => "chatgpt", "keyfleet" => "claude"}
 
   defp allowed_request(site, %{"method" => "GET", "path" => path} = r)
-       when map_size(r) == 2 do
-    if path in Map.get(@identity_reads, site, []),
+       when map_size(r) == 2 and is_map_key(@site_requests, site) do
+    if path in @site_requests[site].reads,
       do: :ok,
       else: {:error, :hosted_request_not_allowed}
   end
@@ -80,8 +82,8 @@ defmodule SiwaServer.HostedRequests do
            "body" => body
          } = r
        )
-       when map_size(r) == 3 and is_map_key(@pair_harness, site) do
-    harness = Map.fetch!(@pair_harness, site)
+       when map_size(r) == 3 and is_map_key(@site_requests, site) do
+    harness = @site_requests[site].harness
 
     with {:ok, %{"code" => code, "name" => name, "harness" => ^harness} = args} <- decode(body),
          true <- map_size(args) == 3 and is_binary(code) and byte_size(code) in 1..128,

@@ -5,6 +5,10 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The template's Claude connector can use hosted signing, as Keyfleet's does: with the template's
+  own key in `SIWA_HOSTED_SIGNERS`, it may sign only `GET /api/agents/v1/whoami`,
+  `GET /api/agents/v1/me` and pairing for the `claude` harness under the `ash-template` audience.
+  No other site's requests change, and no site can sign another's.
 - The agent registration step a wallet sends on Base now ends with Regent's Base Builder Code
   (the shared chain library's ERC-8021 suffix), so Base credits Regent with each registration;
   the registry contract ignores the extra bytes.
@@ -32,6 +36,20 @@ a release moves those lines under its date. Which version and commit each releas
   request raced on twelve separate database connections is accepted exactly once. Each site still
   proves that the digest it sends is of the exact bytes it received. `mix siwa_server.contract_check` now also checks
   which key each site-only route names.
+
+## 29 October 2026
+
+- Nothing changes for agents or sites. Used signed requests and sign-in codes are forgotten by
+  the database's clock, the same clock that checks them, so a clock gap between the server and
+  its database can no longer let one request through twice or refuse a sign-in that is still
+  valid.
+- The Python helper no longer fails to make or open a key with Touch ID when another app on the
+  Mac has certain Unicode line separators in its command line; it reads the list of running apps
+  the way the Node helper does.
+- The hint on a `409 request_replayed` refusal now says another copy of the request already went
+  through, and it and the agent guide tell agents to read whether a write landed before sending it
+  again. The guide also says where each client's output goes: answers on standard output; the
+  Touch ID step and errors on standard error, where some Python builds also add warnings.
 
 ## 28 October 2026
 

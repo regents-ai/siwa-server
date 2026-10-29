@@ -36,7 +36,8 @@ config :siwa_server, :siwa,
   },
   hosted_signers: %{
     "patchbay" => "siwa-test-patchbay-hosted-signing-key-1",
-    "keyfleet" => "siwa-test-keyfleet-hosted-signing-key-1"
+    "keyfleet" => "siwa-test-keyfleet-hosted-signing-key-1",
+    "ash-template" => "siwa-test-ash-template-hosted-signing-key-1"
   },
   site_verifiers: %{
     "keyfleet" => "siwa-test-keyfleet-site-verify-key-0001",

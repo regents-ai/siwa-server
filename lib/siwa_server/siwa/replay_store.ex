@@ -81,19 +81,24 @@ defmodule SiwaServer.Siwa.ReplayStore do
     end
   end
 
-  def cleanup_expired(now \\ DateTime.utc_now(), limit \\ @default_cleanup_limit) do
+  # Ended rows are judged by the database clock, the one `consume/2` guards with.
+  # By the app's clock, a database clock running behind would let a row go while
+  # the guard still lets its key be written again, so one request could be
+  # accepted twice. `statement_timestamp()` is read once, so the `expires_at`
+  # index finds the rows, and is never later than the guard's `clock_timestamp()`.
+  def cleanup_expired(limit \\ @default_cleanup_limit) do
     case Repo.query(
            """
            DELETE FROM siwa_request_replays
            WHERE id IN (
              SELECT id
              FROM siwa_request_replays
-             WHERE expires_at <= $1
+             WHERE expires_at <= (statement_timestamp() AT TIME ZONE 'UTC')
              ORDER BY expires_at
-             LIMIT $2
+             LIMIT $1
            )
            """,
-           [DateTime.truncate(now, :second), limit],
+           [limit],
            log: false
          ) do
       {:ok, %{num_rows: count}} -> {:ok, count}

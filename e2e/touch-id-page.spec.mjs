@@ -281,8 +281,6 @@ for (const [name, install] of Object.entries(helpers)) test(`the ${name} helper 
   const env = { ...process.env, SIWA_AGENT_HOME: home, PATH: `${bin}:${process.env.PATH}` };
   const { start, leftover } = install();
   const children = [];
-  await watchPolicy(page);
-  await touchId(page);
 
   // The page address the helper prints, and how it ended; an early end fails with its own words.
   const run = (command) => {
@@ -313,6 +311,10 @@ for (const [name, install] of Object.entries(helpers)) test(`the ${name} helper 
   };
 
   try {
+    // Another app whose arguments hold line breaks, which `ps` shows escaped, and Unicode line separators, which it shows as they are.
+    children.push(spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)", "a\nb not-a-process 1 x\u0085c d"]));
+    await watchPolicy(page);
+    await touchId(page);
     const keygen = run("keygen");
     const first = await visit(await keygen.pageAddress);
     await page.getByRole("button", { name: "Use Touch ID" }).click();

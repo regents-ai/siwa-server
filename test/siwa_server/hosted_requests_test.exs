@@ -16,7 +16,8 @@ defmodule SiwaServer.HostedRequestsTest do
       :siwa,
       Keyword.put(previous_siwa, :wallet_origins, %{
         "patchbay" => ["https://patchbay.help"],
-        "keyfleet" => ["https://keyfleet.ai"]
+        "keyfleet" => ["https://keyfleet.ai"],
+        "ash-template" => ["https://template.regents.sh"]
       })
     )
 
@@ -50,7 +51,7 @@ defmodule SiwaServer.HostedRequestsTest do
     assert post.(nil).status == 401
     assert post.("Bearer siwa-test-patchbay-activity-read-key-1").status == 401
 
-    for site <- ["patchbay", "keyfleet"] do
+    for site <- ["patchbay", "keyfleet", "ash-template"] do
       signed = post.("Bearer siwa-test-#{site}-hosted-signing-key-1")
       assert signed.status == 200
       {:ok, expected} = HostedRequests.handle(site, Jason.decode!(body))
@@ -74,6 +75,8 @@ defmodule SiwaServer.HostedRequestsTest do
     assert first != third
     {:ok, keyfleet} = HostedRequests.handle("keyfleet", request)
     assert first != keyfleet
+    {:ok, template} = HostedRequests.handle("ash-template", request)
+    assert template not in [first, keyfleet]
   end
 
   test "free participation proof is verified by SIWA and binds the exact body", %{
@@ -177,6 +180,9 @@ defmodule SiwaServer.HostedRequestsTest do
           {"keyfleet", whoami},
           {"keyfleet", me},
           {"keyfleet", pair.("claude")},
+          {"ash-template", whoami},
+          {"ash-template", me},
+          {"ash-template", pair.("claude")},
           {"patchbay", whoami},
           {"patchbay", pair.("chatgpt")}
         ] do
@@ -203,6 +209,7 @@ defmodule SiwaServer.HostedRequestsTest do
           {"keyfleet", pair.("chatgpt")},
           {"patchbay", pair.("claude")},
           {"patchbay", me},
+          {"ash-template", pair.("chatgpt")},
           {"keyfleet", Map.put(whoami, "body", "")},
           {"keyfleet", %{whoami | "path" => "/api/agents/v1/whoami/"}},
           {"keyfleet", %{me | "method" => "POST"}},

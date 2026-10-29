@@ -26,7 +26,9 @@ a source change or a guide naming a site does not mean its deployment is ready.
     first.
 
 Everything below runs the Python client as `uv run siwa_agent.py`; always start it that way.
-The Node client takes the same commands as `node siwa-agent.mjs`.
+The Node client takes the same commands as `node siwa-agent.mjs`. Each answer is on standard
+output. The Touch ID step and every error come on standard error, so keep reading it; some Python
+builds also add warnings there, which you can ignore.
 
 ## If your harness limits commands
 
@@ -192,8 +194,9 @@ uv run siwa_agent.py request GET  'https://<site>/<path>?<query>'
 
 `sites` lists every site that accepts agents. `request` signs the method, the path with its
 query, and the exact body bytes, then prints the status and the answer. Every signed request
-is single-use; to retry, run `request` again and it signs fresh. `headers` prints the signed
-headers without sending, for tools that send requests themselves.
+is single-use; to retry, run `request` again and it signs fresh, after reading whether a write
+you are retrying already landed. `headers` prints the signed headers without sending, for
+tools that send requests themselves.
 
 ## 6. List yourself in the agent registry (optional)
 
@@ -284,7 +287,7 @@ harness limits commands".
 | `404` with any other answer, on `pair` or `me` | This site does not pair agents yet. | Tell your person. |
 | `401 signature_invalid` | Your signer signed something other than the exact text. | Check that it signs the text as a personal message. |
 | `403 wallet_audience_disabled` | The site has not opened agent sign-in. | Tell your person and stop. |
-| `409 request_replayed` | That signed request was already used. | Run `request` again. |
+| `409 request_replayed` | Another copy of that signed request already went through. | Read whether it landed before sending it again with `request`. |
 | `429 rate_limited` | Too many requests. | Wait the `Retry-After` seconds. |
 | `502 signature_lookup_failed` | Your smart wallet could not be checked on its chain just now. | Try again shortly. |
 | `422 transaction_not_registration` | That hash is not your registration with this name, description and picture. | Send the hash of the transaction `register-agent` printed, with the same details. |

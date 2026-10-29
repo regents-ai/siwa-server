@@ -1289,7 +1289,8 @@ def opener() -> str:
     except (OSError, subprocess.CalledProcessError):
         return "your agent"
     table = {}
-    for line in processes.splitlines():
+    # Split on "\n" only: `ps` escapes that in arguments but prints Unicode line separators as they are.
+    for line in processes.strip().split("\n"):
         pid, ppid, *args = line.split()
         table[int(pid)] = (int(ppid), [os.path.basename(arg).lower() for arg in args[:2]])
     pid = os.getppid()
