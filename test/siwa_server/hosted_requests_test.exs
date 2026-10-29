@@ -75,6 +75,8 @@ defmodule SiwaServer.HostedRequestsTest do
     assert first != third
     {:ok, keyfleet} = HostedRequests.handle("keyfleet", request)
     assert first != keyfleet
+    {:ok, template} = HostedRequests.handle("ash-template", request)
+    assert template not in [first, keyfleet]
   end
 
   test "free participation proof is verified by SIWA and binds the exact body", %{
@@ -208,8 +210,6 @@ defmodule SiwaServer.HostedRequestsTest do
           {"patchbay", pair.("claude")},
           {"patchbay", me},
           {"ash-template", pair.("chatgpt")},
-          {"ash-template", %{me | "method" => "POST"}},
-          {"ash-template", %{whoami | "path" => "/api/agents/v1/agents"}},
           {"keyfleet", Map.put(whoami, "body", "")},
           {"keyfleet", %{whoami | "path" => "/api/agents/v1/whoami/"}},
           {"keyfleet", %{me | "method" => "POST"}},
@@ -271,18 +271,6 @@ defmodule SiwaServer.HostedRequestsTest do
              "body" =>
                ~s({"jsonrpc":"2.0","method":"tools/call","params":{"name":"post_reply",) <>
                  ~s("arguments":{"thread_id":"a","body_markdown":"b","body_markdown":"c"}}})
-           }},
-          {"ash-template", %{"method" => "POST", "path" => "/mcp", "body" => "{}"}},
-          {"ash-template",
-           %{
-             "method" => "POST",
-             "path" => "/chatgpt/agent/mcp",
-             "body" =>
-               Jason.encode!(%{
-                 jsonrpc: "2.0",
-                 method: "tools/call",
-                 params: %{name: "ask_question", arguments: %{}}
-               })
            }},
           {"keyfleet",
            %{

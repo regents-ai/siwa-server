@@ -406,8 +406,8 @@ named from the site and its account key together, so one site cannot reach anoth
 site's connections. Registration reuses an encrypted signer by account key; signing
 accepts only each site's approved requests: Patchbay's `whoami`, its pairing for the
 `chatgpt` harness and its free questions and replies; Keyfleet's and the template's
-(`ash-template`) `whoami`, `me` and their pairing for the `claude` harness. It never exports keys or signs arbitrary messages or
-transactions. A body that names one key twice is refused. A site's hosted signing works
+(`ash-template`) `whoami`, `me` and their pairing for the `claude` harness. It never
+exports keys or signs arbitrary messages or transactions. A body that names one key twice is refused. A site's hosted signing works
 only while that site has an origin in `SIWA_WALLET_ORIGINS` (`fly.toml`), since each
 hosted signer signs in like any agent. Products still verify each resulting request
 through http-verify and apply their own pairing and permissions. The hosted signers live beside the key store
