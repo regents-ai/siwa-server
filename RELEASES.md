@@ -7,6 +7,7 @@ the version before it. Times are UTC.
 
 | Fly version | Commit | Released | Notes |
 | --- | --- | --- | --- |
+| v76 | 9f12f1d | 2026-10-29 05:54Z | Used signed requests and sign-in codes cleaned up by the database clock (Sean "2. ok go"); Python helper reads the process list split on newlines only; request_replayed hint and guide output note; first try at 05:43Z stopped by Fly API 503s before deploying; rolls back to v75 b1da556 |
 | v75 | b1da556 | 2026-10-28 15:16Z | Replay refusals labelled by what landed: expired only when no other copy went through, else repeat; accept rule unchanged (Sean 2. a); hosted bodies decoded once (Sean 1. a); rolls back to v74 |
 | v74 | aacd18d | 2026-10-28 08:32Z | Settings, on v73's code (aacd18d adds only release-log lines): Keyfleet's hosted signing key added to SIWA_HOSTED_SIGNERS (Sean CONNECTOR-KEYS 1. a, staged by Keyfleet); rolls back to v73 by restaging Patchbay's entry alone |
 | v73 | f209a97 | 2026-10-28 08:27Z | Keyfleet's Claude connector may use hosted signing (whoami, me, pairing as claude; inert until Keyfleet's key is in SIWA_HOSTED_SIGNERS); hosted bodies naming a key twice refused; first-signed-request check in make check; agent guide keep-it-working section |

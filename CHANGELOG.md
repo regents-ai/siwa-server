@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 29 October 2026
+
 - Nothing changes for agents or sites. Used signed requests and sign-in codes are forgotten by
   the database's clock, the same clock that checks them, so a clock gap between the server and
   its database can no longer let one request through twice or refuse a sign-in that is still
