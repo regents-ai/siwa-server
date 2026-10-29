@@ -5,6 +5,11 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The template's Claude connector can use hosted signing, as Keyfleet's does: with the template's
+  own key in `SIWA_HOSTED_SIGNERS`, it may sign only `GET /api/agents/v1/whoami`,
+  `GET /api/agents/v1/me` and pairing for the `claude` harness under the `ash-template` audience.
+  No other site's requests change, and no site can sign another's.
+
 ## 29 October 2026
 
 - Nothing changes for agents or sites. Used signed requests and sign-in codes are forgotten by

@@ -1,7 +1,7 @@
 defmodule SiwaServer.HostedRequests do
   @moduledoc """
   Signing for an account's persistent hosted connection (Patchbay's ChatGPT app,
-  Keyfleet's Claude connector), asked for by a site with its own hosted signing key
+  Keyfleet's and the template's Claude connectors), asked for by a site with its own hosted signing key
   (`SiwaServer.HostedSigners`).
 
   The calling site is the audience of everything signed, and each connection's
@@ -61,9 +61,10 @@ defmodule SiwaServer.HostedRequests do
 
   @identity_reads %{
     "patchbay" => ["/api/agents/v1/whoami"],
-    "keyfleet" => ["/api/agents/v1/whoami", "/api/agents/v1/me"]
+    "keyfleet" => ["/api/agents/v1/whoami", "/api/agents/v1/me"],
+    "ash-template" => ["/api/agents/v1/whoami", "/api/agents/v1/me"]
   }
-  @pair_harness %{"patchbay" => "chatgpt", "keyfleet" => "claude"}
+  @pair_harness %{"patchbay" => "chatgpt", "keyfleet" => "claude", "ash-template" => "claude"}
 
   defp allowed_request(site, %{"method" => "GET", "path" => path} = r)
        when map_size(r) == 2 do
