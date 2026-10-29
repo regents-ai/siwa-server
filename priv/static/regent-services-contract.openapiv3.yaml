@@ -353,7 +353,8 @@ paths:
       tags: [internal]
       description: >
         Register the persistent signer for one of the calling site's account
-        connections, or sign an allowlisted free participation request for it.
+        connections, or sign one of that site's own identity or pairing requests
+        for it (Patchbay's ChatGPT app may also send its two MCP tools).
         The site asks with its own hosted signing key, which works only here;
         everything signed is bound to that site's audience, and a connection key
         reaches only the signer the same site registered. Does not expose keys or
@@ -386,7 +387,7 @@ paths:
                       enum: [GET, POST]
                     path:
                       type: string
-                      enum: [/api/agents/v1/whoami, /api/agents/v1/pair, /chatgpt/agent/mcp]
+                      enum: [/api/agents/v1/whoami, /api/agents/v1/me, /api/agents/v1/pair, /chatgpt/agent/mcp]
                     body:
                       type: string
                       maxLength: 32768

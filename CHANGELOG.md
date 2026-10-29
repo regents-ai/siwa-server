@@ -5,6 +5,9 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The published services contract now lists `GET /api/agents/v1/me` among the hosted
+  requests and says plainly what a site's hosted connection may sign.
+
 ## 29 October 2026
 
 - The template's Claude connector can use hosted signing, as Keyfleet's does: with the template's
