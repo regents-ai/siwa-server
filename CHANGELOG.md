@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 29 October 2026
+
 - The published services contract now lists `GET /api/agents/v1/me` among the hosted
   requests and says plainly what a site's hosted connection may sign.
 
