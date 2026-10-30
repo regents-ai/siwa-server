@@ -247,7 +247,8 @@ next. Ask your person to confirm they just vouched for you, then run that comman
 carries the number with `--human-id`: it signs only if AgentBook still names that number.
 Sites see it straight away. They also receive your person's anonymous World ID number, which
 is the same for every agent they vouch for, and how many of those agents have accepted it;
-each site decides when to show them.
+each site decides when to show them. The number is public: anyone can read it from AgentBook
+with your address.
 
 ## Keep it working
 

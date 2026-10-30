@@ -390,7 +390,9 @@ and the activity read return `agentBook: {humanId, agentCount}` for it, and both
 routes refuse a wallet that has accepted already (`409 agent_book_already_accepted`).
 `agentCount` is how many agent wallets, this one included, accepted the same person;
 sites list a person's other agents on their own pages by `humanId`. Sites decide when
-to show `humanId`; the same person's agents share it. Sign-in never reads World Chain.
+to show `humanId`; the same person's agents share it. The number is not secret: anyone can
+read it from AgentBook with the wallet address, so any two sites can match one person by it.
+Sign-in never reads World Chain.
 
 The shared SIWA, keyring and chain packages come from one `elixir-utils` commit pinned
 in `mix.exs`, the way the template pins them. The image builds from this repository
