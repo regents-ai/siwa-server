@@ -95,6 +95,7 @@ config :siwa_server, :siwa,
     "keyfleet" => "siwa-dev-keyfleet-site-verify-key-000001",
     "patchbay" => "siwa-dev-patchbay-site-verify-key-000001",
     "regents" => "siwa-dev-regents-site-verify-key-0000001",
+    "regents-mobile" => "siwa-dev-regents-mobile-site-verify-key-1",
     "techtree" => "siwa-dev-techtree-site-verify-key-000001"
   }
 

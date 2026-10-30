@@ -69,7 +69,6 @@ features:
       - The window property reads the real clock around each check; the verifier takes no clock of its own.
       - The site does not yet send the byte length it read or a per-request correlation id; the log's correlation is this server's request id.
       - The request names no MCP resource, so a key is scoped to its audience, not to one resource; this holds while each audience owns its own resources.
-      - The python and node first-request checks need the shared library that sends the site's verify key, and stay red until siwa-server re-pins it.
 
   - id: refusal-help
     what: Every refusal tells the agent what to do next, in words shaped by the site and how it signs.
