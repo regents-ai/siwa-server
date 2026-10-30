@@ -101,7 +101,12 @@ one is present.
 Each site calls `http-verify` with its own verify key from `SIWA_SITE_VERIFY_KEYS`, sent as
 `Authorization: Bearer <key>`. The key names the one audience the request is checked for; nothing
 in the request can name another, so one site's key never accepts a sign-in made for a different
-site. A missing or unknown key is refused with `401 site_verify_unauthorized` before the rate limit.
+site. A missing or unknown key is refused with `401 site_verify_unauthorized` before the request
+is checked; one address gets 30 such refusals a minute, then `429 rate_limited` and one warning line
+for that address and minute in place of a refusal line each (the request log still records every
+request). Behind Fly, the address is the client's from the proxy's own header;
+an app on the private network is keyed by its own address.
+Each agent's http-verify budget is counted under the site whose key was presented.
 The key opens no other route, and no verify key may also be an activity-read or hosted-signing
 key. In production every audience in `SIWA_WALLET_ORIGINS` needs exactly one key. Each check is
 logged with the request id, mode, audience, verified wallet, decision and refusal code only.

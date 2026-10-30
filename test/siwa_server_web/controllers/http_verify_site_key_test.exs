@@ -9,6 +9,8 @@ defmodule SiwaServerWeb.HttpVerifySiteKeyTest do
 
   use SiwaServerWeb.ConnCase, async: false
 
+  import ExUnit.CaptureLog
+
   alias Ecto.Adapters.SQL.Sandbox
   alias SiwaServer.{Repo, TestRpcServer}
   alias SiwaServer.Siwa.HttpVerifier
@@ -100,6 +102,86 @@ defmodule SiwaServerWeb.HttpVerifySiteKeyTest do
 
     # None of those spent the request, nor the site's one request this minute.
     assert conn |> verify("patchbay", request) |> json_response(200)
+  end
+
+  test "a caller's refusals spend its own budget; past it, 429 and one warning a window", %{
+    conn: conn,
+    signer: signer
+  } do
+    put_rate_limits(
+      siwa_site_key_refused: [limit: 2, window_ms: 3_600_000],
+      siwa_site_key_refused_noted: [limit: 1, window_ms: 3_600_000]
+    )
+
+    level = Logger.level()
+    Logger.configure(level: :info)
+    on_exit(fn -> Logger.configure(level: level) end)
+    request = signed(signer, "patchbay", ~s({"code":"ABCD-1234"}))
+
+    log =
+      capture_log([level: :info], fn ->
+        for _attempt <- 1..2 do
+          assert %{"error" => %{"code" => "site_verify_unauthorized"}} =
+                   conn |> recycle() |> post_json(request) |> json_response(401)
+        end
+
+        for _attempt <- 1..3 do
+          assert %{"error" => %{"code" => "rate_limited"}} =
+                   conn |> recycle() |> post_json(request) |> json_response(429)
+        end
+      end)
+
+    assert length(Regex.scan(~r/decision=refused code=site_verify_unauthorized/, log)) == 2
+    assert length(Regex.scan(~r/used up its refusals/, log)) == 1
+
+    # A site presenting its own key is never held up by that budget.
+    assert conn |> recycle() |> verify("patchbay", request) |> json_response(200)
+  end
+
+  test "behind Fly's proxy, each client address has its own budget of refusals", %{
+    conn: conn,
+    signer: signer
+  } do
+    put_rate_limits(siwa_site_key_refused: [limit: 1, window_ms: 3_600_000])
+    previous = Application.fetch_env!(:siwa_server, :behind_fly_proxy)
+    Application.put_env(:siwa_server, :behind_fly_proxy, true)
+    on_exit(fn -> Application.put_env(:siwa_server, :behind_fly_proxy, previous) end)
+    request = signed(signer, "patchbay", ~s({"code":"ABCD-1234"}))
+
+    from = fn client ->
+      %{recycle(conn) | remote_ip: {172, 16, 3, 9}}
+      |> put_req_header("fly-client-ip", client)
+      |> post_json(request)
+    end
+
+    assert json_response(from.("203.0.113.7"), 401)
+    assert json_response(from.("203.0.113.7"), 429)
+    # Another client reaching the service through the same proxy has its own budget.
+    assert %{"error" => %{"code" => "site_verify_unauthorized"}} =
+             json_response(from.("198.51.100.4"), 401)
+  end
+
+  test "each agent's budget is counted under the site whose key was presented", %{
+    conn: conn,
+    signer: signer
+  } do
+    put_rate_limits(siwa_http_verify: [limit: 1, window_ms: 3_600_000])
+
+    assert conn
+           |> verify("patchbay", signed(signer, "patchbay", ~s({"code":"ABCD-1234"})))
+           |> json_response(200)
+
+    assert %{"error" => %{"code" => "rate_limited"}} =
+             conn
+             |> recycle()
+             |> verify("patchbay", signed(signer, "patchbay", ~s({"code":"EFGH-5678"})))
+             |> json_response(429)
+
+    # The same agent, wallet and address under another site's key has that site's own budget.
+    assert conn
+           |> recycle()
+           |> verify("techtree", signed(signer, "techtree", ~s({"code":"ABCD-1234"})))
+           |> json_response(200)
   end
 
   test "the digest is of the exact bytes received: any change to them is refused", %{
@@ -234,6 +316,17 @@ defmodule SiwaServerWeb.HttpVerifySiteKeyTest do
       "headers" => signed.headers,
       "body_digest" => digest(body)
     }
+  end
+
+  defp put_rate_limits(limits) do
+    previous = Application.get_env(:siwa_server, :rate_limits, [])
+    Application.put_env(:siwa_server, :rate_limits, limits)
+    SiwaServer.RateLimiter.reset()
+
+    on_exit(fn ->
+      Application.put_env(:siwa_server, :rate_limits, previous)
+      SiwaServer.RateLimiter.reset()
+    end)
   end
 
   defp digest(bytes), do: Siwa.content_digest_for_body(bytes)

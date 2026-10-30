@@ -13,6 +13,8 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
     siwa_nonce: [limit: 60, window_ms: 60_000],
     siwa_verify: [limit: 60, window_ms: 60_000],
     siwa_http_verify: [limit: 600, window_ms: 60_000],
+    siwa_site_key_refused: [limit: 30, window_ms: 60_000],
+    siwa_site_key_refused_noted: [limit: 1, window_ms: 60_000],
     siwa_activity: [limit: 600, window_ms: 60_000],
     # Each hosted signing unlocks the encrypted key store three times, about
     # 140 ms of one CPU on the live machine, so 300 a minute stays inside one CPU.
@@ -26,7 +28,8 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   # These steps come from an agent's own computer and are counted per wallet
   # address the caller names, so they also share one ceiling per computer: naming
   # new addresses does not buy a computer more requests. http-verify is left out
-  # because its caller is a site's server, which speaks for all of that site's agents.
+  # because its caller is a site's server, which speaks for all of that site's
+  # agents; each agent's requests there are counted under the site its key names.
   @address_keyed [:siwa_nonce, :siwa_verify, :siwa_register, :agent_book]
 
   def init(opts), do: opts
@@ -51,6 +54,10 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
         |> halt()
     end
   end
+
+  @doc "Whether `conn` still has room in bucket `name`; spends one when it does."
+  @spec allow?(Plug.Conn.t(), atom()) :: boolean()
+  def allow?(conn, name), do: check(conn, name) == :ok
 
   defp check(conn, name) when name in @address_keyed do
     with :ok <- check_bucket(name, client_key(conn, name)) do
@@ -80,6 +87,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   defp client_key(conn, :siwa_http_verify) do
     [
       "http-verify",
+      conn.assigns.site_audience,
       agent_header(conn, "x-agent-wallet-address"),
       agent_header(conn, "x-agent-chain-id"),
       client_ip(conn)
@@ -87,6 +95,8 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
     |> Enum.join(":")
   end
 
+  defp client_key(conn, :siwa_site_key_refused), do: "site-key-refused:#{client_ip(conn)}"
+  defp client_key(conn, :siwa_site_key_refused_noted), do: "site-key-noted:#{client_ip(conn)}"
   defp client_key(conn, :siwa_activity), do: "activity:#{client_ip(conn)}"
   defp client_key(conn, :siwa_hosted), do: "hosted:#{client_ip(conn)}"
   defp client_key(conn, :agent_profile), do: "agent-profile:#{client_ip(conn)}"

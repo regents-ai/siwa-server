@@ -22,8 +22,9 @@ defmodule SiwaServerWeb.Router do
     end
   end
 
-  # A site's server calls http-verify for its agents: its own key is checked
-  # before the rate limit, so a caller without one never spends the site's budget.
+  # A site's server calls http-verify for its agents. Its own key is checked
+  # first, so each agent's budget is counted under the site the key names, and a
+  # caller without one is held to its own small budget of refusals.
   pipeline :siwa_http_verify do
     plug :accepts, ["json"]
     plug SiwaServerWeb.Plugs.SiteVerifyKey

@@ -13,12 +13,16 @@ a release moves those lines under its date. Which version and commit each releas
   (`site=key` pairs, one per site), and the key alone names the audience the request is checked
   for. The `x-siwa-audience` header is gone, so a site can no longer ask for another site's
   audience. A missing or unknown key is refused with `401 site_verify_unauthorized` before the
-  request is checked or rate-limited, so it spends neither the agent's request nor the site's
-  budget. A verify key never opens activity reads or hosted signing, and the server will not start
-  if one is reused as either, or if in production any sign-in audience in `SIWA_WALLET_ORIGINS`
-  lacks a key or a key names an unknown site. Each check is counted under the site
-  whose key was presented (`siwa_server.siwa.http_verify.sites.total`) and logged with the request
-  id, mode, audience, verified wallet, decision and refusal code only. Every site must stage its key and move to the
+  request is checked, so it never spends the agent's request. One address gets 30 such refusals a
+  minute; past that it is answered `429 rate_limited`, with one warning line for that address and
+  minute in place of a refusal line each (the request log still records every request). An app on
+  the private network is keyed by its own address, whatever `Fly-Client-IP` it sends, as on
+  ash-template. Each agent's http-verify budget is counted under the site whose key was presented.
+  A verify key never opens activity reads or hosted signing, and the server will not start if one
+  is reused as either, or if in production any sign-in audience in `SIWA_WALLET_ORIGINS` lacks a
+  key or a key names an unknown site. Each check is counted under the site whose key was presented
+  (`siwa_server.siwa.http_verify.sites.total`) and logged with the request id, mode, audience,
+  verified wallet, decision and refusal code only. Every site must stage its key and move to the
   shared library that sends it before this release goes live.
 - `GET /api/shared/siwa/audiences` lists `resources`: each site's exact MCP address and the
   audience an agent signs in for to use it, from the new `SIWA_MCP_RESOURCES` setting

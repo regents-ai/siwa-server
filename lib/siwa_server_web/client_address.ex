@@ -1,14 +1,16 @@
 defmodule SiwaServerWeb.ClientAddress do
   @moduledoc """
-  The address a request's rate limits are keyed by. Production runs only behind
-  Fly's proxy, which terminates the connection, so the peer is the proxy and the
-  client address arrives in the one header the proxy sets itself, replacing any
-  value a client sent. Anywhere else nothing replaces that header, so the direct
-  peer decides and no request header is read. `X-Forwarded-For` is never read: a
-  client writes its first entries.
+  The address a request's rate limits are keyed by. Production runs behind Fly's
+  proxy, which reaches the machine over its private IPv4 address, so an IPv4 peer
+  is the proxy and the client address arrives in the one header the proxy sets
+  itself, replacing any value a client sent. The organisation's private network
+  (6PN) is IPv6 and bypasses the proxy, so an IPv6 peer is another of its apps
+  connecting directly, and its own address keys it whatever header it sent
+  (docs.fly.io/networking/app-services, /networking/private-networking).
+  Anywhere else nothing replaces that header, so the direct peer decides and no
+  request header is read. `X-Forwarded-For` is never read: a client writes its
+  first entries.
   """
-
-  @behind_fly_proxy Application.compile_env!(:siwa_server, :behind_fly_proxy)
 
   @doc """
   The limiter key for `conn` and where it came from. Behind Fly, anything but
@@ -17,7 +19,9 @@ defmodule SiwaServerWeb.ClientAddress do
   """
   @spec key(Plug.Conn.t()) :: {:inet.ip_address(), :client_header | :peer | :peer_fallback}
   def key(conn) do
-    if @behind_fly_proxy, do: fly_client(conn), else: {normalized(conn.remote_ip), :peer}
+    if Application.fetch_env!(:siwa_server, :behind_fly_proxy) and ipv4?(conn.remote_ip),
+      do: fly_client(conn),
+      else: {normalized(conn.remote_ip), :peer}
   end
 
   defp fly_client(conn) do
@@ -28,6 +32,11 @@ defmodule SiwaServerWeb.ClientAddress do
       _absent_duplicated_or_unparseable -> {normalized(conn.remote_ip), :peer_fallback}
     end
   end
+
+  # An IPv4 peer, as an IPv4 listener or one on both families reports it.
+  defp ipv4?({_, _, _, _}), do: true
+  defp ipv4?({0, 0, 0, 0, 0, 0xFFFF, _, _}), do: true
+  defp ipv4?(_ipv6), do: false
 
   # The mapped and compatible IPv6 spellings of one IPv4 address share its
   # bucket, and a genuine IPv6 client is keyed by its /64 so one host cannot
