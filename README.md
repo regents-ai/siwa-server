@@ -411,9 +411,9 @@ in `mix.exs`, the way the template pins them. The image builds from this reposit
 alone and Docker fetches that exact commit, so the shared commit must be on GitHub
 before a release.
 
-Hosted connections (Patchbay's ChatGPT app, and Keyfleet's and the template's Claude connectors) use
-`POST /api/shared/siwa/hosted`. Each site asks with its
-own hosted signing key from `SIWA_HOSTED_SIGNERS` (`site=key` pairs, like
+Hosted connections (Patchbay's ChatGPT app, and Keyfleet's and the template's Claude
+connectors) use `POST /api/shared/siwa/hosted`. Each site asks with its own hosted
+signing key from `SIWA_HOSTED_SIGNERS` (`site=key` pairs, like
 `SIWA_ACTIVITY_READERS`); that key opens no other route, and unset lets no site sign.
 Everything signed is bound to the calling site's audience, and the stored signer is
 named from the site and its account key together, so one site cannot reach another

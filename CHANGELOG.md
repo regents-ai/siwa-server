@@ -5,10 +5,6 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
-- The template's Claude connector can use hosted signing, as Keyfleet's does: with the template's
-  own key in `SIWA_HOSTED_SIGNERS`, it may sign only `GET /api/agents/v1/whoami`,
-  `GET /api/agents/v1/me` and pairing for the `claude` harness under the `ash-template` audience.
-  No other site's requests change, and no site can sign another's.
 - The agent registration step a wallet sends on Base now ends with Regent's Base Builder Code
   (the shared chain library's ERC-8021 suffix), so Base credits Regent with each registration;
   the registry contract ignores the extra bytes.
@@ -39,6 +35,15 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## 29 October 2026
 
+- The published services contract now lists `GET /api/agents/v1/me` among the hosted
+  requests and says plainly what a site's hosted connection may sign.
+
+## 29 October 2026
+
+- The template's Claude connector can use hosted signing, as Keyfleet's does: with the template's
+  own key in `SIWA_HOSTED_SIGNERS`, it may sign only `GET /api/agents/v1/whoami`,
+  `GET /api/agents/v1/me` and pairing for the `claude` harness under the `ash-template` audience.
+  No other site's requests change, and no site can sign another's.
 - Nothing changes for agents or sites. Used signed requests and sign-in codes are forgotten by
   the database's clock, the same clock that checks them, so a clock gap between the server and
   its database can no longer let one request through twice or refuse a sign-in that is still

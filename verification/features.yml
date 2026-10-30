@@ -141,7 +141,7 @@ features:
       - No property proof that one site's key never reads under another site's name.
 
   - id: hosted-requests
-    what: Each site's hosted connection (Patchbay's ChatGPT app, Keyfleet's Claude connector) signs only that site's approved requests, with that site's own key.
+    what: Each site's hosted connection (Patchbay's ChatGPT app, and Keyfleet's and the template's Claude connectors) signs only that site's approved requests, with that site's own key.
     who: operator
     level: protected
     paths:
