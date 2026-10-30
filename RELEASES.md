@@ -7,6 +7,7 @@ the version before it. Times are UTC.
 
 | Fly version | Commit | Released | Notes |
 | --- | --- | --- | --- |
+| v79 | 3e5efab | 2026-10-30 22:03Z | Docs only: README and agent guide say a person's World ID number is public (Sean "3. a" 30 Oct 16:18Z); rolls back to v78 ecb2382 |
 | v78 | ecb2382 | 2026-10-29 17:43Z | Docs only: services contract lists `/api/agents/v1/me` for hosted requests and drops the stale "allowlisted free participation" wording; feature map and README name the template's connector (coordinator review); rolls back to v77 1217599 |
 | v77 | 1217599 | 2026-10-29 17:32Z | Template (`ash-template`) Claude connector may use hosted signing: whoami, me, pairing for claude (Sean "1. a" 16:35Z); `SIWA_HOSTED_SIGNERS` gained the ash-template entry (read on the machine unprinted, Sean "1. a" 17:19Z; Patchbay and Keyfleet entries unchanged) and template-regents-sh `SIWA_HOSTED_SIGNING_KEY` staged; rolls back by restaging `SIWA_HOSTED_SIGNERS` without the ash-template entry, or to v76 9f12f1d |
 | v76 | 9f12f1d | 2026-10-29 05:54Z | Used signed requests and sign-in codes cleaned up by the database clock (Sean "2. ok go"); Python helper reads the process list split on newlines only; request_replayed hint and guide output note; first try at 05:43Z stopped by Fly API 503s before deploying; rolls back to v75 b1da556 |

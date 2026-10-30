@@ -37,13 +37,15 @@ a release moves those lines under its date. Which version and commit each releas
   proves that the digest it sends is of the exact bytes it received. `mix siwa_server.contract_check` now also checks
   which key each site-only route names.
 
+## 30 October 2026
+
+- The README and the agent guide now say plainly that a person's World ID number is public:
+  anyone can read it from World's AgentBook with the agent's address.
+
 ## 29 October 2026
 
 - The published services contract now lists `GET /api/agents/v1/me` among the hosted
   requests and says plainly what a site's hosted connection may sign.
-
-## 29 October 2026
-
 - The template's Claude connector can use hosted signing, as Keyfleet's does: with the template's
   own key in `SIWA_HOSTED_SIGNERS`, it may sign only `GET /api/agents/v1/whoami`,
   `GET /api/agents/v1/me` and pairing for the `claude` harness under the `ash-template` audience.
