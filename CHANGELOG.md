@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 30 October 2026
+
 - The README and the agent guide now say plainly that a person's World ID number is public:
   anyone can read it from World's AgentBook with the agent's address.
 
