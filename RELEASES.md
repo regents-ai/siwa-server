@@ -7,6 +7,7 @@ the version before it. Times are UTC.
 
 | Fly version | Commit | Released | Notes |
 | --- | --- | --- | --- |
+| v80 | 894570c | 2026-10-31 22:19Z | Bandit 1.14.1 closes EEF-CVE-2026-116078 (HTTP/2 one-byte body pieces amplify memory, HIGH); mix.lock only; rolls back to v79 3e5efab |
 | v79 | 3e5efab | 2026-10-30 22:03Z | Docs only: README and agent guide say a person's World ID number is public (Sean "3. a" 30 Oct 16:18Z); rolls back to v78 ecb2382 |
 | v78 | ecb2382 | 2026-10-29 17:43Z | Docs only: services contract lists `/api/agents/v1/me` for hosted requests and drops the stale "allowlisted free participation" wording; feature map and README name the template's connector (coordinator review); rolls back to v77 1217599 |
 | v77 | 1217599 | 2026-10-29 17:32Z | Template (`ash-template`) Claude connector may use hosted signing: whoami, me, pairing for claude (Sean "1. a" 16:35Z); `SIWA_HOSTED_SIGNERS` gained the ash-template entry (read on the machine unprinted, Sean "1. a" 17:19Z; Patchbay and Keyfleet entries unchanged) and template-regents-sh `SIWA_HOSTED_SIGNING_KEY` staged; rolls back by restaging `SIWA_HOSTED_SIGNERS` without the ash-template entry, or to v76 9f12f1d |
