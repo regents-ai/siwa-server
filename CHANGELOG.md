@@ -5,6 +5,9 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The web server (Bandit 1.14.1) closes EEF-CVE-2026-116078, where an HTTP/2 request body
+  sent as one-byte pieces could use far more memory than its size. Nothing else changes.
+
 ## 30 October 2026
 
 - The README and the agent guide now say plainly that a person's World ID number is public:
