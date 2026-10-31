@@ -49,7 +49,12 @@ defmodule SiwaServer.AgentClientsConformanceTest do
     broker =
       start_supervised!(
         {Bandit,
-         plug: {Audiences, [%{audience: audience, origin: @origin}]},
+         plug:
+           {Audiences,
+            [
+              %{audience: audience, origin: @origin},
+              %{audience: audience, origin: @origin <> ":8443"}
+            ]},
          ip: :loopback,
          port: 0,
          startup_log: false}
@@ -71,12 +76,33 @@ defmodule SiwaServer.AgentClientsConformanceTest do
         expected = Map.new(signed["request"]["headers"], fn [name, value] -> {name, value} end)
         seed_home(home, context.fixtures, expected["x-siwa-signature"])
 
-        headers = run_headers(unquote(client), home, context, signed["request"])
+        url = @origin <> signed["request"]["path"]
+        headers = run_headers(unquote(client), home, context, signed["request"], url)
 
         assert File.read!(Path.join(home, "message.txt")) == signed["signing_message"],
                "#{signed["name"]}: signed text"
 
         assert headers == expected, "#{signed["name"]}: headers"
+      end
+    end
+  end
+
+  # The clients sign only https addresses, so the fixtures' local ones never reach them.
+  for client <- [:python, :node] do
+    @tag :tmp_dir
+    test "the #{client} client signs the host of every fixture https address", context do
+      [signed | _] = context.fixtures["signed"]
+      expected = Map.new(signed["request"]["headers"], fn [name, value] -> {name, value} end)
+
+      for %{"url" => "https://" <> _ = url, "authority" => authority} <-
+            context.fixtures["authorities"] do
+        home = Path.join(context.tmp_dir, authority)
+        seed_home(home, context.fixtures, expected["x-siwa-signature"])
+        run_headers(unquote(client), home, context, %{"method" => "GET"}, url)
+
+        assert File.read!(Path.join(home, "message.txt")) =~
+                 ~s("@authority": #{authority}\n),
+               url
       end
     end
   end
@@ -171,8 +197,7 @@ defmodule SiwaServer.AgentClientsConformanceTest do
     """)
   end
 
-  defp run_headers(client, home, context, request) do
-    url = @origin <> request["path"]
+  defp run_headers(client, home, context, request, url) do
     body = if request["body"], do: ["--body", request["body"]], else: []
     args = ["headers", request["method"], url | body]
     env = [{"SIWA_AGENT_HOME", home}, {"SIWA_BROKER", context.broker}]

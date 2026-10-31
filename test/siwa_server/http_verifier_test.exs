@@ -276,6 +276,27 @@ defmodule SiwaServer.HttpVerifierTest do
     assert message =~ "audience"
   end
 
+  test "a signed request is accepted only at a host of its audience's origins" do
+    receipt = receipt()
+    body = Jason.encode!(%{"summary" => "Another site", "details" => "blocked"})
+    created = System.os_time(:second)
+    headers = signed_headers(receipt, body, created, created + 120)
+
+    request = %{
+      "method" => "POST",
+      "path" => "/v1/agent/bug-report",
+      "headers" => headers,
+      "body_digest" => Siwa.content_digest_for_body(body)
+    }
+
+    for authority <- ["techtree.sh", "patchbay.help:8443", "localhost:4000"] do
+      assert {:error, {401, "http_signature_invalid", "signed request is for another site"}} =
+               verify_http_request(Map.put(request, "authority", authority))
+    end
+
+    assert {:ok, %{"data" => %{"verified" => true}}} = verify_http_request(request)
+  end
+
   test "http verification fails closed when the receipt secret is missing" do
     receipt = receipt()
     body = Jason.encode!(%{"summary" => "Missing secret", "details" => "blocked"})
@@ -428,6 +449,7 @@ defmodule SiwaServer.HttpVerifierTest do
     components = [
       "@method",
       "@path",
+      "@authority",
       "x-siwa-receipt",
       "x-key-id",
       "x-key-id",
@@ -457,6 +479,7 @@ defmodule SiwaServer.HttpVerifierTest do
     components = [
       "@method",
       "@path",
+      "@authority",
       "x-siwa-receipt",
       "x-key-id",
       "x-timestamp",
@@ -496,6 +519,7 @@ defmodule SiwaServer.HttpVerifierTest do
     components = [
       "@method",
       "@path",
+      "@authority",
       "x-siwa-receipt",
       "x-key-id",
       "x-timestamp",
@@ -567,7 +591,7 @@ defmodule SiwaServer.HttpVerifierTest do
     headers = signed_headers(receipt, body, created, expires)
 
     reordered_components =
-      ~s|("@path" "@method" "x-siwa-receipt" "x-key-id" "x-timestamp" "x-agent-wallet-address" "x-agent-chain-id" "content-digest")|
+      ~s|("@path" "@method" "@authority" "x-siwa-receipt" "x-key-id" "x-timestamp" "x-agent-wallet-address" "x-agent-chain-id" "content-digest")|
 
     headers =
       Map.update!(headers, "x-siwa-signature-input", fn signature_input ->
@@ -721,6 +745,7 @@ defmodule SiwaServer.HttpVerifierTest do
         [
           "@method",
           "@path",
+          "@authority",
           "x-siwa-receipt",
           "x-key-id",
           "x-timestamp",
@@ -743,6 +768,7 @@ defmodule SiwaServer.HttpVerifierTest do
           case component do
             "@method" -> "post"
             "@path" -> path
+            "@authority" -> "patchbay.help"
             header_name -> Map.fetch!(headers, header_name)
           end
 
@@ -766,7 +792,9 @@ defmodule SiwaServer.HttpVerifierTest do
   end
 
   defp verify_http_request(params, opts \\ []) do
-    HttpVerifier.verify(params, Keyword.put_new(opts, :audience, "patchbay"))
+    params
+    |> Map.put_new("authority", "patchbay.help")
+    |> HttpVerifier.verify(Keyword.put_new(opts, :audience, "patchbay"))
   end
 
   # A signature no ordinary wallet made, so only Base can approve it.

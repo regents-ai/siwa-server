@@ -81,7 +81,7 @@ defmodule SiwaServer.ReplayWindowPropertyTest do
 
     {:ok, signed} =
       Siwa.sign_authenticated_request(
-        %{method: "POST", path: @path, body: @body},
+        %{method: "POST", path: @path, authority: "patchbay.help", body: @body},
         receipt,
         signer,
         receipt_secret: secret,
@@ -94,6 +94,7 @@ defmodule SiwaServer.ReplayWindowPropertyTest do
     %{
       "method" => "POST",
       "path" => @path,
+      "authority" => "patchbay.help",
       "headers" => signed.headers,
       "body_digest" => Siwa.content_digest_for_body(@body)
     }

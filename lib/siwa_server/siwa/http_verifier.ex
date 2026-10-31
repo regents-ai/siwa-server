@@ -3,15 +3,18 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   Verifies signed HTTP request envelopes presented by agents signed in with
   their wallet.
 
-  `verify/2` validates the request shape (method, absolute path, string
-  headers, and the optional `body_digest` the site worked out from the body it
-  read; the body itself never comes here), then delegates to
-  `Siwa.RequestAuth.verify_authenticated_request/2`, which checks:
+  `verify/2` validates the request shape (method, absolute path, the host the
+  site received it at as `authority`, string headers, and the optional
+  `body_digest` the site worked out from the body it read; the body itself never
+  comes here), then delegates to `Siwa.RequestAuth.verify_authenticated_request/2`,
+  which checks:
 
     * the wallet receipt issued by `SiwaServer.Siwa.Wallet.verify/1`
       (signature, expiry, and audience binding),
     * the HTTP message signature over the covered components, within the
       configured timestamp tolerance,
+    * that the signed `@authority` is a host of one of the audience's origins in
+      `SIWA_WALLET_ORIGINS`, so a request signed for one site is refused at another,
     * that the signed content-digest is the site's body digest when the
       request had a body, and
     * single use of the signature via `SiwaServer.Siwa.ReplayStore`.
@@ -40,14 +43,22 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   def verify(params, opts \\ []) when is_map(params) do
     with {:ok, method} <- required_string(params, "method"),
          {:ok, path} <- required_path(params, "path"),
+         {:ok, authority} <- required_string(params, "authority"),
          {:ok, body_digest} <- optional_string(params, "body_digest"),
          {:ok, headers} <- required_header_map(params, "headers"),
          {:ok, secret} <- receipt_secret(),
          {:ok, verified} <-
            Siwa.RequestAuth.verify_authenticated_request(
-             %{method: method, path: path, headers: headers, body_digest: body_digest},
+             %{
+               method: method,
+               path: path,
+               authority: authority,
+               headers: headers,
+               body_digest: body_digest
+             },
              receipt_secret: secret,
              audience: Keyword.get(opts, :audience),
+             authorities: authorities(Keyword.get(opts, :audience)),
              wallet_audiences: Map.keys(RuntimeConfig.siwa_wallet_origins()),
              signature_tolerance_seconds: RuntimeConfig.siwa_http_signature_tolerance_seconds(),
              replay_store: &ReplayStore.consume/2,
@@ -150,6 +161,14 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   end
 
   defp receipt_secret, do: RuntimeConfig.siwa_receipt_secret()
+
+  @doc "The hosts an audience is served at: the authority of each of its origins."
+  @spec authorities(String.t() | nil) :: [String.t()]
+  def authorities(audience) do
+    RuntimeConfig.siwa_wallet_origins()
+    |> Map.get(audience, [])
+    |> Enum.map(&Siwa.Contract.authority/1)
+  end
 
   # The count decides nothing, so a count that cannot be written never refuses a
   # verified request. It is counted as a failure instead.

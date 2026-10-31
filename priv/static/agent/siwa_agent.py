@@ -38,13 +38,13 @@ SIGNER_TIMEOUT_SECONDS = 300
 PASSKEY_WAIT_SECONDS = 300
 HELPER_ANSWER_SECONDS = 10
 HELPER_START_SECONDS = 10
-USER_AGENT = "siwa-agent-client/2.10 (python)"
+USER_AGENT = "siwa-agent-client/2.11 (python)"
 # BEGIN SIWA CONTRACT
-# Contract 53180b0986ba37fe13685d1a9fb0345605e926b5e6367d8d485174f524716060, written by `mix siwa_server.agent_clients` from the siwa library; do not edit.
+# Contract eaefcab99cbdd8946764ba7c4ea61770cf6846d131adce7a6703c112b17aa0c3, written by `mix siwa_server.agent_clients` from the siwa library; do not edit.
 SIWA_CONTRACT = json.loads(
     r"""
 {
-  "version": 1,
+  "version": 2,
   "label": "sig1",
   "signature_header": "x-siwa-signature",
   "signature_input_header": "x-siwa-signature-input",
@@ -56,6 +56,10 @@ SIWA_CONTRACT = json.loads(
     {
       "name": "@path",
       "from": "path"
+    },
+    {
+      "name": "@authority",
+      "from": "authority"
     },
     {
       "name": "x-siwa-receipt",
@@ -176,6 +180,12 @@ SIWA_CONTRACT = json.loads(
       "status": 401,
       "code": "http_signature_input_invalid",
       "message": "invalid covered components"
+    },
+    {
+      "reason": "authority_mismatch",
+      "status": 401,
+      "code": "http_signature_invalid",
+      "message": "signed request is for another site"
     },
     {
       "reason": "request_body_required",
@@ -1554,6 +1564,17 @@ def signature_param(value: int | str) -> str:
     return str(value) if isinstance(value, int) else f'"{value}"'
 
 
+def url_authority(parsed: urllib.parse.SplitResult) -> str:
+    """The host a request is sent to: lowercase, IPv6 in brackets, :port only when not the scheme's default."""
+    host = parsed.hostname or ""
+    if ":" in host:
+        host = f"[{host}]"
+    port = parsed.port
+    if port is not None and port != {"http": 80, "https": 443}.get(parsed.scheme.lower()):
+        host += f":{port}"
+    return host
+
+
 def signed_headers(key: dict, receipt: dict, method: str, url: str, body: bytes | None) -> dict:
     """Build the SIWA signed-request headers for one request from SIWA_CONTRACT. Each call signs fresh."""
     parsed = urllib.parse.urlsplit(url)
@@ -1564,6 +1585,7 @@ def signed_headers(key: dict, receipt: dict, method: str, url: str, body: bytes 
     sources = {
         "method": method.lower(),
         "path": path,
+        "authority": url_authority(parsed),
         "receipt": receipt["receipt"],
         "key_id": receipt["key_id"],
         "created": created,

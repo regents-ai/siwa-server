@@ -21,9 +21,9 @@ const PASSKEY_WAIT_MS = 300_000;
 const HELPER_ANSWER_MS = 10_000;
 const HELPER_START_MS = 10_000;
 // BEGIN SIWA CONTRACT
-// Contract 53180b0986ba37fe13685d1a9fb0345605e926b5e6367d8d485174f524716060, written by `mix siwa_server.agent_clients` from the siwa library; do not edit.
+// Contract eaefcab99cbdd8946764ba7c4ea61770cf6846d131adce7a6703c112b17aa0c3, written by `mix siwa_server.agent_clients` from the siwa library; do not edit.
 const SIWA_CONTRACT = {
-  "version": 1,
+  "version": 2,
   "label": "sig1",
   "signature_header": "x-siwa-signature",
   "signature_input_header": "x-siwa-signature-input",
@@ -35,6 +35,10 @@ const SIWA_CONTRACT = {
     {
       "name": "@path",
       "from": "path"
+    },
+    {
+      "name": "@authority",
+      "from": "authority"
     },
     {
       "name": "x-siwa-receipt",
@@ -157,6 +161,12 @@ const SIWA_CONTRACT = {
       "message": "invalid covered components"
     },
     {
+      "reason": "authority_mismatch",
+      "status": 401,
+      "code": "http_signature_invalid",
+      "message": "signed request is for another site"
+    },
+    {
       "reason": "request_body_required",
       "status": 401,
       "code": "http_body_binding_missing",
@@ -237,7 +247,7 @@ const SIWA_CONTRACT = {
   ]
 };
 // END SIWA CONTRACT
-const USER_AGENT = "siwa-agent-client/2.10 (node)";
+const USER_AGENT = "siwa-agent-client/2.11 (node)";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const SIGNATURE_PATTERN = /0x[0-9a-fA-F]{130,}/g;
 const BOX_INFO = "agent key box";
@@ -1512,6 +1522,8 @@ async function signedHeaders(key, receipt, method, url, body) {
   const sources = {
     method: method.toLowerCase(),
     path: (parsed.pathname || "/") + parsed.search,
+    // The host it is sent to: URL lowercases it, brackets IPv6 and drops a default port.
+    authority: parsed.host,
     receipt: receipt.receipt,
     key_id: receipt.key_id,
     created,

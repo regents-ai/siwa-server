@@ -165,8 +165,9 @@ defmodule SiwaServer.FirstSignedRequestTest do
   # The site's own check of a request carrying these headers, through the shared plug.
   defp site_check(audience, method, path, body, headers) do
     conn =
-      Enum.reduce(headers, Plug.Test.conn(method, path, body), fn {name, value}, conn ->
-        Plug.Conn.put_req_header(conn, name, value)
+      Enum.reduce(headers, Plug.Test.conn(method, @sites[audience] <> path, body), fn
+        {name, value}, conn ->
+          Plug.Conn.put_req_header(conn, name, value)
       end)
 
     conn =

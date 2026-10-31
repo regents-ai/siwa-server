@@ -48,7 +48,7 @@ defmodule SiwaServerWeb.AgentRegistrationControllerTest do
 
       assert %{"chainId" => 8453, "from" => ^wallet, "to" => @registry, "value" => "0x0"} = step
       assert step["agentUri"] =~ ~r|/agent-profiles/[0-9a-f]{32}\z|
-      assert step["data"] == register_calldata(step["agentUri"])
+      assert step["data"] == RegentChain.BuilderCode.append(register_calldata(step["agentUri"]))
 
       assert %{"data" => %{"agentUri" => same}} =
                conn |> register_step(profile) |> json_response(200)

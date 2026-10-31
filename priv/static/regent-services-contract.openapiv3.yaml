@@ -379,12 +379,15 @@ paths:
                   description: Site-derived stable account connection key; never a chat identifier.
                 request:
                   type: object
-                  required: [method, path]
+                  required: [method, path, authority]
                   additionalProperties: false
                   properties:
                     method:
                       type: string
                       enum: [GET, POST]
+                    authority:
+                      type: string
+                      description: The calling site's own host the request is sent to, one of its sign-in origins' hosts.
                     path:
                       type: string
                       enum: [/api/agents/v1/whoami, /api/agents/v1/me, /api/agents/v1/pair, /chatgpt/agent/mcp]
@@ -933,11 +936,14 @@ components:
       additionalProperties: false
     SiwaHttpVerifyRequest:
       type: object
-      required: [method, path, headers]
+      required: [method, path, authority, headers]
       properties:
         method:
           type: string
         path:
+          type: string
+        authority:
+          description: The host the site received the request at, lowercase, with :port only when it is not the scheme's default. It must be a host of one of the audience's sign-in origins.
           type: string
         headers:
           type: object

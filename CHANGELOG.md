@@ -5,6 +5,22 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- Every signed request names the site it is for. The shared sign-in library (elixir-utils
+  6447536, contract version 2) adds the host the request is sent to (`@authority`) to what
+  an agent signs, and a site sends the host it received the request at to
+  `/api/shared/siwa/http-verify` as `authority`. The server accepts it only when that host
+  is one of the audience's origins in `SIWA_WALLET_ORIGINS`, so a request signed for one
+  site is refused at every other (`401 http_signature_invalid`, "signed request is for
+  another site"). A request from an older client, which does not sign the host, is refused
+  as missing signature headers and told to get the newest client. Both served helpers
+  (2.11) sign it, and hosted signing signs it for the host the calling site names, which
+  must be one of its own.
+- Run anywhere but production, `SIWA_WALLET_ORIGINS` also accepts `http://localhost:<port>`,
+  so a site run locally can check its agents' requests against a local server.
+- The agent registration transaction ends with Regent's Base Builder Code, as every
+  transaction built by the shared chain library now does; contracts ignore it, and the
+  registration is still matched when a wallet adds its own code.
+
 ## 31 October 2026
 
 - The web server (Bandit 1.14.1) closes EEF-CVE-2026-116078, where an HTTP/2 request body

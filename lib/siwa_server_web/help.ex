@@ -112,7 +112,7 @@ defmodule SiwaServerWeb.Help do
        when code in ~w(http_signature_input_invalid http_signature_invalid) do
     [
       "The request's signature didn't verify: it is malformed, too old, or made for another ",
-      "request. ",
+      "site or request. ",
       send_fresh(),
       " If it keeps happening, get the newest client with `",
       @client,

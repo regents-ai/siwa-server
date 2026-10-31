@@ -110,7 +110,10 @@ end
 
 config :siwa_server, SiwaServerWeb.Endpoint, http: [port: port]
 
-wallet_origins = SiwaServer.WalletOrigins.parse!(System.get_env("SIWA_WALLET_ORIGINS"))
+wallet_origins =
+  SiwaServer.WalletOrigins.parse!(System.get_env("SIWA_WALLET_ORIGINS"),
+    local: config_env() != :prod
+  )
 
 hosted_signers =
   case env_value.("SIWA_HOSTED_SIGNERS", nil) do

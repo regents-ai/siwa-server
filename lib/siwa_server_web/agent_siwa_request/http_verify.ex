@@ -7,13 +7,14 @@ defmodule SiwaServerWeb.AgentSiwaRequest.HttpVerify do
 
   alias SiwaServerWeb.AgentSiwaRequest
 
-  @fields [:method, :path, :headers, :body_digest, :lease]
+  @fields [:method, :path, :authority, :headers, :body_digest, :lease]
   @required @fields -- [:body_digest, :lease]
 
   @primary_key false
   embedded_schema do
     field :method, :string
     field :path, :string
+    field :authority, :string
     field :headers, :map
     field :body_digest, :string
     field :lease, :boolean
@@ -22,6 +23,7 @@ defmodule SiwaServerWeb.AgentSiwaRequest.HttpVerify do
   @type t :: %__MODULE__{
           method: String.t(),
           path: String.t(),
+          authority: String.t(),
           headers: %{String.t() => String.t()},
           body_digest: String.t() | nil,
           lease: boolean() | nil
@@ -32,7 +34,7 @@ defmodule SiwaServerWeb.AgentSiwaRequest.HttpVerify do
     |> cast(params, @fields, empty_values: [])
     |> validate_required(@required)
     |> validate_headers()
-    |> AgentSiwaRequest.validate_nonblank([:method, :path])
+    |> AgentSiwaRequest.validate_nonblank([:method, :path, :authority])
   end
 
   defp validate_headers(changeset) do

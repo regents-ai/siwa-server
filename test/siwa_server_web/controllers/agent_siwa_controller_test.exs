@@ -36,6 +36,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     payload = %{
       "method" => "POST",
       "path" => "/v1/agent/bug-report",
+      "authority" => "patchbay.help",
       "headers" => %{
         "x-agent-wallet-address" => @wallet_address,
         "x-agent-chain-id" => Integer.to_string(@chain_id)
@@ -64,6 +65,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     payload = %{
       "method" => "GET",
       "path" => "/api/agents/v1/me",
+      "authority" => "patchbay.help",
       "headers" => %{
         "x-agent-wallet-address" => @wallet_address,
         "x-agent-chain-id" => Integer.to_string(@chain_id)
@@ -107,6 +109,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       |> json_post("/api/shared/siwa/http-verify", %{
         "method" => "GET",
         "path" => "/api/agents/v1/me",
+        "authority" => "patchbay.help",
         "headers" => signed_headers()
       })
 
@@ -121,6 +124,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       payload = %{
         "method" => "GET",
         "path" => "/api/agents/v1/me",
+        "authority" => "patchbay.help",
         "headers" => Map.put(signed_headers(), "x-siwa-signature", signature)
       }
 
@@ -327,7 +331,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     }
 
     components =
-      ~w(@method @path x-siwa-receipt x-key-id x-timestamp x-agent-wallet-address x-agent-chain-id)
+      ~w(@method @path @authority x-siwa-receipt x-key-id x-timestamp x-agent-wallet-address x-agent-chain-id)
 
     params =
       "(#{Enum.map_join(components, " ", &~s("#{&1}"))});created=#{created};expires=#{created + 120}" <>
@@ -338,6 +342,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       |> Enum.map(fn
         "@method" -> ~s("@method": get)
         "@path" -> ~s("@path": /api/agents/v1/me)
+        "@authority" -> ~s("@authority": patchbay.help)
         name -> ~s("#{name}": #{headers[name]})
       end)
       |> Kernel.++([~s("@signature-params": #{params})])

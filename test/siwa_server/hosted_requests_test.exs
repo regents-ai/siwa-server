@@ -5,6 +5,12 @@ defmodule SiwaServer.HostedRequestsTest do
   alias SiwaServer.Siwa.HttpVerifier
   alias SiwaServerWeb.Endpoint
 
+  @hosts %{
+    "patchbay" => "patchbay.help",
+    "keyfleet" => "keyfleet.ai",
+    "ash-template" => "template.regents.sh"
+  }
+
   setup do
     previous = Application.get_env(:siwa_keyring, :path)
     previous_siwa = Application.get_env(:siwa_server, :siwa)
@@ -100,11 +106,23 @@ defmodule SiwaServer.HostedRequestsTest do
       HostedRequests.handle("patchbay", %{
         "operation" => "sign",
         "identity_key" => identity,
-        "request" => %{"method" => "POST", "path" => "/chatgpt/agent/mcp", "body" => body}
+        "request" => %{
+          "method" => "POST",
+          "path" => "/chatgpt/agent/mcp",
+          "authority" => "patchbay.help",
+          "body" => body
+        }
       })
 
     {:ok, secret} = RuntimeConfig.siwa_receipt_secret()
-    opts = [receipt_secret: secret, audience: "patchbay", wallet_audiences: ["patchbay"]]
+
+    opts = [
+      receipt_secret: secret,
+      audience: "patchbay",
+      wallet_audiences: ["patchbay"],
+      authorities: ["patchbay.help"]
+    ]
+
     digest = Siwa.content_digest_for_body(body)
     envelope = signed |> Map.delete(:body) |> Map.put(:body_digest, digest)
     assert match?({:ok, _}, Siwa.verify_authenticated_request(envelope, opts))
@@ -124,6 +142,11 @@ defmodule SiwaServer.HostedRequestsTest do
                Keyword.put(opts, :audience, "keyfleet")
              )
            )
+
+    assert Siwa.verify_authenticated_request(
+             envelope,
+             Keyword.put(opts, :authorities, ["keyfleet.ai"])
+           ) == {:error, :authority_mismatch}
 
     # Exercise the actual service adapter, including the canonical replay store.
     params = Map.new(envelope, fn {key, value} -> {to_string(key), value} end)
@@ -172,7 +195,7 @@ defmodule SiwaServer.HostedRequestsTest do
       HostedRequests.handle(site, %{
         "operation" => "sign",
         "identity_key" => identity,
-        "request" => request
+        "request" => Map.put_new(request, "authority", @hosts[site])
       })
     end
 
@@ -200,7 +223,8 @@ defmodule SiwaServer.HostedRequestsTest do
                Siwa.verify_authenticated_request(envelope,
                  receipt_secret: secret,
                  audience: site,
-                 wallet_audiences: [site]
+                 wallet_audiences: [site],
+                 authorities: [@hosts[site]]
                )
              )
     end
@@ -213,6 +237,8 @@ defmodule SiwaServer.HostedRequestsTest do
           {"keyfleet", Map.put(whoami, "body", "")},
           {"keyfleet", %{whoami | "path" => "/api/agents/v1/whoami/"}},
           {"keyfleet", %{me | "method" => "POST"}},
+          {"keyfleet", Map.put(whoami, "authority", "patchbay.help")},
+          {"keyfleet", Map.put(whoami, "authority", "keyfleet.ai:4000")},
           {"regents", whoami},
           {"regents", pair.("claude")},
           {"keyfleet",
@@ -287,9 +313,18 @@ defmodule SiwaServer.HostedRequestsTest do
       assert HostedRequests.handle(site, %{
                "operation" => "sign",
                "identity_key" => identity,
-               "request" => request
+               "request" => Map.put(request, "authority", @hosts[site])
              }) == {:error, :hosted_request_not_allowed}
     end
+
+    {:ok, _} =
+      HostedRequests.handle("keyfleet", %{"operation" => "register", "identity_key" => identity})
+
+    assert HostedRequests.handle("keyfleet", %{
+             "operation" => "sign",
+             "identity_key" => identity,
+             "request" => %{"method" => "GET", "path" => "/api/agents/v1/whoami"}
+           }) == {:error, :hosted_request_not_allowed}
 
     assert HostedRequests.handle("patchbay", %{
              "operation" => "sign-message",

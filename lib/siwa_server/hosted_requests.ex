@@ -16,7 +16,7 @@ defmodule SiwaServer.HostedRequests do
   """
 
   alias SiwaServer.RuntimeConfig
-  alias SiwaServer.Siwa.Wallet
+  alias SiwaServer.Siwa.{HttpVerifier, Wallet}
 
   def handle(site, %{"operation" => "register", "identity_key" => key} = params)
       when map_size(params) == 2 do
@@ -30,14 +30,21 @@ defmodule SiwaServer.HostedRequests do
         %{"operation" => "sign", "identity_key" => key, "request" => request} = params
       )
       when map_size(params) == 3 do
-    with :ok <- allowed_request(site, request),
+    with {:ok, authority, request} <- authority(site, request),
+         :ok <- allowed_request(site, request),
          {:ok, identity} <- identity(site, key),
          {:ok, signer} <- SiwaKeyring.HostedIdentity.signer(identity),
          {:ok, address} <- Siwa.RemoteSigner.get_address(signer),
          {:ok, receipt} <- receipt(signer, address, site),
          {:ok, secret} <- RuntimeConfig.siwa_receipt_secret() do
       Siwa.sign_authenticated_request(
-        %{method: request["method"], path: request["path"], body: request["body"], headers: %{}},
+        %{
+          method: request["method"],
+          path: request["path"],
+          authority: authority,
+          body: request["body"],
+          headers: %{}
+        },
         receipt,
         signer,
         receipt_secret: secret,
@@ -48,6 +55,15 @@ defmodule SiwaServer.HostedRequests do
   end
 
   def handle(_site, _params), do: {:error, :hosted_request_not_allowed}
+
+  # The request is sent to one of the site's own hosts, so it is refused at any other.
+  defp authority(site, %{"authority" => authority} = request) do
+    if authority in HttpVerifier.authorities(site),
+      do: {:ok, authority, Map.delete(request, "authority")},
+      else: {:error, :hosted_request_not_allowed}
+  end
+
+  defp authority(_site, _request), do: {:error, :hosted_request_not_allowed}
 
   defp identity(site, key) when is_binary(key) do
     if Regex.match?(~r/\A[a-f0-9]{64}\z/, key) do

@@ -295,6 +295,13 @@ does. The server binds the origin, audience, address, chain and expiry in the
 challenge. An origin change invalidates outstanding challenges. Rate limits use the
 existing nonce/verification buckets. This option does not grant product permissions.
 
+Every signed request names the host it is sent to (`@authority`, from contract version
+2). A site sends the host it received the request at, and the server accepts it only when
+that host is one of the audience's origins here, so a request signed for one site is
+refused at every other (`401 http_signature_invalid`, "signed request is for another
+site"). Run anywhere but production, the table also accepts `http://localhost:<port>`, so
+a site run locally can check its agents' requests against a local server.
+
 The wallet is any secp256k1 key the agent controls. A key generated locally on the
 agent's own machine, holding no funds and registered nowhere, is enough to sign in;
 the address is the agent's identity for the audience. On a Mac, the clients lock the key

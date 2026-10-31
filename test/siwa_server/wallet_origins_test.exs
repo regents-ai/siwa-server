@@ -38,6 +38,24 @@ defmodule SiwaServer.WalletOriginsTest do
     end
   end
 
+  test "a server run for local work also accepts a localhost origin with a port" do
+    local = "keyfleet=https://keyfleet.ai,keyfleet=http://localhost:4000"
+
+    assert WalletOrigins.parse!(local, local: true) == %{
+             "keyfleet" => ["https://keyfleet.ai", "http://localhost:4000"]
+           }
+
+    assert_raise ArgumentError, fn -> WalletOrigins.parse!(local) end
+
+    for bad <- [
+          "site=http://localhost",
+          "site=http://127.0.0.1:4000",
+          "site=http://keyfleet.ai:4000"
+        ] do
+      assert_raise ArgumentError, fn -> WalletOrigins.parse!(bad, local: true) end
+    end
+  end
+
   # R-20261018-numeric-origin: a browser writes https://2130706433, https://0x7f.0.0.1 and
   # https://127.1 all as https://127.0.0.1, so a numeric host could be listed under two
   # audiences. An origin is a site's name; its last label starts with a letter.

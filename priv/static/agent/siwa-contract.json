@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "label": "sig1",
   "signature_header": "x-siwa-signature",
   "signature_input_header": "x-siwa-signature-input",
@@ -11,6 +11,10 @@
     {
       "name": "@path",
       "from": "path"
+    },
+    {
+      "name": "@authority",
+      "from": "authority"
     },
     {
       "name": "x-siwa-receipt",
@@ -131,6 +135,12 @@
       "status": 401,
       "code": "http_signature_input_invalid",
       "message": "invalid covered components"
+    },
+    {
+      "reason": "authority_mismatch",
+      "status": 401,
+      "code": "http_signature_invalid",
+      "message": "signed request is for another site"
     },
     {
       "reason": "request_body_required",

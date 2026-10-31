@@ -309,7 +309,12 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     # Signed as an agent signs: from its sign-in answer, without the receipt's secret.
     {:ok, signed} =
       Siwa.sign_request(
-        %{method: "POST", path: "/api/agent/payment-intents?mode=create", body: "{}"},
+        %{
+          method: "POST",
+          path: "/api/agent/payment-intents?mode=create",
+          authority: "patchbay.help",
+          body: "{}"
+        },
         %{
           receipt: verified["data"]["receipt"],
           key_id: verified["data"]["keyId"],
@@ -322,6 +327,7 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     request = %{
       "method" => signed.method,
       "path" => signed.path,
+      "authority" => signed.authority,
       "headers" => signed.headers,
       "body_digest" => Siwa.content_digest_for_body(signed.body)
     }
@@ -332,10 +338,23 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
            )
            |> json_response(401)
 
-    assert %{"hint" => hint} =
-             http_verify(request, "techtree") |> json_response(401) |> Map.fetch!("error")
+    # Sent to another site that accepts agents, a sign-in for this one is refused there.
+    config = Application.get_env(:siwa_server, :siwa)
 
-    assert hint =~ "Your sign-in for techtree has ended or was made for another site."
+    Application.put_env(
+      :siwa_server,
+      :siwa,
+      Keyword.update!(config, :wallet_origins, &Map.put(&1, "techtree", ["https://techtree.sh"]))
+    )
+
+    assert %{"hint" => hint} =
+             %{request | "authority" => "techtree.sh"}
+             |> http_verify("techtree")
+             |> json_response(401)
+             |> Map.fetch!("error")
+
+    assert hint =~ "Your sign-in for https://techtree.sh has ended or was made for another site."
+    Application.put_env(:siwa_server, :siwa, config)
     human_id = "0x" <> String.duplicate("ab", 32)
 
     Repo.insert!(

@@ -13,22 +13,31 @@ defmodule SiwaServer.WalletOrigins do
   last label starts with a letter, and no label is longer than 63 characters. An empty or missing value
   disables wallet sign-in for every audience. Callers never supply origins; only
   this table does.
+
+  A server run on a computer for local work (`local: true`, every environment
+  but production) also accepts `http://localhost:<port>`, so a site run there
+  can check the requests its agents sign for it.
   """
 
   @audience_regex ~r/^[a-z0-9][a-z0-9_-]{0,63}$/
   # Labels of at most 63 characters; the last starts with a letter, so no host is a number.
   @origin_regex ~r/\Ahttps:\/\/(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?\z/
 
-  @spec parse!(String.t() | nil) :: %{String.t() => [String.t(), ...]}
-  def parse!(value) when value in [nil, ""], do: %{}
+  @local_origin_regex ~r/\Ahttp:\/\/localhost:[1-9][0-9]{0,4}\z/
 
-  def parse!(value) when is_binary(value) do
+  @spec parse!(String.t() | nil, keyword()) :: %{String.t() => [String.t(), ...]}
+  def parse!(value, opts \\ [])
+  def parse!(value, _opts) when value in [nil, ""], do: %{}
+
+  def parse!(value, opts) when is_binary(value) do
+    local = Keyword.get(opts, :local, false)
+
     entries =
       value
       |> String.split(",", trim: true)
       |> Enum.map(&String.trim/1)
       |> Enum.reject(&(&1 == ""))
-      |> Enum.map(&parse_entry!/1)
+      |> Enum.map(&parse_entry!(&1, local))
 
     case entries |> Enum.map(&elem(&1, 1)) |> duplicate() do
       nil -> :ok
@@ -45,10 +54,10 @@ defmodule SiwaServer.WalletOrigins do
     |> Enum.find_value(fn {origin, count} -> if count > 1, do: origin end)
   end
 
-  defp parse_entry!(entry) do
+  defp parse_entry!(entry, local) do
     case String.split(entry, "=", parts: 2) do
       [audience, origin] ->
-        {validate_audience!(String.trim(audience)), validate_origin!(String.trim(origin))}
+        {validate_audience!(String.trim(audience)), validate_origin!(String.trim(origin), local)}
 
       _ ->
         raise ArgumentError,
@@ -64,10 +73,11 @@ defmodule SiwaServer.WalletOrigins do
     end
   end
 
-  defp validate_origin!(origin) do
+  defp validate_origin!(origin, local) do
     origin = String.replace_suffix(origin, "/", "")
 
-    if Regex.match?(@origin_regex, origin) do
+    if Regex.match?(@origin_regex, origin) or
+         (local and Regex.match?(@local_origin_regex, origin)) do
       origin
     else
       raise ArgumentError,
