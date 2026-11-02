@@ -7,6 +7,7 @@ the version before it. Times are UTC.
 
 | Fly version | Commit | Released | Notes |
 | --- | --- | --- | --- |
+| v81 | 567b7c4 | 2026-11-02 16:07Z | SIWA v2: every signed request names its site (`@authority`), hard cutover in one window with six sites, Sentinel, regents-cli 1.10.22 and the phone backend (Sean "1. a" 31 Oct); elixir-utils 6447536; rolls back to v80 894570c |
 | v80 | 894570c | 2026-10-31 22:19Z | Bandit 1.14.1 closes EEF-CVE-2026-116078 (HTTP/2 one-byte body pieces amplify memory, HIGH); mix.lock only; rolls back to v79 3e5efab |
 | v79 | 3e5efab | 2026-10-30 22:03Z | Docs only: README and agent guide say a person's World ID number is public (Sean "3. a" 30 Oct 16:18Z); rolls back to v78 ecb2382 |
 | v78 | ecb2382 | 2026-10-29 17:43Z | Docs only: services contract lists `/api/agents/v1/me` for hosted requests and drops the stale "allowlisted free participation" wording; feature map and README name the template's connector (coordinator review); rolls back to v77 1217599 |

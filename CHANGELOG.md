@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 2 November 2026
+
 - Every signed request names the site it is for. The shared sign-in library (elixir-utils
   6447536, contract version 2) adds the host the request is sent to (`@authority`) to what
   an agent signs, and a site sends the host it received the request at to
