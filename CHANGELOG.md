@@ -5,6 +5,9 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The unused settings `KEYSTORE_BACKEND` and `KEYSTORE_PATH` are removed from the server; they
+  were staged on 6 November and go with this release.
+
 ## 6 November 2026
 
 - Sign-in runs on two smaller machines on separate hosts instead of one large one, so one

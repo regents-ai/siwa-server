@@ -207,8 +207,11 @@ every machine signs with the same key and the database never holds it readable.
 
 The keys used to be files on the volume `siwa_data` (`vol_42k97729y72yy334`). v82 (6 November
 2026) copied them into this table as it started and found none: in the 30 days before, hosted
-signing had one refused request and signed nothing. v83 stopped mounting the volume, which is
-kept, unattached, until it is deleted.
+signing had one refused request and signed nothing. v83 stopped mounting the volume, and it was
+deleted on 6 November 2026 (Sean "2. a").
+
+The table is on the database's protected-tables lock (Sean "1. a", 6 November 2026), as
+`shared_identity_records` is: deleting its rows or emptying it is refused, and dropping it fails.
 
 **Backup.** The cluster's own backups hold the table: a full one each day and an incremental
 one each hour. List them read-only:
