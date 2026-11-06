@@ -5,13 +5,12 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 6 November 2026
+
 - Sign-in runs on two smaller machines on separate hosts instead of one large one, so one
   machine stopping no longer stops sign-in. Each has 2 shared processors and 2 GB of memory,
   about four times the most the service has used. The disk the keys used to live on is no
   longer mounted, and its two settings (`KEYSTORE_BACKEND`, `KEYSTORE_PATH`) are no longer read.
-
-## 6 November 2026
-
 - Hosted connections' signing keys are kept in the sign-in database, encrypted exactly as
   before, instead of in files on the server's disk. The release copies every existing key
   across unchanged, so each connection keeps its agent and address. Nothing changes for

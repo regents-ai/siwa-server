@@ -7,6 +7,9 @@ the version before it. Times are UTC.
 
 | Fly version | Commit | Released | Notes |
 | --- | --- | --- | --- |
+| v85 | a0731b4 | 2026-11-06 02:16Z | The usual release script on two machines, for its record: both run a0731b4, /readyz all true, served files match; sign-in limit shared across the machines (30 requests to each, then the next on each refused); rolls back to v83 |
+| v84 | a0731b4 | 2026-11-06 02:15Z | Failed and changed nothing: Fly could not start the machine that runs migrations; both machines stayed on v83 |
+| v83 | a0731b4 | 2026-11-06 02:14Z | Two shared-cpu-2x 2 GB machines (28655996be2728, 8111752f997408, iad) in place of one performance-2x 4 GB (Sean "1. a" 5 Nov); the volume is no longer mounted. flyctl refuses to drop a mounted volume without `--yes`, so this one release ran by hand: `fly deploy --image` of the image deploy.sh had built, with `--yes`, then `fly scale count 2 --yes`. The volume `siwa_data` (vol_42k97729y72yy334) is kept, unattached. Rolls back to v82 only by mounting the volume again: v82's image with its fly.toml (one performance-2x 4 GB machine) |
 | v82 | 3662583 | 2026-11-06 00:56Z | Hosted connection keys and request limits move into the sign-in database, step one of two machines (Sean "1. yes" and "1. a" 5 Nov); elixir-utils 6f0f3de (siwa_keyring 0.3.0); the copy found no key files on the volume, matching 30 days of hosted signing with one refused request and none signed; still one machine with the volume; rolls back to v81 567b7c4 |
 | v81 | 567b7c4 | 2026-11-02 16:07Z | SIWA v2: every signed request names its site (`@authority`), hard cutover in one window with six sites, Sentinel, regents-cli 1.10.22 and the phone backend (Sean "1. a" 31 Oct); elixir-utils 6447536; rolls back to v80 894570c |
 | v80 | 894570c | 2026-10-31 22:19Z | Bandit 1.14.1 closes EEF-CVE-2026-116078 (HTTP/2 one-byte body pieces amplify memory, HIGH); mix.lock only; rolls back to v79 3e5efab |
