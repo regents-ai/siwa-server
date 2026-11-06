@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 6 November 2026
+
 - Hosted connections' signing keys are kept in the sign-in database, encrypted exactly as
   before, instead of in files on the server's disk. The release copies every existing key
   across unchanged, so each connection keeps its agent and address. Nothing changes for
