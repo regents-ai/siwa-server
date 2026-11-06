@@ -8,10 +8,8 @@ defmodule SiwaServer.HostedIdentities do
 
   import Ecto.Query
 
-  require Logger
-
   alias SiwaKeyring.HostedIdentity
-  alias SiwaServer.Repo
+  alias SiwaServer.{Repo, RuntimeConfig}
 
   @table "siwa_hosted_identities"
 
@@ -47,59 +45,5 @@ defmodule SiwaServer.HostedIdentities do
     end
   end
 
-  defp password, do: Application.fetch_env!(:siwa_keyring, :password)
-
-  @doc false
-  # Started once before the site answers, in the release that moves the keys off the
-  # volume: copies each key file into the database unchanged, then logs how many of
-  # the files the database holds byte for byte. The next release removes it.
-  def copy_from_volume do
-    dir = Application.fetch_env!(:siwa_keyring, :path) <> ".hosted"
-
-    case File.ls(dir) do
-      {:ok, names} -> copy_files(dir, names)
-      {:error, :enoent} -> Logger.info("hosted keys on the volume: none")
-    end
-
-    :ignore
-  end
-
-  # The folder is the operator-configured key store's and each name read matched
-  # the 64-letter identity pattern; nothing a caller sends reaches File.read!.
-  # sobelow_skip ["Traversal.FileModule"]
-  defp copy_files(dir, names) do
-    files =
-      for name <- names,
-          [_, identity] <- [Regex.run(~r/\A([a-f0-9]{64})\.bin\z/, name)],
-          do: {identity, File.read!(Path.join(dir, name))}
-
-    {copied, _} =
-      Repo.insert_all(
-        @table,
-        Enum.map(files, fn {identity, encrypted} ->
-          %{identity: identity, encrypted_wallet: encrypted}
-        end),
-        on_conflict: :nothing
-      )
-
-    stored =
-      Map.new(
-        Repo.all(
-          from(h in @table,
-            where: h.identity in ^Enum.map(files, &elem(&1, 0)),
-            select: {h.identity, h.encrypted_wallet}
-          )
-        )
-      )
-
-    matching = Enum.count(files, fn {identity, encrypted} -> stored[identity] == encrypted end)
-
-    level = if matching == length(files), do: :info, else: :error
-
-    Logger.log(
-      level,
-      "hosted keys on the volume: #{length(files)}, copied now: #{copied}, " <>
-        "the same in the database: #{matching}"
-    )
-  end
+  defp password, do: RuntimeConfig.siwa_keystore_password()
 end

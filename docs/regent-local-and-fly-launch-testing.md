@@ -33,14 +33,6 @@ curl -fsS http://127.0.0.1:4100/regent-services-contract.openapiv3.yaml >/tmp/re
 
 ```bash
 export SIWA_FLY_APP=<siwa-fly-app>
-
-fly volumes list --app "$SIWA_FLY_APP"
-```
-
-If `siwa_data` is missing, create it:
-
-```bash
-fly volumes create siwa_data --app "$SIWA_FLY_APP" --region iad --size 1
 ```
 
 Set secrets from the current `direnv` environment without printing values. Leave values supplied by `fly.toml` or runtime defaults out of the secrets command unless you are deliberately changing them.

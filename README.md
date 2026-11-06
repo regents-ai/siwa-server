@@ -133,8 +133,6 @@ agent instead: its caller is a site's server, speaking for all of that site's ag
 | `SIWA_HOSTED_SIGNERS` | unset | Each site's own key for hosted signing (Patchbay's ChatGPT app, Keyfleet's and the template's Claude connectors), as `site=key` pairs. Unset lets no site sign. |
 | `SIWA_WALLET_ORIGINS` | unset | Approved `audience=origin` pairs for wallet sign-in, comma separated; an audience may repeat with more origins. Unset disables it. |
 | `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Expired nonce, replay and activity rows removed per batch. A sweep runs once a minute and repeats batches until one comes back short, at most 20 for each kind. |
-| `KEYSTORE_BACKEND` | `encrypted_file` | Key store backend. `encrypted_file` is the only accepted value; anything else stops the boot. |
-| `KEYSTORE_PATH` | `/tmp/siwa-server-keystore.bin` | Where the volume's key files were: they are read from `<KEYSTORE_PATH>.hosted/` once, as they are copied into the database. Production's path is set by the `KEYSTORE_PATH` Fly secret, on the `siwa_data` volume at `/data`. |
 
 > [!WARNING]
 > `SIWA_RECEIPT_SECRET` and `KEYSTORE_PASSWORD` are the two values that keep this service
@@ -167,9 +165,12 @@ level and the checks that prove each part, with the gaps that have no check yet.
 
 > [!WARNING]
 > `fly.toml` deploys this as the Fly.io app `siwa-server`. Its release command runs database
-> migrations on every deploy, it keeps one machine running, and it mounts `/data` for the
-> encrypted key store — so a deploy touches both the live sign-in database and the volume the
-> signing keys live on. Confirm the target before running one.
+> migrations on every deploy, and the hosted connections' signing keys live in that database —
+> so a deploy touches the live sign-in database. Confirm the target before running one.
+
+The app runs two machines on separate hosts. They share nothing but the sign-in database:
+sign-in codes, used signed requests, request limits and hosted connection keys are all there,
+so either machine answers any request.
 
 Release with the one script, from a clean checkout whose commit is on `origin/main`:
 
@@ -177,16 +178,16 @@ Release with the one script, from a clean checkout whose commit is on `origin/ma
 scripts/deploy.sh
 ```
 
-It refuses a changed working tree, a commit that is not on `origin/main`, an app that does not
-run exactly one machine (only one can mount the key store volume), and a commit that does not
-contain the live one (the `revision` label on the running image, read with `fly image show`).
+It refuses a changed working tree, a commit that is not on `origin/main`, and a commit that
+does not contain every live one (the `revision` label on each running image, read with
+`fly image show`).
 It builds from `git archive` of the commit in a fresh release folder,
 `tmp/releases/<time>-<commit>/`, and deploys it with `--remote-only` and `--ha=false`, labelling
 the image with the commit (`revision`) and the elixir-utils commit `mix.exs` pins
 (`elixir-utils`). Fly's logs stream into that folder from before the deploy until the checks
 after it end. Every check runs even when another fails, and any failure ends with a line saying
-the commit is deployed but a check failed. The checks: the app runs exactly one machine and its
-image names the commit, `/readyz` answers ready with every check true, and the served
+the commit is deployed but a check failed. The checks: the app runs exactly two machines and both
+images name the commit, `/readyz` answers ready with every check true, and the served
 helpers (`/agent/siwa_agent.py`, `/agent/siwa-agent.mjs`, `/agent/siwa-contract.json`) and guide
 (`/skill.md`) have the same sha256 as the files in git. The folder stays as the release record;
 then add the release to `RELEASES.md`.
@@ -204,10 +205,10 @@ key is encrypted with AES-256-GCM under a key made from `KEYSTORE_PASSWORD` (PBK
 100,000 rounds, a salt of its own; `SiwaKeyring.HostedIdentity` in the pinned elixir-utils), so
 every machine signs with the same key and the database never holds it readable.
 
-The release of 6 November 2026 copies the files the volume `siwa_data`
-(`vol_42k97729y72yy334`) held into this table unchanged as it starts, and logs how many of
-them the table holds byte for byte. The volume stays mounted for that one release; the next
-one removes it.
+The keys used to be files on the volume `siwa_data` (`vol_42k97729y72yy334`). v82 (6 November
+2026) copied them into this table as it started and found none: in the 30 days before, hosted
+signing had one refused request and signed nothing. v83 stopped mounting the volume, which is
+kept, unattached, until it is deleted.
 
 **Backup.** The cluster's own backups hold the table: a full one each day and an incremental
 one each hour. List them read-only:

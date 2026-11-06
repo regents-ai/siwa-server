@@ -16,7 +16,8 @@ config :siwa_server, :siwa,
   receipt_ttl_seconds: 3_600,
   receipt_secret: nil,
   activity_readers: %{},
-  hosted_signers: %{}
+  hosted_signers: %{},
+  keystore_password: nil
 
 config :siwa_server, Oban,
   repo: SiwaServer.Repo,
@@ -45,11 +46,6 @@ config :siwa_server, :behind_fly_proxy, false
 
 # Metrics have a listener of their own (SiwaServerWeb.Metrics), on loopback locally.
 config :siwa_server, :metrics_listener, ip: {127, 0, 0, 1}, port: 0
-
-config :siwa_keyring,
-  backend: "encrypted_file",
-  password: nil,
-  path: "/tmp/siwa-server-keystore.bin"
 
 # Configure Elixir's Logger
 config :logger, :default_formatter,

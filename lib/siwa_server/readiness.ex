@@ -9,7 +9,6 @@ defmodule SiwaServer.Readiness do
   @base_chain_id_hex "0x2105"
   @ethereum_chain_id_hex "0x1"
   @world_chain_id_hex "0x1e0"
-  @supported_keyring_backend "encrypted_file"
 
   def check do
     results = %{
@@ -17,9 +16,7 @@ defmodule SiwaServer.Readiness do
       endpoint_secret: endpoint_secret_check(),
       receipt_secret: receipt_secret_check(),
       siwa_ttls: siwa_ttl_check(),
-      keyring_backend: keyring_backend_check(),
-      keyring_password: keyring_password_check(),
-      keystore_path: keystore_path_check(),
+      keystore_password: keystore_password_check(),
       base_rpc_url: rpc_url_check("BASE_RPC_URL", RuntimeConfig.base_rpc_url()),
       base_rpc_chain_id:
         rpc_chain_id_check("BASE_RPC_URL", RuntimeConfig.base_rpc_url(), @base_chain_id_hex),
@@ -74,55 +71,10 @@ defmodule SiwaServer.Readiness do
     error in ArgumentError -> {:error, Exception.message(error)}
   end
 
-  defp keyring_backend_check do
-    case Application.get_env(:siwa_keyring, :backend) do
-      @supported_keyring_backend ->
-        :ok
-
-      backend ->
-        {:error, "keyring backend #{inspect(backend)} is not #{@supported_keyring_backend}"}
-    end
-  end
-
-  defp keyring_password_check do
-    :siwa_keyring
-    |> Application.get_env(:password)
-    |> secret_check("keyring password is not configured")
-  end
-
-  defp keystore_path_check do
-    with :ok <- keyring_backend_check() do
-      encrypted_file_keystore_path_check()
-    end
-  end
-
-  defp encrypted_file_keystore_path_check do
-    path = Application.get_env(:siwa_keyring, :path)
-
-    cond do
-      not non_empty_binary?(path) ->
-        {:error, "keystore path is not configured"}
-
-      not File.dir?(Path.dirname(path)) ->
-        {:error, "keystore directory does not exist"}
-
-      true ->
-        keystore_write_check(Path.dirname(path))
-    end
-  end
-
-  # The parent is the operator-configured keystore directory and the probe name is
-  # generated here; no caller-supplied path reaches File.write or File.rm.
-  # sobelow_skip ["Traversal.FileModule"]
-  defp keystore_write_check(parent) do
-    probe = Path.join(parent, ".siwa-readyz-#{System.unique_integer([:positive])}")
-
-    with :ok <- File.write(probe, ""),
-         :ok <- File.rm(probe) do
-      :ok
-    else
-      {:error, posix} -> {:error, "keystore directory is not writable: #{posix}"}
-    end
+  defp keystore_password_check do
+    Config.siwa()
+    |> Keyword.get(:keystore_password)
+    |> secret_check("keystore password is not configured")
   end
 
   defp rpc_url_check(env_name, url) do

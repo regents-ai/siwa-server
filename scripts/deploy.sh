@@ -5,16 +5,14 @@
 #
 # It refuses a working tree with any change, a commit that is not on
 # origin/main, and a commit that does not contain the one already live, so what
-# runs is always what the repository holds and never takes live work out. It
-# also refuses unless the app runs exactly one machine: only one machine can
-# mount the key store volume. The build context is `git archive` of the commit
-# in a fresh release folder, so no local file outside git reaches the image. The
+# runs is always what the repository holds and never takes live work out. The
+# build context is `git archive` of the commit in a fresh release folder, so no local file outside git reaches the image. The
 # image is labelled with the full commit (revision) and the elixir-utils commit
 # mix.exs pins (elixir-utils).
 #
 # Fly's logs stream into the release folder from before the deploy until the
 # checks after it are done. Every check runs even when another fails: the app
-# runs exactly one machine and its image names this commit, /readyz answers
+# runs exactly two machines and both images name this commit, /readyz answers
 # ready with every check true, and the served agent helpers and guide are byte
 # for byte the files in git.
 #
@@ -62,19 +60,16 @@ if ! revisions="$(machine_revisions)"; then
   exit 1
 fi
 read -r -a machines <<<"$revisions"
-if [[ ${#machines[@]} -ne 1 ]]; then
-  echo "Refusing to deploy: $app runs ${#machines[@]} machines; the key store needs exactly one." >&2
-  exit 1
-fi
-live="${machines[0]}"
-if [[ $live == none ]]; then
-  echo "Refusing to deploy: the live image has no revision label to compare with." >&2
-  exit 1
-fi
-if ! git merge-base --is-ancestor "$live" "$commit" 2>/dev/null; then
-  echo "Refusing to deploy: ${commit:0:7} does not contain the live commit ${live:0:7}. Update to origin/main first." >&2
-  exit 1
-fi
+for live in "${machines[@]}"; do
+  if [[ $live == none ]]; then
+    echo "Refusing to deploy: a live image has no revision label to compare with." >&2
+    exit 1
+  fi
+  if ! git merge-base --is-ancestor "$live" "$commit" 2>/dev/null; then
+    echo "Refusing to deploy: ${commit:0:7} does not contain the live commit ${live:0:7}. Update to origin/main first." >&2
+    exit 1
+  fi
+done
 
 elixir_utils="$(sed -n 's/^  @elixir_utils_ref "\([0-9a-f]\{40\}\)"$/\1/p' mix.exs)"
 if [[ ${#elixir_utils} -ne 40 ]]; then
@@ -92,7 +87,7 @@ logs_pid=$!
 trap 'kill "$logs_pid" 2>/dev/null || true' EXIT
 sleep 3
 
-echo "==> Deploying ${commit:0:7} (elixir-utils ${elixir_utils:0:7}) to $app; live is ${live:0:7}"
+echo "==> Deploying ${commit:0:7} (elixir-utils ${elixir_utils:0:7}) to $app; live is ${revisions}"
 echo "==> Release folder: $release"
 fly deploy "$release/context" \
   --config "$release/context/fly.toml" \
@@ -109,10 +104,10 @@ check() {
 
 revisions="$(machine_revisions)" || revisions="unreadable"
 read -r -a machines <<<"$revisions"
-if [[ ${#machines[@]} -eq 1 && ${machines[0]} == "$commit" ]]; then
-  check "ok   one machine, image revision $commit"
+if [[ $revisions == "$commit $commit" ]]; then
+  check "ok   two machines, image revision $commit"
 else
-  check "FAIL machines run \"$revisions\", not exactly one on $commit"
+  check "FAIL machines run \"$revisions\", not exactly two on $commit"
   failed=1
 fi
 

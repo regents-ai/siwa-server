@@ -22,7 +22,6 @@ end
 
 current_siwa = Application.get_env(:siwa_server, :siwa, [])
 current_siwa_cleanup = Application.get_env(:siwa_server, :siwa_cleanup, [])
-current_keyring = Application.get_all_env(:siwa_keyring)
 
 env_integer = fn name, default ->
   case System.get_env(name) do
@@ -88,7 +87,7 @@ receipt_secret =
 keystore_password =
   if prod?,
     do: required_env.("KEYSTORE_PASSWORD"),
-    else: env_value.("KEYSTORE_PASSWORD", Keyword.get(current_keyring, :password, "change-me"))
+    else: env_value.("KEYSTORE_PASSWORD", Keyword.fetch!(current_siwa, :keystore_password))
 
 activity_readers =
   case env_value.("SIWA_ACTIVITY_READERS", nil) do
@@ -100,13 +99,6 @@ activity_readers =
 if prod?, do: required_env.("BASE_RPC_URL")
 if prod?, do: required_env.("ETHEREUM_RPC_URL")
 if prod?, do: required_env.("WORLD_RPC_URL")
-
-keystore_backend =
-  env_value.("KEYSTORE_BACKEND", Keyword.get(current_keyring, :backend, "encrypted_file"))
-
-unless keystore_backend == "encrypted_file" do
-  raise("environment variable KEYSTORE_BACKEND must be encrypted_file.")
-end
 
 config :siwa_server, SiwaServerWeb.Endpoint, http: [port: port]
 
@@ -132,20 +124,12 @@ config :siwa_server, :siwa,
     ),
   receipt_secret: receipt_secret,
   activity_readers: activity_readers,
-  hosted_signers: hosted_signers
+  hosted_signers: hosted_signers,
+  keystore_password: keystore_password
 
 config :siwa_server, :siwa_cleanup,
   batch_size:
     env_integer.("SIWA_CLEANUP_BATCH_SIZE", Keyword.get(current_siwa_cleanup, :batch_size, 1_000))
-
-config :siwa_keyring,
-  backend: keystore_backend,
-  password: keystore_password,
-  path:
-    env_value.(
-      "KEYSTORE_PATH",
-      Keyword.get(current_keyring, :path, "/data/siwa-server-keystore.bin")
-    )
 
 if prod? do
   database_url =

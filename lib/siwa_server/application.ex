@@ -15,11 +15,6 @@ defmodule SiwaServer.Application do
       [
         SiwaServerWeb.Telemetry,
         SiwaServer.Repo,
-        %{
-          id: :copy_hosted_keys,
-          start: {SiwaServer.HostedIdentities, :copy_from_volume, []},
-          restart: :temporary
-        },
         {Oban, Application.fetch_env!(:siwa_server, Oban)},
         {Finch, name: SiwaServer.Finch},
         {Task.Supervisor, name: SiwaServer.TaskSupervisor},

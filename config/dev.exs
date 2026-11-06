@@ -88,9 +88,8 @@ config :siwa_server, SiwaServerWeb.Endpoint,
 config :siwa_server, dev_routes: true
 
 config :siwa_server, :siwa,
-  activity_readers: %{"regents" => "siwa-dev-regents-activity-read-key-0001"}
-
-config :siwa_keyring, password: "change-me"
+  activity_readers: %{"regents" => "siwa-dev-regents-activity-read-key-0001"},
+  keystore_password: "change-me"
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"

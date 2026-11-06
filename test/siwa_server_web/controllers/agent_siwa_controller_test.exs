@@ -191,9 +191,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     assert checks["database"] == true
     assert checks["endpoint_secret"] == true
     assert checks["receipt_secret"] == true
-    assert checks["keyring_backend"] == true
-    assert checks["keyring_password"] == true
-    assert checks["keystore_path"] == true
+    assert checks["keystore_password"] == true
     assert checks["base_rpc_url"] == true
     assert checks["base_rpc_chain_id"] == true
     assert checks["ethereum_rpc_url"] == true
@@ -269,27 +267,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     assert %{"ready" => false, "checks" => checks} = json_response(ready_conn, 503)
     assert checks["base_rpc_url"] == true
     assert checks["base_rpc_chain_id"] == false
-  end
-
-  test "readyz fails for unsupported keyring backends", %{conn: conn} do
-    original_keyring = Application.get_all_env(:siwa_keyring)
-    Application.put_env(:siwa_keyring, :backend, "memory")
-
-    on_exit(fn ->
-      for {key, _value} <- Application.get_all_env(:siwa_keyring) do
-        Application.delete_env(:siwa_keyring, key)
-      end
-
-      Enum.each(original_keyring, fn {key, value} ->
-        Application.put_env(:siwa_keyring, key, value)
-      end)
-    end)
-
-    ready_conn = get(conn, "/readyz")
-
-    assert %{"ready" => false, "checks" => checks} = json_response(ready_conn, 503)
-    assert checks["keyring_backend"] == false
-    assert checks["keystore_path"] == false
   end
 
   defp json_post(conn, path, params) do

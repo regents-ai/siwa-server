@@ -29,9 +29,9 @@ kill_timeout = "5s"
   min_machines_running = 1
   processes = ["app"]
 
-  # At most 200 requests reach the machine at once; Fly holds the rest.
+  # At most 200 requests reach each machine at once; Fly holds the rest.
   # A 64 KB body can still cost a few MB to decode, so 200 at once is under
-  # 1 GB, well inside the 4 GB machine.
+  # 1 GB, inside each 2 GB machine.
   [http_service.concurrency]
     type = "requests"
     hard_limit = 200
@@ -50,12 +50,8 @@ kill_timeout = "5s"
   [http_service.checks.headers]
     Host = "localhost"
 
-# The key store and hosted signers live on this volume: run exactly one machine.
-[[mounts]]
-  source = "siwa_data"
-  destination = "/data"
-
+# Two machines on separate hosts share nothing but the sign-in database.
 [[vm]]
-  cpu_kind = "performance"
+  cpu_kind = "shared"
   cpus = 2
-  memory_mb = 4096
+  memory_mb = 2048

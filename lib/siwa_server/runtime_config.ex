@@ -22,6 +22,8 @@ defmodule SiwaServer.RuntimeConfig do
 
   def siwa_hosted_signers, do: Keyword.fetch!(Config.siwa(), :hosted_signers)
 
+  def siwa_keystore_password, do: Keyword.fetch!(Config.siwa(), :keystore_password)
+
   def siwa_wallet_origins, do: Keyword.get(Config.siwa(), :wallet_origins, %{})
 
   def siwa_nonce_ttl_seconds, do: fetch_siwa_integer(:nonce_ttl_seconds, 300)
