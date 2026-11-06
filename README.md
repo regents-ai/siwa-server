@@ -10,8 +10,8 @@ Regents Labs on Fly.io. It answers one kind of question — is this request real
 agent, for this audience, and has it been seen before — and nothing else.
 
 > [!IMPORTANT]
-> This service holds signing keys. It runs an encrypted key store on a mounted volume for
-> hosted signing. Treat every deployment and every secret here as security-critical.
+> This service holds signing keys: each hosted connection's key, encrypted, in the sign-in
+> database. Treat every deployment and every secret here as security-critical.
 
 It owns:
 
@@ -114,7 +114,7 @@ agent instead: its caller is a site's server, speaking for all of that site's ag
 | `SECRET_KEY_BASE` | Yes in production | Endpoint signing secret. |
 | `PHX_HOST` | Yes in production | Public hostname the endpoint builds URLs from. |
 | `SIWA_RECEIPT_SECRET` | Yes in production | Secret that binds and validates receipts. |
-| `KEYSTORE_PASSWORD` | Yes in production | Password for the encrypted key store. |
+| `KEYSTORE_PASSWORD` | Yes in production | Password the hosted connections' keys are encrypted with. |
 | `BASE_RPC_URL` | Yes in production | Base mainnet JSON-RPC endpoint. |
 | `ETHEREUM_RPC_URL` | Yes in production | Ethereum mainnet JSON-RPC endpoint, for smart wallets that sign in on Ethereum. |
 | `WORLD_RPC_URL` | Yes in production | World Chain JSON-RPC endpoint, for reading World's AgentBook. |
@@ -134,7 +134,7 @@ agent instead: its caller is a site's server, speaking for all of that site's ag
 | `SIWA_WALLET_ORIGINS` | unset | Approved `audience=origin` pairs for wallet sign-in, comma separated; an audience may repeat with more origins. Unset disables it. |
 | `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Expired nonce, replay and activity rows removed per batch. A sweep runs once a minute and repeats batches until one comes back short, at most 20 for each kind. |
 | `KEYSTORE_BACKEND` | `encrypted_file` | Key store backend. `encrypted_file` is the only accepted value; anything else stops the boot. |
-| `KEYSTORE_PATH` | `/tmp/siwa-server-keystore.bin` | Where the encrypted key store lives. Production's path is set by the `KEYSTORE_PATH` Fly secret, on the `siwa_data` volume at `/data`. |
+| `KEYSTORE_PATH` | `/tmp/siwa-server-keystore.bin` | Where the volume's key files were: they are read from `<KEYSTORE_PATH>.hosted/` once, as they are copied into the database. Production's path is set by the `KEYSTORE_PATH` Fly secret, on the `siwa_data` volume at `/data`. |
 
 > [!WARNING]
 > `SIWA_RECEIPT_SECRET` and `KEYSTORE_PASSWORD` are the two values that keep this service
@@ -196,57 +196,40 @@ says what changed for agents, people and sites.
 
 The launch and maintenance checklist is in `docs/regent-local-and-fly-launch-testing.md`.
 
-### Key store backup and restore
+### Hosted connection keys: backup and restore
 
-The volume `siwa_data` (`vol_42k97729y72yy334`, 1 GB, `iad`, encrypted at rest) is mounted at
-`/data` on the one machine. It holds one file per hosted connection in the folder
-`<KEYSTORE_PATH>.hosted/`, where the path is set by the `KEYSTORE_PATH` Fly secret (its value
-was not read; that it points under `/data` is unconfirmed). Nothing in this server writes the
-`KEYSTORE_PATH` file itself any more; whether an older one is there is unconfirmed (no read of
-the volume). Each file is
-encrypted with AES-256-GCM under a key made from `KEYSTORE_PASSWORD` (PBKDF2-SHA256, 100,000 rounds, a salt of its own) and is readable
-by the service alone (mode 0600; `SiwaKeyring.Keystore` and `SiwaKeyring.HostedIdentity` in the
-pinned elixir-utils). The sign-in database is not on this volume.
+Each hosted connection's key is one row of `siwa_hosted_identities` in the sign-in database
+(`siwa_server` on the Fly managed Postgres cluster `regent-siwa-prod`, `d1zj5omk7z3ryqkv`). The
+key is encrypted with AES-256-GCM under a key made from `KEYSTORE_PASSWORD` (PBKDF2-SHA256,
+100,000 rounds, a salt of its own; `SiwaKeyring.HostedIdentity` in the pinned elixir-utils), so
+every machine signs with the same key and the database never holds it readable.
 
-**Backup.** Fly snapshots the volume once a day, at about 23:55 UTC, and keeps each snapshot 5
-days (the volume's `auto_backup_enabled` and `snapshot_retention`; `fly.toml` sets neither). List
-them read-only:
+The release of 6 November 2026 copies the files the volume `siwa_data`
+(`vol_42k97729y72yy334`) held into this table unchanged as it starts, and logs how many of
+them the table holds byte for byte. The volume stays mounted for that one release; the next
+one removes it.
+
+**Backup.** The cluster's own backups hold the table: a full one each day and an incremental
+one each hour. List them read-only:
 
 ```bash
-fly volumes list --app siwa-server
-fly volumes snapshots list vol_42k97729y72yy334
+fly mpg backup list d1zj5omk7z3ryqkv
 ```
 
-A snapshot holds the files still encrypted, so it is useless without `KEYSTORE_PASSWORD`, which
-is in Fly's secrets for `siwa-server` and in no snapshot. Losing the password loses every hosted
+A backup holds the keys still encrypted, so it is useless without `KEYSTORE_PASSWORD`, which is
+in Fly's secrets for `siwa-server` and in no backup. Losing the password loses every hosted
 signer. Whether a copy of the password is kept anywhere else is unconfirmed.
 
-**Restore. Never rehearsed: every step below is unconfirmed.**
+**Restore. Never rehearsed: every step below is unconfirmed.** `fly mpg restore` makes a new
+cluster from a backup or a point in time; the service then points at it through
+`DATABASE_URL`. `KEYSTORE_PASSWORD` must be the password in use when the backup was taken.
+Check with a real signature, not `/readyz`: from Patchbay, ask this server to `sign`
+`GET /api/agents/v1/whoami` for a connection that paired before the backup, send the signed
+request to Patchbay, and check that Patchbay answers with the agent and wallet address it
+already holds for that connection. A refused sign means that connection's row is missing or
+the password is wrong; a different address means the row is not the one from the backup.
 
-1. Snapshot the current volume first (`fly volumes snapshots create vol_42k97729y72yy334`), so
-   the restore can be undone.
-2. `KEYSTORE_PASSWORD` must be the password in use when the snapshot was taken.
-3. Put a machine on the snapshot in place of the current one. Sign-in is down from the stop
-   until the new machine answers.
-   - `fly machine list --app siwa-server` gives the one machine's id.
-   - `fly machine stop <id> --app siwa-server`.
-   - `fly machine clone <id> --from-snapshot <snapshot id> --region iad --app siwa-server`
-     makes a new machine with a new volume filled from the snapshot. Without
-     `--from-snapshot` the clone gets an empty volume. To use a volume made beforehand with
-     `fly volumes create siwa_data --snapshot-id <snapshot id> --region iad --size 1 --app
-     siwa-server`, clone with `--attach-volume <volume id>:/data` instead. The clone asks for
-     a zone apart from the old volume's unless `--volume-requires-unique-zone=false` is given.
-   - Check the new machine (step 4) before anything else.
-   - Only then `fly machine destroy <old id> --app siwa-server`. Keep the old volume until the
-     restore is settled.
-4. Check with a real signature, not `/readyz`: `/readyz` reads the settings, not the files.
-   From Patchbay, ask this server to `sign` `GET /api/agents/v1/whoami` for a connection that
-   paired before the snapshot, send the signed request to Patchbay, and check that Patchbay
-   answers with the agent and wallet address it already holds for that connection. A refused
-   sign means that connection's file is missing or the password is wrong; a different address
-   means the file is not the one from the snapshot.
-
-A restore loses every hosted signer made after the snapshot. The next registration for such a
+A restore loses every hosted signer made after the backup. The next registration for such a
 connection makes a new signer with a new address, so that connection pairs again.
 
 ## The other repositories
@@ -419,7 +402,6 @@ accepts only each site's approved requests: Patchbay's `whoami`, its pairing for
 exports keys or signs arbitrary messages or transactions. A body that names one key twice is refused. A site's hosted signing works
 only while that site has an origin in `SIWA_WALLET_ORIGINS` (`fly.toml`), since each
 hosted signer signs in like any agent. Products still verify each resulting request
-through http-verify and apply their own pairing and permissions. The hosted signers live beside the key store
-on its encrypted volume, which only one machine can mount, so this service runs as exactly
-one machine: a second one would hold different signers for the same connections. A hosted
-connection creates no on-chain registry listing.
+through http-verify and apply their own pairing and permissions. Each connection's signer
+is stored encrypted in the sign-in database (`SiwaServer.HostedIdentities`), so every machine
+signs with the same one. A hosted connection creates no on-chain registry listing.

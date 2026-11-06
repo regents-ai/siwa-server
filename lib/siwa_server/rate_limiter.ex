@@ -1,123 +1,60 @@
 defmodule SiwaServer.RateLimiter do
-  @moduledoc false
+  @moduledoc """
+  Counts requests per limit and key in fixed windows, in the database, so every
+  machine counts against the same allowance. `SiwaServer.Siwa.CleanupWorker`
+  removes windows that have ended.
+  """
 
-  use GenServer
+  alias SiwaServer.Repo
 
-  require Logger
+  @default_cleanup_limit 1_000
 
-  @table __MODULE__
-  @cleanup_interval_ms :timer.minutes(1)
-  @fail_open_log_interval_ms :timer.seconds(60)
-  @fail_open_last_logged_key {__MODULE__, :fail_open_last_logged_ms}
-
-  def start_link(_opts), do: GenServer.start_link(__MODULE__, [], name: __MODULE__)
-
+  @spec check(atom(), String.t(), pos_integer(), pos_integer()) :: :ok | {:error, pos_integer()}
   def check(name, key, limit, window_ms)
       when is_atom(name) and is_binary(key) and is_integer(limit) and is_integer(window_ms) do
-    now = System.monotonic_time(:millisecond)
-    bucket = floor_div(now, window_ms)
-    expires_at = now + window_ms * 2
+    now = System.os_time(:millisecond)
+    bucket = div(now, window_ms)
+    # Kept a window past its end, so a machine whose clock is a little behind still
+    # finds the count it is adding to.
+    expires_at = DateTime.from_unix!((bucket + 2) * window_ms, :millisecond)
 
-    case :ets.whereis(@table) do
-      :undefined ->
-        allow_during_missing_table(name, now)
-
-      table ->
-        check_table(table, name, digest(key), bucket, expires_at, limit, window_ms, now)
-    end
-  end
-
-  def reset do
-    if table_exists?(), do: :ets.delete_all_objects(@table)
-    :persistent_term.erase(@fail_open_last_logged_key)
-    :ok
-  end
-
-  @impl true
-  def init(_opts) do
-    create_table()
-    schedule_cleanup()
-    {:ok, %{}}
-  end
-
-  @impl true
-  def handle_info(:cleanup, state) do
-    cleanup_expired()
-    schedule_cleanup()
-    {:noreply, state}
-  end
-
-  defp cleanup_expired do
-    if table_exists?() do
-      now = System.monotonic_time(:millisecond)
-      :ets.select_delete(@table, [{{:_, :_, :"$1"}, [{:"=<", :"$1", now}], [true]}])
-    end
-
-    :ok
-  end
-
-  defp create_table do
-    if table_exists?() do
-      @table
-    else
-      :ets.new(@table, [:named_table, :public, read_concurrency: true, write_concurrency: true])
-    end
-  end
-
-  defp check_table(table, name, key, bucket, expires_at, limit, window_ms, now) do
-    count =
-      :ets.update_counter(
-        table,
-        {name, key, bucket},
-        {2, 1},
-        {{name, key, bucket}, 0, expires_at}
+    %{rows: [[count]]} =
+      Repo.query!(
+        """
+        INSERT INTO siwa_rate_limits AS r (name, key, bucket, count, expires_at)
+        VALUES ($1, $2, $3, 1, $4)
+        ON CONFLICT (name, key, bucket) DO UPDATE SET count = r.count + 1
+        RETURNING count
+        """,
+        [Atom.to_string(name), digest(key), bucket, DateTime.to_naive(expires_at)],
+        log: false
       )
 
-    if count <= limit do
-      :ok
-    else
-      {:error, max((bucket + 1) * window_ms - now, 1)}
-    end
-  rescue
-    error in ArgumentError ->
-      if table_exists?() do
-        reraise error, __STACKTRACE__
-      else
-        allow_during_missing_table(name, now)
-      end
+    if count <= limit, do: :ok, else: {:error, max((bucket + 1) * window_ms - now, 1)}
   end
 
-  defp allow_during_missing_table(name, now) do
-    metadata = %{key_class: limiter_key_class(name)}
-
-    :telemetry.execute([:siwa_server, :rate_limiter, :fail_open], %{count: 1}, metadata)
-    maybe_log_fail_open(metadata, now)
-
-    :ok
-  end
-
-  defp maybe_log_fail_open(metadata, now) do
-    last_logged_at = :persistent_term.get(@fail_open_last_logged_key, nil)
-
-    if is_nil(last_logged_at) or now - last_logged_at >= @fail_open_log_interval_ms do
-      :persistent_term.put(@fail_open_last_logged_key, now)
-
-      Logger.warning(
-        "SIWA rate limiter table is unavailable; allowing requests",
-        Map.to_list(metadata)
-      )
+  @doc "Removes up to `limit` ended windows."
+  def cleanup_expired(limit \\ @default_cleanup_limit) do
+    case Repo.query(
+           """
+           DELETE FROM siwa_rate_limits
+           WHERE (name, key, bucket) IN (
+             SELECT name, key, bucket
+             FROM siwa_rate_limits
+             WHERE expires_at <= (statement_timestamp() AT TIME ZONE 'UTC')
+             ORDER BY expires_at
+             LIMIT $1
+           )
+           """,
+           [limit],
+           log: false
+         ) do
+      {:ok, %{num_rows: count}} -> {:ok, count}
+      {:error, reason} -> {:error, reason}
     end
   end
-
-  defp limiter_key_class(name), do: name
 
   # A key is built from what the caller sent, before anything is proven, so it
   # is stored at a fixed size however long the caller made it.
   defp digest(key), do: :crypto.hash(:sha256, key)
-
-  defp table_exists?, do: :ets.whereis(@table) != :undefined
-  defp schedule_cleanup, do: Process.send_after(self(), :cleanup, @cleanup_interval_ms)
-
-  defp floor_div(left, right) when left >= 0, do: div(left, right)
-  defp floor_div(left, right), do: -div(-left + right - 1, right)
 end

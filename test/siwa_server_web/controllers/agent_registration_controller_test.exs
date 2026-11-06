@@ -13,15 +13,12 @@ defmodule SiwaServerWeb.AgentRegistrationControllerTest do
 
   setup do
     previous_base_rpc_url = System.get_env("BASE_RPC_URL")
-    SiwaServer.RateLimiter.reset()
 
     on_exit(fn ->
       case previous_base_rpc_url do
         nil -> System.delete_env("BASE_RPC_URL")
         value -> System.put_env("BASE_RPC_URL", value)
       end
-
-      SiwaServer.RateLimiter.reset()
     end)
 
     wallet = String.downcase(TestWallet.address())

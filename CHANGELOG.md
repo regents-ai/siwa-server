@@ -5,6 +5,13 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- Hosted connections' signing keys are kept in the sign-in database, encrypted exactly as
+  before, instead of in files on the server's disk. The release copies every existing key
+  across unchanged, so each connection keeps its agent and address. Nothing changes for
+  sites or agents; it lets the service run on more than one machine.
+- Request limits are counted in the sign-in database, so every machine counts against the
+  same allowance. The limits themselves are unchanged.
+
 ## 2 November 2026
 
 - Every signed request names the site it is for. The shared sign-in library (elixir-utils

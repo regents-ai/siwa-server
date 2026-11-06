@@ -1,6 +1,6 @@
 defmodule SiwaServer.Siwa.CleanupWorker do
   @moduledoc """
-  Removes expired nonce, replay and activity rows. Oban's cron queues it once a
+  Removes expired nonce, replay, activity and rate limit rows. Oban's cron queues it once a
   minute on the `cleanup` queue. Each kind is removed a batch at a time until a
   batch comes back short, at most 20 batches a run; what is left waits for
   the next minute. A failed run is left to the next minute too. Only one job
@@ -13,6 +13,7 @@ defmodule SiwaServer.Siwa.CleanupWorker do
     max_attempts: 1,
     unique: [period: :infinity, states: :incomplete]
 
+  alias SiwaServer.RateLimiter
   alias SiwaServer.Siwa.{ActivityStore, NonceStore, ReplayStore}
 
   @max_batches 20
@@ -32,13 +33,15 @@ defmodule SiwaServer.Siwa.CleanupWorker do
            {:ok, replay_count} <- drain(&ReplayStore.cleanup_expired/1, limit),
            {:ok, activity_count} <- drain(&ActivityStore.cleanup_expired(now, &1), limit),
            {:ok, request_count} <-
-             drain(&ActivityStore.cleanup_expired_requests(now, &1), limit) do
+             drain(&ActivityStore.cleanup_expired_requests(now, &1), limit),
+           {:ok, rate_limit_count} <- drain(&RateLimiter.cleanup_expired/1, limit) do
         {:ok,
          %{
            nonce_count: nonce_count,
            replay_count: replay_count,
            activity_count: activity_count,
-           request_count: request_count
+           request_count: request_count,
+           rate_limit_count: rate_limit_count
          }}
       end
 
@@ -71,7 +74,8 @@ defmodule SiwaServer.Siwa.CleanupWorker do
             nonce_count: 0,
             replay_count: 0,
             activity_count: 0,
-            request_count: 0
+            request_count: 0,
+            rate_limit_count: 0
           }
       end
 

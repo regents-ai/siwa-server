@@ -7,7 +7,7 @@ defmodule SiwaServer.HostedRequests do
   The calling site is the audience of everything signed, and each connection's
   key belongs to the site that registered it: the stored signer is named from
   the site and the site's connection key together, so one site cannot reach
-  another site's connections. Keys stay in the encrypted SIWA key store. This
+  another site's connections. Keys stay encrypted (`SiwaServer.HostedIdentities`). This
   service signs only each site's identity reads and pairing (for its own harness),
   and Patchbay's free participation; never arbitrary messages, transactions or
   payment requests. Products still
@@ -15,13 +15,13 @@ defmodule SiwaServer.HostedRequests do
   their own permissions.
   """
 
-  alias SiwaServer.RuntimeConfig
+  alias SiwaServer.{HostedIdentities, RuntimeConfig}
   alias SiwaServer.Siwa.{HttpVerifier, Wallet}
 
   def handle(site, %{"operation" => "register", "identity_key" => key} = params)
       when map_size(params) == 2 do
     with {:ok, identity} <- identity(site, key) do
-      SiwaKeyring.HostedIdentity.ensure(identity)
+      HostedIdentities.ensure(identity)
     end
   end
 
@@ -33,7 +33,7 @@ defmodule SiwaServer.HostedRequests do
     with {:ok, authority, request} <- authority(site, request),
          :ok <- allowed_request(site, request),
          {:ok, identity} <- identity(site, key),
-         {:ok, signer} <- SiwaKeyring.HostedIdentity.signer(identity),
+         {:ok, signer} <- HostedIdentities.signer(identity),
          {:ok, address} <- Siwa.RemoteSigner.get_address(signer),
          {:ok, receipt} <- receipt(signer, address, site),
          {:ok, secret} <- RuntimeConfig.siwa_receipt_secret() do

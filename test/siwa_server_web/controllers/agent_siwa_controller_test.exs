@@ -11,7 +11,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
     previous_rate_limits = Application.get_env(:siwa_server, :rate_limits, [])
 
     System.put_env("BASE_RPC_URL", TestRpcServer.chain_id(8453))
-    SiwaServer.RateLimiter.reset()
 
     on_exit(fn ->
       case previous_base_rpc_url do
@@ -20,7 +19,6 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
       end
 
       Application.put_env(:siwa_server, :rate_limits, previous_rate_limits)
-      SiwaServer.RateLimiter.reset()
     end)
 
     :ok

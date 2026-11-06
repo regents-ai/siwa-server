@@ -12,10 +12,7 @@ defmodule SiwaServer.HostedRequestsTest do
   }
 
   setup do
-    previous = Application.get_env(:siwa_keyring, :path)
     previous_siwa = Application.get_env(:siwa_server, :siwa)
-    path = Path.join(System.tmp_dir!(), "hosted-siwa-test-" <> Ecto.UUID.generate())
-    Application.put_env(:siwa_keyring, :path, path)
 
     Application.put_env(
       :siwa_server,
@@ -27,11 +24,7 @@ defmodule SiwaServer.HostedRequestsTest do
       })
     )
 
-    on_exit(fn ->
-      Application.put_env(:siwa_keyring, :path, previous)
-      Application.put_env(:siwa_server, :siwa, previous_siwa)
-      File.rm_rf!(path <> ".hosted")
-    end)
+    on_exit(fn -> Application.put_env(:siwa_server, :siwa, previous_siwa) end)
 
     %{identity: :crypto.hash(:sha256, Ecto.UUID.generate()) |> Base.encode16(case: :lower)}
   end
