@@ -26,7 +26,24 @@ defmodule SiwaServer.HostedIdentities do
   def signer(identity) do
     case Repo.one(from(h in @table, where: h.identity == ^identity, select: h.encrypted_wallet)) do
       nil -> {:error, :wallet_missing}
-      encrypted -> HostedIdentity.signer(encrypted, password())
+      encrypted -> open(encrypted)
+    end
+  end
+
+  @doc "Whether the key store password opens the stored keys, tried on one; `:ok` when none is stored."
+  def readable do
+    case Repo.one(from(h in @table, select: h.encrypted_wallet, limit: 1)) do
+      nil -> :ok
+      encrypted -> with {:ok, _signer} <- open(encrypted), do: :ok
+    end
+  end
+
+  # Every key is encrypted with the one password, so a stored key that does not
+  # open means the password is not the one the keys were made with.
+  defp open(encrypted) do
+    case HostedIdentity.signer(encrypted, password()) do
+      {:error, :keystore_decrypt_failed} -> {:error, :hosted_key_unreadable}
+      opened -> opened
     end
   end
 

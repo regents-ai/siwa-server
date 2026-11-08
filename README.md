@@ -89,7 +89,7 @@ mix phx.server
 | `/api/shared/siwa/agent-book/accept` | POST | Keep that person once the wallet has signed the message. |
 | `/agent-profiles/{profile_id}` | GET | A listed agent's public registration file. |
 | `/healthz` | GET | Liveness. |
-| `/readyz` | GET | Readiness, checked at most once every 30 seconds; requests in between get the last answer. It says which checks failed; the reasons go to the log. |
+| `/readyz` | GET | Readiness, checked at most once every 30 seconds; requests in between get the last answer. It says which checks failed; the reasons go to the log. `hosted_keys` opens one stored hosted connection key with `KEYSTORE_PASSWORD`, and fails when it does not open. |
 | `/regent-services-contract.openapiv3.yaml` | GET | The served shared services contract. |
 
 Sign-in has one path: the agent's wallet. A signed request binds the wallet, chain,
@@ -226,12 +226,14 @@ signer. Whether a copy of the password is kept anywhere else is unconfirmed.
 
 **Restore. Never rehearsed: every step below is unconfirmed.** `fly mpg restore` makes a new
 cluster from a backup or a point in time; the service then points at it through
-`DATABASE_URL`. `KEYSTORE_PASSWORD` must be the password in use when the backup was taken.
-Check with a real signature, not `/readyz`: from Patchbay, ask this server to `sign`
-`GET /api/agents/v1/whoami` for a connection that paired before the backup, send the signed
-request to Patchbay, and check that Patchbay answers with the agent and wallet address it
-already holds for that connection. A refused sign means that connection's row is missing or
-the password is wrong; a different address means the row is not the one from the backup.
+`DATABASE_URL`. `KEYSTORE_PASSWORD` must be the password in use when the backup was taken:
+when it does not open the stored keys, `/readyz` answers not ready with `hosted_keys` false,
+and every `register` or `sign` for a stored connection answers `503 hosted_key_unreadable`.
+`/readyz` opens one key only, so check also with a real signature: from Patchbay, ask this
+server to `sign` `GET /api/agents/v1/whoami` for a connection that paired before the backup,
+send the signed request to Patchbay, and check that Patchbay answers with the agent and wallet
+address it already holds for that connection. A `422` sign means that connection's row is
+missing; a different address means the row is not the one from the backup.
 
 A restore loses every hosted signer made after the backup. The next registration for such a
 connection makes a new signer with a new address, so that connection pairs again.

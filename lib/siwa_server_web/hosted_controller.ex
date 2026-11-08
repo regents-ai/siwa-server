@@ -20,6 +20,14 @@ defmodule SiwaServerWeb.HostedController do
         {:ok, answer} ->
           json(conn, answer)
 
+        {:error, :hosted_key_unreadable} ->
+          Logger.error(
+            "hosted key unreadable site=#{site}: KEYSTORE_PASSWORD does not open the stored key"
+          )
+
+          {:error,
+           {503, "hosted_key_unreadable", "the stored hosted signing key cannot be opened"}}
+
         {:error, reason} ->
           Logger.warning("hosted request refused site=#{site} reason=#{inspect(reason)}")
 

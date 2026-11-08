@@ -434,6 +434,12 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "429":
           $ref: "#/components/responses/RateLimitError"
+        "503":
+          description: The connection's stored key does not open with this server's key store password (hosted_key_unreadable).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/shared/siwa/agent/register-step:
     post:
       operationId: buildAgentRegistrationStep
@@ -1214,13 +1220,15 @@ components:
             - database
             - endpoint_secret
             - receipt_secret
-            - keyring_backend
-            - keyring_password
-            - keystore_path
+            - siwa_ttls
+            - keystore_password
+            - hosted_keys
             - base_rpc_url
             - base_rpc_chain_id
             - ethereum_rpc_url
             - ethereum_rpc_chain_id
+            - world_rpc_url
+            - world_rpc_chain_id
           properties:
             database:
               type: boolean
@@ -1228,12 +1236,13 @@ components:
               type: boolean
             receipt_secret:
               type: boolean
-            keyring_backend:
+            siwa_ttls:
               type: boolean
-            keyring_password:
+            keystore_password:
               type: boolean
-            keystore_path:
+            hosted_keys:
               type: boolean
+              description: KEYSTORE_PASSWORD opens a stored hosted connection key; true when none is stored.
             base_rpc_url:
               type: boolean
             base_rpc_chain_id:
@@ -1241,6 +1250,10 @@ components:
             ethereum_rpc_url:
               type: boolean
             ethereum_rpc_chain_id:
+              type: boolean
+            world_rpc_url:
+              type: boolean
+            world_rpc_chain_id:
               type: boolean
           additionalProperties: false
       additionalProperties: false

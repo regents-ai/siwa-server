@@ -11,6 +11,9 @@ a release moves those lines under its date. Which version and commit each releas
 - A wallet's accepted World ID person can no longer be changed or removed, even directly in
   the database. A wallet that has accepted already is told so at once, without a World Chain
   read.
+- When the key store password does not open the stored hosted connection keys, the service
+  says it is not ready (`hosted_keys`), and each hosted connection's register or sign answers
+  `503 hosted_key_unreadable` instead of a refusal.
 - The unused settings `KEYSTORE_BACKEND` and `KEYSTORE_PATH` are removed from the server; they
   were staged on 6 November and go with this release.
 

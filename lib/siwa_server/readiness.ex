@@ -3,6 +3,7 @@ defmodule SiwaServer.Readiness do
 
   alias Siwa.Ethereum
   alias SiwaServer.Config
+  alias SiwaServer.HostedIdentities
   alias SiwaServer.Repo
   alias SiwaServer.RuntimeConfig
 
@@ -17,6 +18,7 @@ defmodule SiwaServer.Readiness do
       receipt_secret: receipt_secret_check(),
       siwa_ttls: siwa_ttl_check(),
       keystore_password: keystore_password_check(),
+      hosted_keys: hosted_keys_check(),
       base_rpc_url: rpc_url_check("BASE_RPC_URL", RuntimeConfig.base_rpc_url()),
       base_rpc_chain_id:
         rpc_chain_id_check("BASE_RPC_URL", RuntimeConfig.base_rpc_url(), @base_chain_id_hex),
@@ -75,6 +77,19 @@ defmodule SiwaServer.Readiness do
     Config.siwa()
     |> Keyword.get(:keystore_password)
     |> secret_check("keystore password is not configured")
+  end
+
+  defp hosted_keys_check do
+    case HostedIdentities.readable() do
+      :ok ->
+        :ok
+
+      {:error, :hosted_key_unreadable} ->
+        {:error, "KEYSTORE_PASSWORD does not open the stored hosted keys"}
+    end
+  rescue
+    error in DBConnection.ConnectionError ->
+      {:error, "database connection failed: #{Exception.message(error)}"}
   end
 
   defp rpc_url_check(env_name, url) do

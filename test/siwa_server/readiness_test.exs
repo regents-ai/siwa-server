@@ -1,6 +1,7 @@
 defmodule SiwaServer.ReadinessTest do
   use SiwaServerWeb.ConnCase, async: false
 
+  alias SiwaServer.HostedIdentities
   alias SiwaServer.Readiness
   alias SiwaServer.TestRpcServer
 
@@ -62,6 +63,23 @@ defmodule SiwaServer.ReadinessTest do
     assert checks.ethereum_rpc_url == true
     assert failures.ethereum_rpc_chain_id =~ "expected 0x1"
     refute Map.has_key?(failures, :base_rpc_chain_id)
+  end
+
+  test "the key store password must open the stored hosted keys" do
+    System.put_env("BASE_RPC_URL", TestRpcServer.chain_id(8453))
+    assert %{ready: true, checks: %{hosted_keys: true}} = Readiness.check()
+
+    assert {:ok, _address} = HostedIdentities.ensure(String.duplicate("a", 64))
+    assert %{ready: true, checks: %{hosted_keys: true}} = Readiness.check()
+
+    siwa = Application.get_env(:siwa_server, :siwa)
+    on_exit(fn -> Application.put_env(:siwa_server, :siwa, siwa) end)
+    Application.put_env(:siwa_server, :siwa, Keyword.put(siwa, :keystore_password, "another"))
+
+    assert %{ready: false, checks: checks, failures: failures} = Readiness.check()
+    assert checks.hosted_keys == false
+    assert checks.keystore_password == true
+    assert failures == %{hosted_keys: "KEYSTORE_PASSWORD does not open the stored hosted keys"}
   end
 
   test "GET /readyz reports per-check status and logs the failure reasons", %{conn: conn} do

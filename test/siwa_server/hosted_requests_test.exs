@@ -61,6 +61,41 @@ defmodule SiwaServer.HostedRequestsTest do
              Jason.decode!(post.("Bearer siwa-test-keyfleet-hosted-signing-key-1").resp_body)
   end
 
+  test "a stored key the key store password does not open answers 503 to register and sign", %{
+    identity: identity
+  } do
+    register = %{"operation" => "register", "identity_key" => identity}
+
+    whoami = %{
+      "method" => "GET",
+      "path" => "/api/agents/v1/whoami",
+      "authority" => "patchbay.help"
+    }
+
+    sign = %{"operation" => "sign", "identity_key" => identity, "request" => whoami}
+    {:ok, _address} = HostedRequests.handle("patchbay", register)
+
+    siwa = Application.get_env(:siwa_server, :siwa)
+    Application.put_env(:siwa_server, :siwa, Keyword.put(siwa, :keystore_password, "another"))
+
+    for params <- [register, sign] do
+      {conn, log} =
+        ExUnit.CaptureLog.with_log([level: :error], fn ->
+          Plug.Test.conn(:post, "/api/shared/siwa/hosted", Jason.encode!(params))
+          |> Plug.Conn.put_req_header("content-type", "application/json")
+          |> Plug.Conn.put_req_header(
+            "authorization",
+            "Bearer siwa-test-patchbay-hosted-signing-key-1"
+          )
+          |> Endpoint.call(Endpoint.init([]))
+        end)
+
+      assert conn.status == 503
+      assert %{"error" => %{"code" => "hosted_key_unreadable"}} = Jason.decode!(conn.resp_body)
+      assert log =~ "hosted key unreadable site=patchbay"
+    end
+  end
+
   test "an account connection reuses its key, never exports it, and belongs to one site", %{
     identity: identity
   } do
