@@ -8,6 +8,9 @@ a release moves those lines under its date. Which version and commit each releas
 - A signed request's single use is on the database's disk before http-verify answers, so a
   database crash can no longer let one request through twice. A verification now waits
   while the database's disk pauses.
+- A wallet's accepted World ID person can no longer be changed or removed, even directly in
+  the database. A wallet that has accepted already is told so at once, without a World Chain
+  read.
 - The unused settings `KEYSTORE_BACKEND` and `KEYSTORE_PATH` are removed from the server; they
   were staged on 6 November and go with this release.
 

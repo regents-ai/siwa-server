@@ -112,6 +112,7 @@ defmodule SiwaServer.AgentBook do
     with {:ok, fields} <- validate(params, @accept_fields),
          {:ok, record} <- NonceStore.get(nonce_key(fields), fields["nonce"]),
          :ok <- current(fields, record),
+         :ok <- unaccepted(record.address),
          {:ok, human_id} <- named(record.address),
          :ok <- unchanged(fields, record, human_id),
          :ok <- signed(record, fields),

@@ -60,6 +60,29 @@ defmodule SiwaServerWeb.AgentBookControllerTest do
              accept(second) |> json_response(409) |> error()
   end
 
+  test "a wallet that has accepted is told so before World Chain or its signature is checked" do
+    world_answers(@human)
+    first = challenge() |> json_response(200) |> Map.fetch!("data")
+    second = challenge() |> json_response(200) |> Map.fetch!("data")
+    assert accept(first) |> json_response(200)
+
+    world_answers(@human, self())
+
+    assert %{"code" => "agent_book_already_accepted"} =
+             json_post(
+               "/api/shared/siwa/agent-book/accept",
+               Map.merge(params(), %{
+                 "nonce" => second["nonce"],
+                 "message" => second["message"],
+                 "signature" => "0x" <> String.duplicate("00", 65)
+               })
+             )
+             |> json_response(409)
+             |> error()
+
+    refute_received {:eth_call, _call}
+  end
+
   test "keeps nothing when AgentBook names someone else before the wallet signs" do
     world_answers(@human)
     challenge = challenge() |> json_response(200) |> Map.fetch!("data")

@@ -387,8 +387,9 @@ reads AgentBook again and, when it still names the same number, keeps the number
 
 A wallet's accepted person is permanent: whatever AgentBook names later, http-verify
 and the activity read return `agentBook: {humanId, agentCount}` for it, and both
-routes refuse a wallet that has accepted already (`409 agent_book_already_accepted`).
-`agentCount` is how many agent wallets, this one included, accepted the same person;
+routes refuse a wallet that has accepted already (`409 agent_book_already_accepted`),
+`agent-book/accept` before it reads World Chain or checks the signature. The database
+itself refuses to change, delete or empty `agent_book_acceptances` rows. `agentCount` is how many agent wallets, this one included, accepted the same person;
 sites list a person's other agents on their own pages by `humanId`. Sites decide when
 to show `humanId`; the same person's agents share it. The number is not secret: anyone can
 read it from AgentBook with the wallet address, so any two sites can match one person by it.

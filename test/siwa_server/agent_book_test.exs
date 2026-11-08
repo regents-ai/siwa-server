@@ -16,4 +16,23 @@ defmodule SiwaServer.AgentBookTest do
 
     assert AgentBook.human(String.upcase(@wallet)) == %{"humanId" => @number, "agentCount" => 2}
   end
+
+  test "the database keeps an accepted person for good" do
+    acceptance = Repo.insert!(Acceptance.changeset(%{wallet_address: @wallet, human_id: @number}))
+    other = "0x" <> String.duplicate("ab", 32)
+
+    assert_raise Postgrex.Error, ~r/UPDATE .* accepted person is permanent/, fn ->
+      Repo.transaction(fn -> Repo.update!(change(acceptance, human_id: other)) end)
+    end
+
+    assert_raise Postgrex.Error, ~r/DELETE .* accepted person is permanent/, fn ->
+      Repo.transaction(fn -> Repo.delete!(acceptance) end)
+    end
+
+    assert_raise Postgrex.Error, ~r/TRUNCATE .* accepted person is permanent/, fn ->
+      Repo.transaction(fn -> Repo.query!("TRUNCATE agent_book_acceptances") end)
+    end
+
+    assert AgentBook.human(@wallet) == %{"humanId" => @number, "agentCount" => 1}
+  end
 end
