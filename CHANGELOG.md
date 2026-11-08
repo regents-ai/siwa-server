@@ -14,6 +14,9 @@ a release moves those lines under its date. Which version and commit each releas
 - When the key store password does not open the stored hosted connection keys, the service
   says it is not ready (`hosted_keys`), and each hosted connection's register or sign answers
   `503 hosted_key_unreadable` instead of a refusal.
+- The verify answer drops a listing whose token the wallet no longer owns. Every five minutes
+  the service checks on Base who owns each listed token; a listing comes back if its token
+  returns to the wallet.
 - The unused settings `KEYSTORE_BACKEND` and `KEYSTORE_PATH` are removed from the server; they
   were staged on 6 November and go with this release.
 

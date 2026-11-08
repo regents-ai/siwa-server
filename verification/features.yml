@@ -89,6 +89,7 @@ features:
       - lib/siwa_server_web/agent_siwa_request/registered.ex
       - lib/siwa_server/agent_registration.ex
       - lib/siwa_server/agent_registration/record.ex
+      - lib/siwa_server/agent_registration/owner_check_worker.ex
       - lib/siwa_server/agent_registry.ex
     entry:
       - route: POST /api/shared/siwa/agent/register-step
@@ -96,6 +97,7 @@ features:
       - route: GET /agent-profiles/:profile_id
     proofs:
       - test/siwa_server_web/controllers/agent_registration_controller_test.exs
+      - test/siwa_server/owner_check_worker_test.exs
     gaps:
       - No property proof that only a successful registration transaction for this wallet is accepted.
 

@@ -22,8 +22,13 @@ config :siwa_server, :siwa,
 config :siwa_server, Oban,
   repo: SiwaServer.Repo,
   notifier: Oban.Notifiers.PG,
-  queues: [cleanup: 1],
-  cron: [crontab: [{"* * * * *", SiwaServer.Siwa.CleanupWorker}]],
+  queues: [cleanup: 1, chain: 1],
+  cron: [
+    crontab: [
+      {"* * * * *", SiwaServer.Siwa.CleanupWorker},
+      {"*/5 * * * *", SiwaServer.AgentRegistration.OwnerCheckWorker}
+    ]
+  ],
   pruner: [max_age: {7, :days}],
   lifeline: [rescue_after: {10, :minutes}]
 

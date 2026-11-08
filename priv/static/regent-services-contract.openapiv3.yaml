@@ -302,7 +302,8 @@ paths:
         on a lease never reach this server and are not counted. The lines say what arrived for the wallet at a site.
         Methods, paths, request bodies, headers, receipts and signatures are
         never kept. agentRegistration is the wallet's newest agent registry listing made
-        through this server, or null, the same as http-verify returns. agentBook is
+        through this server whose token the wallet still owns, or null, the same as
+        http-verify returns. agentBook is
         the World ID-verified person the wallet accepted, for good, or null, the
         same as http-verify returns.
       tags: [internal]
@@ -910,7 +911,7 @@ components:
             principal:
               $ref: "#/components/schemas/WalletPrincipal"
             agentRegistration:
-              description: The wallet's newest listing in the Base agent registry made through this server, or null.
+              description: The wallet's newest listing in the Base agent registry made through this server whose token the wallet still owns, or null.
               oneOf:
                 - $ref: "#/components/schemas/AgentRegistration"
                 - type: "null"
@@ -1301,7 +1302,7 @@ components:
               items:
                 $ref: "#/components/schemas/SiwaActivityDay"
             agentRegistration:
-              description: The wallet's newest listing in the Base agent registry made through this server, or null.
+              description: The wallet's newest listing in the Base agent registry made through this server whose token the wallet still owns, or null.
               oneOf:
                 - $ref: "#/components/schemas/AgentRegistration"
                 - type: "null"

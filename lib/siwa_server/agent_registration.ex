@@ -119,12 +119,15 @@ defmodule SiwaServer.AgentRegistration do
     end
   end
 
-  @doc "The wallet's newest registration made through this server, or nil."
+  @doc """
+  The wallet's newest registration made through this server whose token it
+  still owns (`SiwaServer.AgentRegistration.OwnerCheckWorker`), or nil.
+  """
   @spec latest(String.t()) :: map() | nil
   def latest(wallet_address) do
     from(r in Record,
-      where: r.wallet_address == ^String.downcase(wallet_address),
-      order_by: [desc: r.inserted_at, desc: r.token_id],
+      where: r.wallet_address == ^String.downcase(wallet_address) and r.status == :listed,
+      order_by: [desc: r.inserted_at, desc: fragment("?::numeric", r.token_id)],
       limit: 1
     )
     |> Repo.one()

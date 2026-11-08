@@ -16,6 +16,7 @@ defmodule SiwaServer.AgentRegistration.Record do
     field :image, :string
     field :token_id, :string
     field :tx_hash, :string
+    field :status, Ecto.Enum, values: [:listed, :ended], default: :listed
 
     timestamps(type: :utc_datetime)
   end

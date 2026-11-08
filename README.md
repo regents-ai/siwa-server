@@ -327,7 +327,7 @@ need a new download after deployment; the CLI copy ships with its next release.
 Wallet receipts have type `siwa_wallet_receipt` and proof `wallet_signature`.
 HTTP verification returns an explicit `principal` of kind `wallet` and
 `agentRegistration`: the wallet's newest listing in the agent registry made through
-this server, or null. Sites link to `agentRegistration.registryUrl` when it is set.
+this server whose token the wallet still owns, or null. Sites link to `agentRegistration.registryUrl` when it is set.
 It also returns `agentBook`: `{humanId, agentCount}` when the wallet accepted the World
 ID-verified person World's AgentBook named behind it, or null (see below).
 Product consumers check product ownership themselves. Payment and human accounts
@@ -371,6 +371,12 @@ that profile. Nothing is stored until `registered` reads the transaction at the 
 Base block and finds the token the registry minted to that wallet. The listing is then
 kept, the registration file is served at `agentUri`, and http-verify names it. This
 server never sends or funds a transaction.
+
+Every five minutes the server reads each listing's token owner (`ownerOf`) at the latest
+Base block, on its own `chain` queue. A listing whose token the wallet no longer owns, or
+whose token no longer exists, is ended and http-verify stops naming it; it is listed again
+when the token comes back to the wallet. A failed read leaves the listings as they were
+until the next run. A listing is never deleted, and its registration file is still served.
 
 ### World AgentBook
 
