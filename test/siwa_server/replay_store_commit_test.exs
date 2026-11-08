@@ -5,7 +5,7 @@ defmodule SiwaServer.Siwa.ReplayStoreCommitTest do
   alias SiwaServer.Repo
   alias SiwaServer.Siwa.ReplayStore
 
-  test "a signed request's single use does not wait for the disk and leaves the connection waiting" do
+  test "a signed request's single use waits for the disk" do
     assert String.starts_with?(Repo.config()[:database], "siwa_server_test")
     replay_key = "commit-mode:#{Ecto.UUID.generate()}"
     expires_at = DateTime.utc_now() |> DateTime.add(60, :second) |> DateTime.to_unix()
@@ -16,7 +16,7 @@ defmodule SiwaServer.Siwa.ReplayStoreCommitTest do
       assert {:error, :used_twice} =
                Repo.transaction(fn ->
                  assert :ok = ReplayStore.consume(replay_key, expires_at)
-                 assert synchronous_commit() == "off"
+                 assert synchronous_commit() == "on"
                  assert {:error, :replayed_request} = ReplayStore.consume(replay_key, expires_at)
                  Repo.rollback(:used_twice)
                end)

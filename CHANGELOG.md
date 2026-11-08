@@ -5,6 +5,9 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- A signed request's single use is on the database's disk before http-verify answers, so a
+  database crash can no longer let one request through twice. A verification now waits
+  while the database's disk pauses.
 - The unused settings `KEYSTORE_BACKEND` and `KEYSTORE_PATH` are removed from the server; they
   were staged on 6 November and go with this release.
 

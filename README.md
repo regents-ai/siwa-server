@@ -341,15 +341,21 @@ a lease. The activity read counts, for each site and day, the verified requests 
 how many of them began a lease. Both nonce consumption and request replay use database-clock
 expiration checks; invalid proof cannot consume a valid challenge.
 
-A signed HTTP request's single use is recorded without waiting for the database's
-disk to confirm it, so a verification is not held up when that disk pauses. The
-cost: if the database crashes, the uses recorded since the disk last confirmed can
-be lost. That is about 600 ms normally and as long as the pause while the disk is
-pausing (pauses of up to about 7 seconds have been measured). A request used in
-that time could be accepted once more before its 120 second life ends. The day's
-count of verified requests is written the same way; a lost count changes no
-decision, and a count that cannot be written never refuses the request. Nonces
-and every other write wait for the disk.
+A signed HTTP request's single use is on the database's disk before http-verify
+answers, so a database crash never lets the same request through twice. A restore
+from a backup still can: the restored database has none of the uses recorded after
+its backup was taken. A request is accepted only while the time it was signed for
+is within the 300 second signature tolerance of the server's clock, and that time
+can be up to 300 seconds after the request was used, so 600 seconds after the old
+database last answered, no request it accepted can be accepted again. Serve from a
+restored database only after that wait.
+
+The day's count of verified requests is written without waiting for the disk, so
+a verification is not held up when the disk pauses. If the database crashes, the
+counts written since the disk last confirmed can be lost (about 600 ms normally,
+as long as a disk pause, measured up to about 7 seconds); a lost count changes no
+decision, and a count that cannot be written never refuses the request. Nonces and
+every other write wait for the disk.
 
 ### Optional agent registry listing
 

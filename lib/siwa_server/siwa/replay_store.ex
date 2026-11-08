@@ -5,12 +5,6 @@ defmodule SiwaServer.Siwa.ReplayStore do
   alias SiwaServer.Repo
   @default_cleanup_limit 1_000
 
-  # `synchronous_commit` is set for the transaction this statement runs in. Run on
-  # its own, as every caller does, that is this one statement and nothing else on
-  # the connection. Never call `consume/2` from inside a transaction that writes
-  # anything else: the setting would last to that transaction's end and cover those
-  # writes too.
-  #
   # A key is accepted only when its row is written and its end is still ahead of the
   # database clock read after the write; that rule is the whole replay guard. The
   # refusal says "replayed" whenever another use of the key landed: the write was
@@ -21,10 +15,9 @@ defmodule SiwaServer.Siwa.ReplayStore do
   # signed request would read "replayed" here; the library's time check refuses
   # that copy first, and a request signed again has a new key.
   #
-  # "off" answers before the database's disk has confirmed the row. A database
-  # crash can then lose every row written since the disk last confirmed (about
-  # 600 ms normally, the whole pause while the disk is pausing), so a signed
-  # request used in that time could be accepted once more before it expires.
+  # The accepting write is on the database's disk before the answer, so a database
+  # crash never forgets a key it accepted. A restore from a backup can (README.md,
+  # the signed request's single use).
   @impl Siwa.RequestAuth.ReplayStore
   def consume(replay_key, expires_at_unix) do
     expires_at = DateTime.from_unix!(expires_at_unix)
@@ -32,14 +25,12 @@ defmodule SiwaServer.Siwa.ReplayStore do
 
     case Repo.query(
            """
-           WITH commit_mode AS (
-             SELECT set_config('synchronous_commit', 'off', true)
-           ), clock AS MATERIALIZED (
+           WITH clock AS MATERIALIZED (
              SELECT clock_timestamp() AT TIME ZONE 'UTC' AS before_write
            ), consumed AS (
              INSERT INTO siwa_request_replays (id, replay_key, expires_at, inserted_at, updated_at)
              SELECT $1, $2, $3, $4, $4
-             FROM commit_mode, clock
+             FROM clock
              WHERE $3::timestamp > clock.before_write
              ON CONFLICT (replay_key) DO NOTHING
              RETURNING id, expires_at
