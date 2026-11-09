@@ -174,6 +174,8 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
   test "discovery endpoints expose health and the services contract", %{conn: conn} do
     assert response(get(conn, "/"), 200) =~ "/skill.md"
+    assert response(get(conn, "/"), 200) =~ "/websites.md"
+    assert response(get(conn, "/websites.md"), 200) == File.read!("priv/static/websites.md")
     assert response(get(conn, "/healthz"), 200) == "ok"
 
     previous_rpc_urls = Map.new(~w(ETHEREUM_RPC_URL WORLD_RPC_URL), &{&1, System.get_env(&1)})
@@ -223,6 +225,8 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/api/shared/siwa/activity",
                "/api/shared/siwa/agent/register-step",
                "/api/shared/siwa/agent/registered",
+               "/api/shared/siwa/agent/link-challenge",
+               "/api/shared/siwa/agent/link",
                "/api/shared/siwa/agent-book/challenge",
                "/api/shared/siwa/agent-book/accept",
                "/agent-profiles/{profile_id}",
@@ -240,6 +244,12 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
 
     assert operation_response_codes(contract, "/api/shared/siwa/agent/registered", "post") ==
              MapSet.new(~w(200 400 413 415 422 429 502))
+
+    assert operation_response_codes(contract, "/api/shared/siwa/agent/link-challenge", "post") ==
+             MapSet.new(~w(200 400 413 415 422 429 502))
+
+    assert operation_response_codes(contract, "/api/shared/siwa/agent/link", "post") ==
+             MapSet.new(~w(200 400 401 404 413 415 422 429 502))
 
     assert operation_response_codes(contract, "/agent-profiles/{profile_id}", "get") ==
              MapSet.new(~w(200 404 429))

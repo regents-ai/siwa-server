@@ -3,7 +3,7 @@ defmodule SiwaServerWeb.AgentSiwaRequest do
 
   import Ecto.Changeset
 
-  alias SiwaServerWeb.AgentSiwaRequest.{HttpVerify, Registered, RegisterStep}
+  alias SiwaServerWeb.AgentSiwaRequest.{HttpVerify, Link, LinkChallenge, Registered, RegisterStep}
 
   @type error :: {:error, {400, String.t(), String.t()}}
 
@@ -15,6 +15,12 @@ defmodule SiwaServerWeb.AgentSiwaRequest do
 
   @spec cast_registered(map()) :: {:ok, Registered.t()} | error()
   def cast_registered(params), do: cast(params, Registered)
+
+  @spec cast_link_challenge(map()) :: {:ok, LinkChallenge.t()} | error()
+  def cast_link_challenge(params), do: cast(params, LinkChallenge)
+
+  @spec cast_link(map()) :: {:ok, Link.t()} | error()
+  def cast_link(params), do: cast(params, Link)
 
   @spec to_params(HttpVerify.t()) :: %{String.t() => term()}
   def to_params(%_{} = request) do
@@ -41,6 +47,22 @@ defmodule SiwaServerWeb.AgentSiwaRequest do
 
   def validate_address(changeset, field),
     do: validate_format(changeset, field, ~r/^0x[0-9a-fA-F]{40}$/)
+
+  # The wallet, the chain it signs in on (a JSON number, as the contract says;
+  # `cast/3` alone would also take a string), and an agent's token id in the
+  # Base registry: a uint256 in decimal without leading zeros; 77 digits stay
+  # below 2^256.
+  def validate_link(changeset) do
+    changeset
+    |> validate_address(:wallet_address)
+    |> validate_change(:chain_id, fn :chain_id, chain_id ->
+      if is_integer(changeset.params["chain_id"]) and
+           chain_id in SiwaServer.Ethereum.wallet_chain_ids(),
+         do: [],
+         else: [chain_id: "is not a sign-in chain"]
+    end)
+    |> validate_format(:token_id, ~r/^(0|[1-9][0-9]{0,76})$/)
+  end
 
   # The agent's public registry profile: the text is shown as given, so it is
   # only bounded; an image is a link anyone can open.

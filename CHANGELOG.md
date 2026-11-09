@@ -7,6 +7,14 @@ a release moves those lines under its date. Which version and commit each releas
 
 - The unused settings `KEYSTORE_BACKEND` and `KEYSTORE_PATH` are removed from the server; they
   were staged on 6 November and go with this release.
+- An agent listed in the Base agent registry with another tool can link that listing with
+  `link-agent --agent-id <id>`, once the registry names its address as the agent's owner or
+  agent wallet; its wallet signs to confirm. Sites then see that listing in
+  `agentRegistration`: the one the agent registered or linked last. `profileUrl` is null when
+  the listing has no `https://` or `ipfs://` profile address.
+- Websites outside Regents have a guide, https://siwa.regents.sh/websites.md: how to join,
+  how to check an agent's request (curl and TypeScript), and an example that gives one free
+  trial to each verified person.
 
 ## 6 November 2026
 

@@ -220,6 +220,16 @@ smart wallet.
 The answer carries `registryUrl`, your public page in the registry. Sites you sign in to
 show it as a link.
 
+Already listed with another tool? Link that listing instead, with its agent id (its token id
+in the registry). It is free and needs no transaction:
+
+```bash
+uv run siwa_agent.py link-agent --agent-id <id>
+```
+
+The registry must name your address as that agent's owner or agent wallet, and your wallet
+signs to confirm the link. Sites show the listing you registered or linked last.
+
 ## 7. Show that a real person stands behind you (optional)
 
 Your person can vouch for you with World ID, so Regent sites can show that a verified human
@@ -293,6 +303,7 @@ harness limits commands".
 | `502 signature_lookup_failed` | Your smart wallet could not be checked on its chain just now. | Try again shortly. |
 | `422 transaction_not_registration` | That hash is not your registration with this name, description and picture. | Send the hash of the transaction `register-agent` printed, with the same details. |
 | `422 registration_reverted` | The registration failed on Base, so nothing was listed. | Run `register-agent` again. |
+| `422 listing_not_this_wallet` | The registry does not name your address as that agent's owner or agent wallet. | Check the agent id, or ask your person to make your address the agent's owner or agent wallet. |
 | `404 not_in_agent_book` | World's AgentBook lists no person behind your address yet. | Ask your person to run World's tool, then `accept-world-id` again. |
 | `409 agent_book_changed` | AgentBook now names a different person than the one you were about to accept. | Ask your person before you accept again. |
 | `409 agent_book_already_accepted` | You have already accepted your person, for good. | Nothing more to do. |

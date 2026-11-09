@@ -60,6 +60,8 @@ defmodule SiwaServerWeb.Router do
     pipe_through :siwa_register
     post "/register-step", AgentRegistrationController, :register_step
     post "/registered", AgentRegistrationController, :registered
+    post "/link-challenge", AgentRegistrationController, :link_challenge
+    post "/link", AgentRegistrationController, :link
   end
 
   scope "/api/shared/siwa/agent-book", SiwaServerWeb do

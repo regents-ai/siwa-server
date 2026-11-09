@@ -301,8 +301,8 @@ paths:
         the first and the last of them was verified. Reads a site checks itself
         on a lease never reach this server and are not counted. The lines say what arrived for the wallet at a site.
         Methods, paths, request bodies, headers, receipts and signatures are
-        never kept. agentRegistration is the wallet's newest agent registry listing made
-        through this server, or null, the same as http-verify returns. agentBook is
+        never kept. agentRegistration is the agent registry listing the wallet
+        registered through this server or linked last, or null, the same as http-verify returns. agentBook is
         the World ID-verified person the wallet accepted, for good, or null, the
         same as http-verify returns.
       tags: [internal]
@@ -534,6 +534,134 @@ paths:
           $ref: "#/components/responses/RateLimitError"
         "502":
           description: Base could not be read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/shared/siwa/agent/link-challenge:
+    post:
+      operationId: createAgentLinkChallenge
+      summary: Start linking a listing made with another tool in the Base agent registry
+      description: >-
+        For an agent listed in the Base agent registry by any tool. Reads the
+        registry at the latest Base block: it must name the wallet as the
+        agent's owner (ownerOf) or its agent wallet (getAgentWallet). Answers a
+        single-use message naming the wallet and the agent, valid for the
+        sign-in challenge lifetime, for the wallet to sign unchanged and send
+        to /api/shared/siwa/agent/link.
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentLinkChallengeRequest"
+      responses:
+        "200":
+          description: The message to sign
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentLinkChallengeResponse"
+        "400":
+          description: Invalid link request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          description: Link request body is too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "415":
+          description: Link request content type is unsupported
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: The registry names neither this wallet as the agent's owner nor as its agent wallet, or the agent does not exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
+        "502":
+          description: Base could not be read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/shared/siwa/agent/link:
+    post:
+      operationId: linkAgentListing
+      summary: Link a listing made with another tool in the Base agent registry
+      description: >-
+        Keeps the link once the wallet has signed the unused message from
+        /api/shared/siwa/agent/link-challenge for the same agent and the
+        registry, read again at the latest Base block, still names the wallet
+        as the agent's owner or agent wallet. The signature is the wallet's
+        consent: anyone can send a listing to any wallet, but only the wallet
+        can link it. /api/shared/siwa/http-verify then names the listing in
+        agentRegistration for the wallet's signed requests, until the wallet
+        registers or links another.
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentLinkRequest"
+      responses:
+        "200":
+          description: The listing is linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentLinkedResponse"
+        "400":
+          description: Invalid link request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: The challenge expired, the message is not the one issued for this agent, or the signature does not match the wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The challenge is absent, expired or already used
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          description: Link request body is too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "415":
+          description: Link request content type is unsupported
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: The registry no longer names this wallet as the agent's owner or agent wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
+        "502":
+          description: Base, or the wallet's chain for a smart wallet's signature, could not be read
           content:
             application/json:
               schema:
@@ -904,7 +1032,7 @@ components:
             principal:
               $ref: "#/components/schemas/WalletPrincipal"
             agentRegistration:
-              description: The wallet's newest listing in the Base agent registry made through this server, or null.
+              description: The Base agent registry listing the wallet registered through this server or linked last, or null.
               oneOf:
                 - $ref: "#/components/schemas/AgentRegistration"
                 - type: "null"
@@ -1019,9 +1147,98 @@ components:
               type: string
               pattern: "^0x[a-fA-F0-9]{64}$"
       unevaluatedProperties: false
+    AgentLinkChallengeRequest:
+      type: object
+      required: [wallet_address, chain_id, token_id]
+      properties:
+        wallet_address:
+          $ref: "#/components/schemas/Address"
+        chain_id:
+          $ref: "#/components/schemas/WalletChainId"
+        token_id:
+          $ref: "#/components/schemas/AgentTokenId"
+      additionalProperties: false
+    AgentLinkChallengeResponse:
+      type: object
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [agent_link_challenge]
+        data:
+          type: object
+          required: [walletAddress, chainId, tokenId, nonce, message, issuedAt, expiresAt]
+          properties:
+            walletAddress:
+              $ref: "#/components/schemas/Address"
+            chainId:
+              $ref: "#/components/schemas/WalletChainId"
+            tokenId:
+              $ref: "#/components/schemas/AgentTokenId"
+            nonce:
+              type: string
+            message:
+              type: string
+              description: Server-issued message naming the wallet and the agent, to review and sign unchanged.
+            issuedAt:
+              type: string
+              format: date-time
+            expiresAt:
+              type: string
+              format: date-time
+          additionalProperties: false
+      additionalProperties: false
+    AgentLinkRequest:
+      type: object
+      required: [wallet_address, chain_id, token_id, nonce, message, signature]
+      properties:
+        wallet_address:
+          $ref: "#/components/schemas/Address"
+        chain_id:
+          $ref: "#/components/schemas/WalletChainId"
+        token_id:
+          $ref: "#/components/schemas/AgentTokenId"
+        nonce:
+          type: string
+          pattern: '^[a-f0-9]{32}$'
+        message:
+          type: string
+          maxLength: 2048
+          description: Exact server-issued challenge message.
+        signature:
+          type: string
+          pattern: '^0x([a-fA-F0-9]{2})+$'
+          maxLength: 8194
+          description: ERC-191 personal signature from the wallet, or a smart wallet's ERC-1271 signature (ERC-6492-wrapped before deployment); never a private key.
+      additionalProperties: false
+    AgentLinkedResponse:
+      type: object
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [agent_linked]
+        data:
+          allOf:
+            - $ref: "#/components/schemas/AgentRegistration"
+            - type: object
+              required: [walletAddress, chainId, registryAddress]
+              properties:
+                walletAddress:
+                  $ref: "#/components/schemas/Address"
+                chainId:
+                  $ref: "#/components/schemas/BaseChainId"
+                registryAddress:
+                  $ref: "#/components/schemas/Address"
+          unevaluatedProperties: false
+      additionalProperties: false
+    AgentTokenId:
+      type: string
+      pattern: "^(0|[1-9][0-9]{0,76})$"
+      description: The agent's token id in the Base agent registry, in decimal.
     AgentRegistration:
       type: object
-      description: An agent's entry in the Base agent registry, made through this server. Sites link to registryUrl.
+      description: The wallet's entry in the Base agent registry, the one it registered through this server or linked last. Sites link to registryUrl.
       required: [agentId, tokenId, profileUrl, registryUrl]
       properties:
         agentId:
@@ -1030,8 +1247,11 @@ components:
         tokenId:
           type: string
         profileUrl:
-          type: string
-          format: uri
+          description: The listing's own profile address when it is an https:// or ipfs:// address; null when the listing has none or carries its profile inside itself.
+          oneOf:
+            - type: string
+              format: uri
+            - type: "null"
         registryUrl:
           type: string
           format: uri
@@ -1288,7 +1508,7 @@ components:
               items:
                 $ref: "#/components/schemas/SiwaActivityDay"
             agentRegistration:
-              description: The wallet's newest listing in the Base agent registry made through this server, or null.
+              description: The Base agent registry listing the wallet registered through this server or linked last, or null.
               oneOf:
                 - $ref: "#/components/schemas/AgentRegistration"
                 - type: "null"

@@ -2,7 +2,7 @@ defmodule SiwaServerWeb.ActivityControllerTest do
   use SiwaServerWeb.ConnCase, async: false
 
   alias SiwaServer.AgentBook.Acceptance
-  alias SiwaServer.AgentRegistration.Record
+  alias SiwaServer.AgentRegistration.Link
   alias SiwaServer.Repo
   alias SiwaServer.Siwa.ActivityStore
 
@@ -44,27 +44,21 @@ defmodule SiwaServerWeb.ActivityControllerTest do
 
   test "names the wallet's agent registry listing so the site can link to it" do
     Repo.insert!(
-      Record.changeset(%{
-        profile_id: String.duplicate("c0", 16),
+      Link.changeset(%{
         wallet_address: @wallet,
-        name: "Astra",
-        description: "Finds bugs in Elixir code.",
         token_id: "97609",
-        tx_hash: "0x" <> String.duplicate("ab", 32)
+        profile_url: "ipfs://bafkreiastra"
       })
     )
 
-    assert %{
+    assert read(%{"wallet_address" => @wallet, "since" => an_hour_ago()})
+           |> json_response(200)
+           |> get_in(["data", "agentRegistration"]) == %{
              "agentId" => "eip155:8453:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:97609",
              "tokenId" => "97609",
-             "profileUrl" => profile_url,
+             "profileUrl" => "ipfs://bafkreiastra",
              "registryUrl" => "https://www.8004scan.io/agents/base/97609"
-           } =
-             read(%{"wallet_address" => @wallet, "since" => an_hour_ago()})
-             |> json_response(200)
-             |> get_in(["data", "agentRegistration"])
-
-    assert String.ends_with?(profile_url, "/agent-profiles/" <> String.duplicate("c0", 16))
+           }
   end
 
   test "names the World ID-verified person the wallet accepted" do

@@ -21,7 +21,7 @@ defmodule SiwaServer.AgentBook do
 
   alias RegentChain.Call
   alias SiwaServer.AgentBook.Acceptance
-  alias SiwaServer.{Ethereum, Repo, RuntimeConfig}
+  alias SiwaServer.{Ethereum, Repo, RuntimeConfig, WalletChallenge}
   alias SiwaServer.Siwa.NonceStore
 
   @chain_id 480
@@ -111,10 +111,10 @@ defmodule SiwaServer.AgentBook do
   def accept(params) do
     with {:ok, fields} <- validate(params, @accept_fields),
          {:ok, record} <- NonceStore.get(nonce_key(fields), fields["nonce"]),
-         :ok <- current(fields, record),
+         :ok <- WalletChallenge.current(record, fields["message"]),
          {:ok, human_id} <- named(record.address),
          :ok <- unchanged(fields, record, human_id),
-         :ok <- signed(record, fields),
+         :ok <- WalletChallenge.signed(record, fields["message"], fields["signature"]),
          {:ok, _acceptance} <- keep(record, human_id) do
       {:ok,
        %{
@@ -171,19 +171,6 @@ defmodule SiwaServer.AgentBook do
        {409, "agent_book_already_accepted",
         "this wallet has already accepted its World ID person, for good"}}
 
-  defp current(fields, record) do
-    cond do
-      DateTime.compare(record.expiration_time, DateTime.utc_now()) != :gt ->
-        {:error, {401, "nonce_expired", "the challenge has expired"}}
-
-      fields["message"] != record.canonical_message ->
-        {:error, {401, "message_invalid", "sign the exact current server-issued challenge"}}
-
-      true ->
-        :ok
-    end
-  end
-
   # The challenge named the person AgentBook named then; AgentBook must still name them.
   defp unchanged(fields, record, human_id) do
     if message(fields, human_id, record.nonce, record.issued_at, record.expiration_time) ==
@@ -193,26 +180,6 @@ defmodule SiwaServer.AgentBook do
          {:error,
           {409, "agent_book_changed",
            "World's AgentBook names a different person behind this wallet than the challenge did"}}
-  end
-
-  defp signed(record, fields) do
-    case Ethereum.verify_signature(
-           record.address,
-           fields["message"],
-           fields["signature"],
-           record.chain_id
-         ) do
-      {:ok, _method} ->
-        :ok
-
-      {:error, :signature_invalid} ->
-        {:error, {401, "signature_invalid", "signature does not match wallet"}}
-
-      {:error, {:lookup_failed, reason}} ->
-        {:error,
-         {502, "signature_lookup_failed",
-          "could not check the wallet signature on #{Ethereum.chain_name(record.chain_id)}: #{reason}"}}
-    end
   end
 
   # Uses the challenge up and keeps the person. The wallet's row is unique, so
@@ -241,13 +208,8 @@ defmodule SiwaServer.AgentBook do
 
   defp validate(_params, _allowed), do: invalid_request()
 
-  defp valid_proof_fields?(%{"message" => message, "nonce" => nonce, "signature" => signature})
-       when is_binary(message) and byte_size(message) in 1..2048 and is_binary(nonce) and
-              is_binary(signature),
-       do:
-         Regex.match?(~r/^[a-f0-9]{32}$/, nonce) and
-           byte_size(signature) <= 2 + 2 * Siwa.WalletSignature.max_bytes() and
-           Regex.match?(~r/^0x(?:[0-9a-fA-F]{2})+$/, signature)
+  defp valid_proof_fields?(%{"message" => message, "nonce" => nonce, "signature" => signature}),
+    do: WalletChallenge.proof?(nonce, message, signature)
 
   defp valid_proof_fields?(params), do: not Map.has_key?(params, "message")
 

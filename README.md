@@ -85,6 +85,8 @@ mix phx.server
 | `/api/shared/siwa/http-verify` | POST | Verify a signed HTTP request. |
 | `/api/shared/siwa/agent/register-step` | POST | Build the optional agent registry listing transaction. |
 | `/api/shared/siwa/agent/registered` | POST | Read that transaction and keep the listing once it lands. |
+| `/api/shared/siwa/agent/link-challenge` | POST | Check the registry names the wallet behind a listing made with another tool, and issue the message linking it. |
+| `/api/shared/siwa/agent/link` | POST | Link that listing once the wallet has signed the message. |
 | `/api/shared/siwa/agent-book/challenge` | POST | Read the person World's AgentBook names behind a wallet and issue the message accepting them. |
 | `/api/shared/siwa/agent-book/accept` | POST | Keep that person once the wallet has signed the message. |
 | `/agent-profiles/{profile_id}` | GET | A listed agent's public registration file. |
@@ -188,8 +190,8 @@ the image with the commit (`revision`) and the elixir-utils commit `mix.exs` pin
 after it end. Every check runs even when another fails, and any failure ends with a line saying
 the commit is deployed but a check failed. The checks: the app runs exactly two machines and both
 images name the commit, `/readyz` answers ready with every check true, and the served
-helpers (`/agent/siwa_agent.py`, `/agent/siwa-agent.mjs`, `/agent/siwa-contract.json`) and guide
-(`/skill.md`) have the same sha256 as the files in git. The folder stays as the release record;
+helpers (`/agent/siwa_agent.py`, `/agent/siwa-agent.mjs`, `/agent/siwa-contract.json`) and guides
+(`/skill.md`, `/websites.md`) have the same sha256 as the files in git. The folder stays as the release record;
 then add the release to `RELEASES.md`.
 
 [RELEASES.md](RELEASES.md) records each release's Fly version and commit; [CHANGELOG.md](CHANGELOG.md)
@@ -324,8 +326,10 @@ need a new download after deployment; the CLI copy ships with its next release.
 
 Wallet receipts have type `siwa_wallet_receipt` and proof `wallet_signature`.
 HTTP verification returns an explicit `principal` of kind `wallet` and
-`agentRegistration`: the wallet's newest listing in the agent registry made through
-this server, or null. Sites link to `agentRegistration.registryUrl` when it is set.
+`agentRegistration`: the agent registry listing the wallet registered through this
+server or linked last, or null. Sites link to `agentRegistration.registryUrl` when it is set.
+A site outside Regents follows the websites guide, https://siwa.regents.sh/websites.md: how
+to join, the check in curl and TypeScript, and one free trial for each verified person.
 It also returns `agentBook`: `{humanId, agentCount}` when the wallet accepted the World
 ID-verified person World's AgentBook named behind it, or null (see below).
 Product consumers check product ownership themselves. Payment and human accounts
@@ -363,6 +367,20 @@ that profile. Nothing is stored until `registered` reads the transaction at the 
 Base block and finds the token the registry minted to that wallet. The listing is then
 kept, the registration file is served at `agentUri`, and http-verify names it. This
 server never sends or funds a transaction.
+
+An agent listed by any other tool links its listing instead, in two steps.
+`link-challenge` takes the wallet, its sign-in chain and the agent's token id, and reads
+the registry at the latest Base block: `getAgentWallet(tokenId)` or `ownerOf(tokenId)`
+must be the wallet. It then issues a single-use, five-minute message naming the wallet
+and the agent. `link` checks the wallet's signature (an ordinary wallet, or a smart
+wallet on Ethereum or Base), reads the registry again and keeps the link. The signature
+is the wallet's consent: anyone can send a listing to any wallet, but only the wallet
+can link it. The listing's `tokenURI` is its `profileUrl` when it is an `https://` or
+`ipfs://` address; a listing with no profile address, or with its profile written into
+itself (`data:`), links with `profileUrl: null`. The client command is `link-agent`.
+
+Each wallet has one link, in `agent_registry_links`. A registration through this server
+sets it too, so http-verify names the listing the wallet registered or linked last.
 
 ### World AgentBook
 

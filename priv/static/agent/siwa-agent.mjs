@@ -1616,6 +1616,7 @@ Your key:
 Optional, once:
   register-agent --name NAME --description TEXT [--image URL] [--tx-hash HASH]
                                    list yourself in the agent registry on Base; your wallet pays
+  link-agent --agent-id ID         or link the listing you already have in that registry
   accept-world-id [--human-id NUMBER]
                                    accept the person who vouched for you with World ID
 
@@ -1883,6 +1884,19 @@ async function registerAgent(config, args) {
   return printResponse(await waitForRegistration(config, profile, await sendRegistration(config, key, step)));
 }
 
+async function linkAgent(config, args) {
+  const agentId = required(takeOption(args, "--agent-id"), "link-agent --agent-id ID");
+  const key = requireKey(config);
+  const base = { wallet_address: key.address, chain_id: chainId(key), token_id: agentId };
+  const result = await httpJson("POST", `${config.broker}/api/shared/siwa/agent/link-challenge`, JSON.stringify(base));
+  if (result.status !== 200 || result.body?.code !== "agent_link_challenge") return printResponse(result);
+  const challenge = result.body.data;
+  const proof = { ...base, nonce: challenge.nonce, message: challenge.message, signature: await signText(key, challenge.message) };
+  return printResponse(
+    await httpJson("POST", `${config.broker}/api/shared/siwa/agent/link`, JSON.stringify(proof), { "x-agent-signer": signerName(key) }),
+  );
+}
+
 async function acceptWorldId(config, args) {
   const humanId = takeOption(args, "--human-id");
   const key = requireKey(config);
@@ -1957,6 +1971,8 @@ async function main(argv) {
     }
     case "register-agent":
       return registerAgent(config, args);
+    case "link-agent":
+      return linkAgent(config, args);
     case "accept-world-id":
       return acceptWorldId(config, args);
     case "headers": {

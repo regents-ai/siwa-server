@@ -17,6 +17,10 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     {"POST", "/api/shared/siwa/activity"} => MapSet.new(~w(200 400 401 413 415 429)),
     {"POST", "/api/shared/siwa/agent/register-step"} => MapSet.new(~w(200 400 413 415 429)),
     {"POST", "/api/shared/siwa/agent/registered"} => MapSet.new(~w(200 400 413 415 422 429 502)),
+    {"POST", "/api/shared/siwa/agent/link-challenge"} =>
+      MapSet.new(~w(200 400 413 415 422 429 502)),
+    {"POST", "/api/shared/siwa/agent/link"} =>
+      MapSet.new(~w(200 400 401 404 413 415 422 429 502)),
     {"POST", "/api/shared/siwa/agent-book/challenge"} =>
       MapSet.new(~w(200 400 404 409 413 415 429 502)),
     {"POST", "/api/shared/siwa/agent-book/accept"} =>

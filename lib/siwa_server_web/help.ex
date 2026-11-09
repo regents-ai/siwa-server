@@ -177,6 +177,14 @@ defmodule SiwaServerWeb.Help do
     ]
   end
 
+  defp steps("listing_not_this_wallet", _context) do
+    [
+      "The agent registry on Base does not name your address as that agent's owner or agent ",
+      "wallet. Check the agent id, or ask your person to make your address the agent's owner ",
+      "or agent wallet in the registry, then run `link-agent` again."
+    ]
+  end
+
   defp steps("agent_profile_not_found", _context) do
     [
       "No agent is listed with this profile. A profile is served once its registration ",
