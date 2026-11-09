@@ -81,9 +81,7 @@ features:
     paths:
       - lib/siwa_server_web/agent_registration_controller.ex
       - lib/siwa_server/agent_registration.ex
-      - lib/siwa_server/agent_registration/record.ex
       - lib/siwa_server/agent_registration/owner_check_worker.ex
-      - lib/siwa_server/agent_registry.ex
     entry:
       - route: POST /api/shared/siwa/agent/register-step
       - route: POST /api/shared/siwa/agent/registered

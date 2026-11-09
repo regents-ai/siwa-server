@@ -2,7 +2,6 @@ defmodule SiwaServerWeb.AgentRegistrationControllerTest do
   use SiwaServerWeb.ConnCase, async: false
 
   alias SiwaServer.{AgentRegistration, Repo, TestRpcServer, TestWallet}
-  alias SiwaServer.AgentRegistration.Record
 
   @registry "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432"
   @other_wallet "0x1111111111111111111111111111111111111111"
@@ -117,7 +116,7 @@ defmodule SiwaServerWeb.AgentRegistrationControllerTest do
 
       assert json_response(registered(conn, profile), 200) == answer
       assert json_response(registered(conn, profile), 200) == answer
-      assert Repo.aggregate(Record, :count) == 1
+      assert Repo.aggregate(AgentRegistration, :count) == 1
       assert AgentRegistration.latest(wallet) == registration
 
       profile_conn = get(conn, URI.parse(profile_url).path)
@@ -160,7 +159,7 @@ defmodule SiwaServerWeb.AgentRegistrationControllerTest do
                  json_response(registered(conn, profile), 422)
       end
 
-      assert Repo.aggregate(Record, :count) == 0
+      assert Repo.aggregate(AgentRegistration, :count) == 0
     end
 
     test "says when Base cannot be read", %{conn: conn, profile: profile} do

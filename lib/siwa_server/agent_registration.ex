@@ -21,16 +21,29 @@ defmodule SiwaServer.AgentRegistration do
        this step's is no answer about it.
     3. `profile/1` is the registration file served at the URI.
     4. `latest/1` is the wallet's newest registration, for sites to link to.
+    5. `check_owners/0` keeps each registration listed only while its wallet
+       still owns the token (`SiwaServer.AgentRegistration.OwnerCheckWorker`).
+
+  Each landed registration is kept in `agent_registrations`; none is ever
+  deleted.
   """
+
+  use Ecto.Schema
 
   import Ecto.Changeset,
     only: [apply_action: 2, cast: 4, validate_format: 3, validate_length: 3, validate_required: 2]
 
   import Ecto.Query
 
+  require Logger
+
   alias RegentChain.{Address, Call, Outcome, Review}
-  alias SiwaServer.AgentRegistration.Record
-  alias SiwaServer.{AgentRegistry, Config, Ethereum, Repo}
+  alias SiwaServer.{Config, Ethereum, Repo}
+
+  # The ERC-8004 identity registry on Base.
+  @chain_id 8453
+  @registry "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432"
+  @agent_registry "eip155:#{@chain_id}:#{@registry}"
 
   @transfer_topic "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
   @zero_topic "0x" <> String.duplicate("0", 64)
@@ -45,6 +58,21 @@ defmodule SiwaServer.AgentRegistration do
   }
   @profile [:wallet_address, :name, :description, :image]
 
+  @primary_key {:id, :binary_id, autogenerate: true}
+
+  schema "agent_registrations" do
+    field :profile_id, :string
+    field :wallet_address, :string
+    field :name, :string
+    field :description, :string
+    field :image, :string
+    field :token_id, :string
+    field :tx_hash, :string
+    field :status, Ecto.Enum, values: [:listed, :ended], default: :listed
+
+    timestamps(type: :utc_datetime)
+  end
+
   @type error :: {:error, {pos_integer(), String.t(), String.t()}}
 
   @doc "The unsigned registration transaction for the profile's wallet to send on Base."
@@ -58,7 +86,7 @@ defmodule SiwaServer.AgentRegistration do
        %{
          "code" => "registration_step",
          "data" => %{
-           "chainId" => AgentRegistry.chain_id(),
+           "chainId" => @chain_id,
            "from" => Address.normalize!(profile.wallet_address),
            "to" => to,
            "data" => data,
@@ -99,7 +127,9 @@ defmodule SiwaServer.AgentRegistration do
   @spec profile(String.t()) :: {:ok, map()} | :error
   def profile(profile_id) do
     case Repo.all(
-           from r in Record, where: r.profile_id == ^profile_id, order_by: [asc: r.inserted_at]
+           from r in __MODULE__,
+             where: r.profile_id == ^profile_id,
+             order_by: [asc: r.inserted_at]
          ) do
       [] ->
         :error
@@ -118,7 +148,7 @@ defmodule SiwaServer.AgentRegistration do
              Enum.map(records, fn record ->
                %{
                  "agentId" => String.to_integer(record.token_id),
-                 "agentRegistry" => agent_registry()
+                 "agentRegistry" => @agent_registry
                }
              end)
          }}
@@ -127,11 +157,11 @@ defmodule SiwaServer.AgentRegistration do
 
   @doc """
   The wallet's newest registration made through this server whose token it
-  still owns (`SiwaServer.AgentRegistration.OwnerCheckWorker`), or nil.
+  still owns (`check_owners/0`), or nil.
   """
   @spec latest(String.t()) :: map() | nil
   def latest(wallet_address) do
-    from(r in Record,
+    from(r in __MODULE__,
       where: r.wallet_address == ^String.downcase(wallet_address) and r.status == :listed,
       order_by: [desc: r.inserted_at, desc: fragment("?::numeric", r.token_id)],
       limit: 1
@@ -141,6 +171,34 @@ defmodule SiwaServer.AgentRegistration do
       nil -> nil
       record -> registration(record.token_id, record.profile_id)
     end
+  end
+
+  @doc """
+  Reads each registration's token owner with `ownerOf` at the latest Base
+  block. The wallet owning it keeps or puts the registration back to `listed`;
+  another owner, or a revert, ends it (`ended`): an ERC-721 `ownerOf` reverts
+  only for a token that does not exist. Any other failed read stops with a
+  warning and leaves that registration and the ones after it to the next run.
+  """
+  @spec check_owners() :: :ok
+  def check_owners do
+    from(r in __MODULE__, select: {r.id, r.wallet_address, r.token_id})
+    |> Repo.all()
+    |> Enum.reduce_while(:ok, fn {id, wallet_address, token_id}, :ok ->
+      case owner(token_id) do
+        {:ok, ^wallet_address} ->
+          set_status(id, :listed)
+          {:cont, :ok}
+
+        {:ok, _other_or_none} ->
+          set_status(id, :ended)
+          {:cont, :ok}
+
+        {:error, reason} ->
+          Logger.warning("registry owner check stopped token_id=#{token_id} reason=#{reason}")
+          {:halt, :ok}
+      end
+    end)
   end
 
   @doc false
@@ -193,7 +251,7 @@ defmodule SiwaServer.AgentRegistration do
       profile_id = profile_id(request)
 
       Repo.insert!(
-        Record.changeset(%{
+        %__MODULE__{
           profile_id: profile_id,
           wallet_address: wallet_address,
           name: request.name,
@@ -201,7 +259,7 @@ defmodule SiwaServer.AgentRegistration do
           image: request.image,
           token_id: token_id,
           tx_hash: hash
-        }),
+        },
         on_conflict: :nothing
       )
 
@@ -212,8 +270,8 @@ defmodule SiwaServer.AgentRegistration do
            Map.merge(registration(token_id, profile_id), %{
              "txHash" => hash,
              "walletAddress" => wallet_address,
-             "chainId" => AgentRegistry.chain_id(),
-             "registryAddress" => AgentRegistry.address()
+             "chainId" => @chain_id,
+             "registryAddress" => @registry
            })
        }}
     else
@@ -224,7 +282,7 @@ defmodule SiwaServer.AgentRegistration do
 
   defp registration(token_id, profile_id) do
     %{
-      "agentId" => "#{agent_registry()}:#{token_id}",
+      "agentId" => "#{@agent_registry}:#{token_id}",
       "tokenId" => token_id,
       "profileUrl" => profile_url(profile_id),
       "registryUrl" => "https://www.8004scan.io/agents/base/#{token_id}"
@@ -234,7 +292,7 @@ defmodule SiwaServer.AgentRegistration do
   defp minted_token_id(%{"logs" => logs}, wallet_address) when is_list(logs) do
     Enum.find_value(logs, {:error, "no agent minted to the wallet"}, fn
       %{"address" => address, "topics" => [@transfer_topic, @zero_topic, to, token_id]} ->
-        if Address.equal?(address, AgentRegistry.address()) and
+        if Address.equal?(address, @registry) and
              Address.equal?(topic_address(to), wallet_address),
            do:
              {:ok,
@@ -256,12 +314,7 @@ defmodule SiwaServer.AgentRegistration do
   defp topic_address(_topic), do: nil
 
   defp register_step(agent_uri),
-    do:
-      Review.step(
-        "register",
-        AgentRegistry.address(),
-        Call.encode("register(string)", [agent_uri])
-      )
+    do: Review.step("register", @registry, Call.encode("register(string)", [agent_uri]))
 
   defp agent_uri(profile), do: profile_url(profile_id(profile))
 
@@ -281,13 +334,37 @@ defmodule SiwaServer.AgentRegistration do
     |> Base.encode16(case: :lower)
   end
 
-  defp agent_registry, do: "eip155:#{AgentRegistry.chain_id()}:#{AgentRegistry.address()}"
-
   defp base_chain do
     case Config.base_rpc_url() do
       nil -> lookup_failed("base rpc url is not configured")
-      rpc_url -> {:ok, %{chain_id: AgentRegistry.chain_id(), name: "Base", rpc_url: rpc_url}}
+      rpc_url -> {:ok, %{chain_id: @chain_id, name: "Base", rpc_url: rpc_url}}
     end
+  end
+
+  defp owner(token_id) do
+    call = %{
+      to: @registry,
+      data: Call.encode("ownerOf(uint256)", [String.to_integer(token_id)])
+    }
+
+    case Ethereum.json_rpc(Config.base_rpc_url(), "eth_call", [call, "latest"]) do
+      {:ok, "0x" <> word} when byte_size(word) == 64 ->
+        {:ok, "0x" <> String.downcase(binary_part(word, 24, 40))}
+
+      {:ok, answer} ->
+        {:error, "the registry answered #{inspect(answer)}"}
+
+      {:error, "execution reverted" <> _reason} ->
+        {:ok, :none}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp set_status(id, status) do
+    from(r in __MODULE__, where: r.id == ^id and r.status != ^status)
+    |> Repo.update_all(set: [status: status, updated_at: DateTime.utc_now(:second)])
   end
 
   defp lookup_failed(reason) when is_binary(reason),

@@ -5,7 +5,7 @@ defmodule SiwaServer.AgentRegistration.OwnerCheckWorkerTest do
   import ExUnit.CaptureLog
 
   alias SiwaServer.{AgentRegistration, TestRpcServer}
-  alias SiwaServer.AgentRegistration.{OwnerCheckWorker, Record}
+  alias SiwaServer.AgentRegistration.OwnerCheckWorker
 
   @registry "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432"
   @owner_of "0x6352211e"
@@ -61,7 +61,7 @@ defmodule SiwaServer.AgentRegistration.OwnerCheckWorkerTest do
 
   # Both are listed in the same second, so the larger token, as a number, is the newer.
   defp insert!(token_id, status \\ :listed) do
-    Repo.insert!(%Record{
+    Repo.insert!(%AgentRegistration{
       profile_id: String.duplicate("a", 32),
       wallet_address: @wallet,
       name: "Astra",
@@ -74,7 +74,7 @@ defmodule SiwaServer.AgentRegistration.OwnerCheckWorkerTest do
     })
   end
 
-  defp status(token_id), do: Repo.get_by!(Record, token_id: token_id).status
+  defp status(token_id), do: Repo.get_by!(AgentRegistration, token_id: token_id).status
 
   # Base answering the registry's ownerOf for each token: its owner, a revert as
   # for a token that does not exist, or a provider failure.

@@ -2,8 +2,7 @@ defmodule SiwaServerWeb.ActivityControllerTest do
   use SiwaServerWeb.ConnCase, async: false
 
   alias SiwaServer.AgentBook.Acceptance
-  alias SiwaServer.AgentRegistration.Record
-  alias SiwaServer.Repo
+  alias SiwaServer.{AgentRegistration, Repo}
   alias SiwaServer.Siwa.ActivityStore
 
   @wallet "0x1111111111111111111111111111111111111111"
@@ -43,16 +42,14 @@ defmodule SiwaServerWeb.ActivityControllerTest do
   end
 
   test "names the wallet's agent registry listing so the site can link to it" do
-    Repo.insert!(
-      Record.changeset(%{
-        profile_id: String.duplicate("c0", 16),
-        wallet_address: @wallet,
-        name: "Astra",
-        description: "Finds bugs in Elixir code.",
-        token_id: "97609",
-        tx_hash: "0x" <> String.duplicate("ab", 32)
-      })
-    )
+    Repo.insert!(%AgentRegistration{
+      profile_id: String.duplicate("c0", 16),
+      wallet_address: @wallet,
+      name: "Astra",
+      description: "Finds bugs in Elixir code.",
+      token_id: "97609",
+      tx_hash: "0x" <> String.duplicate("ab", 32)
+    })
 
     assert %{
              "agentId" => "eip155:8453:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:97609",
