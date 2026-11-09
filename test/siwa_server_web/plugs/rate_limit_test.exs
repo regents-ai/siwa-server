@@ -111,9 +111,10 @@ defmodule SiwaServerWeb.Plugs.RateLimitTest do
   test "a key of any length is kept at a fixed size and still counted as its own key" do
     long = String.duplicate("a", 60_000)
 
-    assert :ok = RateLimiter.check(:siwa_nonce, long, 1, 60_000)
-    assert {:error, _retry_after_ms} = RateLimiter.check(:siwa_nonce, long, 1, 60_000)
-    assert :ok = RateLimiter.check(:siwa_nonce, long <> "b", 1, 60_000)
+    assert :ok = RateLimiter.check(:siwa_nonce, long)
+    assert :ok = RateLimiter.check(:siwa_nonce, long)
+    assert {:error, _retry_after_ms} = RateLimiter.check(:siwa_nonce, long)
+    assert :ok = RateLimiter.check(:siwa_nonce, long <> "b")
 
     sizes = Repo.all(from(r in "siwa_rate_limits", select: fragment("octet_length(?)", r.key)))
 

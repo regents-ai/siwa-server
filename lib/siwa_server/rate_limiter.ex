@@ -1,23 +1,42 @@
 defmodule SiwaServer.RateLimiter do
   @moduledoc """
   Counts requests per limit and key in fixed windows, in the database, so every
-  machine counts against the same allowance. `SiwaServer.Siwa.CleanupWorker`
+  machine counts against the same allowance. Each limit has a default here that
+  the `:rate_limits` setting can replace. `SiwaServer.Siwa.CleanupWorker`
   removes windows that have ended.
   """
 
   alias SiwaServer.Repo
 
-  @default_cleanup_limit 1_000
+  @limits %{
+    siwa_nonce: [limit: 60, window_ms: 60_000],
+    siwa_verify: [limit: 60, window_ms: 60_000],
+    siwa_http_verify: [limit: 600, window_ms: 60_000],
+    siwa_activity: [limit: 600, window_ms: 60_000],
+    # Each hosted signing unlocks the encrypted key store three times, about
+    # 140 ms of one CPU on the live machine, so 300 a minute stays inside one CPU.
+    siwa_hosted: [limit: 300, window_ms: 60_000],
+    siwa_register: [limit: 60, window_ms: 60_000],
+    agent_book: [limit: 60, window_ms: 60_000],
+    agent_profile: [limit: 600, window_ms: 60_000],
+    siwa_computer: [limit: 300, window_ms: 60_000]
+  }
 
-  @spec check(atom(), String.t(), pos_integer(), pos_integer()) :: :ok | {:error, pos_integer()}
-  def check(name, key, limit, window_ms)
-      when is_atom(name) and is_binary(key) and is_integer(limit) and is_integer(window_ms) do
+  @doc "Counts one request under `name` and `key`; the wait in ms once the window is full."
+  @spec check(atom(), String.t()) :: :ok | {:error, pos_integer()}
+  def check(name, key) do
+    configured = :siwa_server |> Application.get_env(:rate_limits, []) |> Keyword.get(name, [])
+    limits = Keyword.merge(Map.fetch!(@limits, name), configured)
+    window_ms = Keyword.fetch!(limits, :window_ms)
+
     now = System.os_time(:millisecond)
     bucket = div(now, window_ms)
     # Kept a window past its end, so a machine whose clock is a little behind still
     # finds the count it is adding to.
     expires_at = DateTime.from_unix!((bucket + 2) * window_ms, :millisecond)
 
+    # A key is built from what the caller sent, before anything is proven, so it
+    # is stored at a fixed size however long the caller made it.
     %{rows: [[count]]} =
       Repo.query!(
         """
@@ -26,35 +45,32 @@ defmodule SiwaServer.RateLimiter do
         ON CONFLICT (name, key, bucket) DO UPDATE SET count = r.count + 1
         RETURNING count
         """,
-        [Atom.to_string(name), digest(key), bucket, DateTime.to_naive(expires_at)],
+        [Atom.to_string(name), :crypto.hash(:sha256, key), bucket, DateTime.to_naive(expires_at)],
         log: false
       )
 
-    if count <= limit, do: :ok, else: {:error, max((bucket + 1) * window_ms - now, 1)}
+    if count <= Keyword.fetch!(limits, :limit),
+      do: :ok,
+      else: {:error, max((bucket + 1) * window_ms - now, 1)}
   end
 
   @doc "Removes up to `limit` ended windows."
-  def cleanup_expired(limit \\ @default_cleanup_limit) do
-    case Repo.query(
-           """
-           DELETE FROM siwa_rate_limits
-           WHERE (name, key, bucket) IN (
-             SELECT name, key, bucket
-             FROM siwa_rate_limits
-             WHERE expires_at <= (statement_timestamp() AT TIME ZONE 'UTC')
-             ORDER BY expires_at
-             LIMIT $1
-           )
-           """,
-           [limit],
-           log: false
-         ) do
-      {:ok, %{num_rows: count}} -> {:ok, count}
-      {:error, reason} -> {:error, reason}
-    end
+  def cleanup_expired(limit) do
+    with {:ok, %{num_rows: count}} <-
+           Repo.query(
+             """
+             DELETE FROM siwa_rate_limits
+             WHERE (name, key, bucket) IN (
+               SELECT name, key, bucket
+               FROM siwa_rate_limits
+               WHERE expires_at <= (statement_timestamp() AT TIME ZONE 'UTC')
+               ORDER BY expires_at
+               LIMIT $1
+             )
+             """,
+             [limit],
+             log: false
+           ),
+         do: {:ok, count}
   end
-
-  # A key is built from what the caller sent, before anything is proven, so it
-  # is stored at a fixed size however long the caller made it.
-  defp digest(key), do: :crypto.hash(:sha256, key)
 end

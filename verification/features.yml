@@ -157,7 +157,6 @@ features:
     paths:
       - lib/siwa_server_web/plugs/rate_limit.ex
       - lib/siwa_server/rate_limiter.ex
-      - lib/siwa_server_web/client_address.ex
       - lib/siwa_server_web/router.ex
     proofs:
       - test/siwa_server_web/plugs/rate_limit_test.exs

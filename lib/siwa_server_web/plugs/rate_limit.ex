@@ -1,5 +1,14 @@
 defmodule SiwaServerWeb.Plugs.RateLimit do
-  @moduledoc false
+  @moduledoc """
+  Refuses a request over its limit with 429 and the wait in `Retry-After`.
+
+  Limits are keyed by the client's address. Production runs only behind Fly's
+  proxy, which terminates the connection, so the peer is the proxy and the
+  client address arrives in the one header the proxy sets itself, replacing any
+  value a client sent. Anywhere else nothing replaces that header, so the direct
+  peer decides and no request header is read. `X-Forwarded-For` is never read: a
+  client writes its first entries.
+  """
 
   import Plug.Conn
   import Phoenix.Controller, only: [json: 2]
@@ -7,21 +16,9 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   @behaviour Plug
 
   alias SiwaServer.RateLimiter
-  alias SiwaServerWeb.{ClientAddress, ErrorJSON, Help}
+  alias SiwaServerWeb.{ErrorJSON, Help}
 
-  @defaults %{
-    siwa_nonce: [limit: 60, window_ms: 60_000],
-    siwa_verify: [limit: 60, window_ms: 60_000],
-    siwa_http_verify: [limit: 600, window_ms: 60_000],
-    siwa_activity: [limit: 600, window_ms: 60_000],
-    # Each hosted signing unlocks the encrypted key store three times, about
-    # 140 ms of one CPU on the live machine, so 300 a minute stays inside one CPU.
-    siwa_hosted: [limit: 300, window_ms: 60_000],
-    siwa_register: [limit: 60, window_ms: 60_000],
-    agent_book: [limit: 60, window_ms: 60_000],
-    agent_profile: [limit: 600, window_ms: 60_000],
-    siwa_computer: [limit: 300, window_ms: 60_000]
-  }
+  @behind_fly_proxy Application.compile_env!(:siwa_server, :behind_fly_proxy)
 
   # These steps come from an agent's own computer and are counted per wallet
   # address the caller names, so they also share one ceiling per computer: naming
@@ -41,7 +38,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
       {:error, retry_after_ms} ->
         conn
         |> put_status(:too_many_requests)
-        |> put_resp_header("retry-after", retry_after_seconds(retry_after_ms))
+        |> put_resp_header("retry-after", Integer.to_string(ceil(retry_after_ms / 1_000)))
         |> json(
           ErrorJSON.error("rate_limited", "Please wait a moment before trying again.", %{
             "retry_after_ms" => retry_after_ms,
@@ -53,29 +50,12 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   end
 
   defp check(conn, name) when name in @address_keyed do
-    with :ok <- check_bucket(name, client_key(conn, name)) do
-      check_bucket(:siwa_computer, client_ip(conn))
+    with :ok <- RateLimiter.check(name, client_key(conn, name)) do
+      RateLimiter.check(:siwa_computer, client_ip(conn))
     end
   end
 
-  defp check(conn, name), do: check_bucket(name, client_key(conn, name))
-
-  defp check_bucket(name, key) do
-    config = configured_limit(name)
-
-    RateLimiter.check(
-      name,
-      key,
-      Keyword.fetch!(config, :limit),
-      Keyword.fetch!(config, :window_ms)
-    )
-  end
-
-  defp configured_limit(name) do
-    configured = :siwa_server |> Application.get_env(:rate_limits, []) |> Keyword.get(name, [])
-
-    Keyword.merge(Map.fetch!(@defaults, name), configured)
-  end
+  defp check(conn, name), do: RateLimiter.check(name, client_key(conn, name))
 
   defp client_key(conn, :siwa_http_verify) do
     [
@@ -114,8 +94,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   end
 
   defp fetched_body_params(%Plug.Conn{body_params: %Plug.Conn.Unfetched{}}), do: %{}
-  defp fetched_body_params(%Plug.Conn{body_params: body}) when is_map(body), do: body
-  defp fetched_body_params(%Plug.Conn{}), do: %{}
+  defp fetched_body_params(%Plug.Conn{body_params: body}), do: body
 
   defp normalize_part(value) when is_binary(value),
     do: value |> String.trim() |> String.downcase()
@@ -123,20 +102,37 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   defp normalize_part(value) when is_integer(value), do: Integer.to_string(value)
   defp normalize_part(_value), do: "unknown"
 
+  # Behind Fly, anything but exactly one parseable `Fly-Client-IP` keys the
+  # proxy-wide peer bucket rather than a second header a client could forge
+  # itself a private budget with. The address is never persisted, rendered or
+  # logged; it lives only in the limiter's key.
   defp client_ip(conn) do
-    {address, _source} = ClientAddress.key(conn)
+    address = if @behind_fly_proxy, do: fly_client_ip(conn), else: conn.remote_ip
 
     address
+    |> normalized()
     |> :inet.ntoa()
     |> to_string()
   end
 
-  defp retry_after_seconds(retry_after_ms) do
-    retry_after_ms
-    |> Kernel./(1000)
-    |> Float.ceil()
-    |> trunc()
-    |> max(1)
-    |> Integer.to_string()
+  defp fly_client_ip(conn) do
+    with [value] <- get_req_header(conn, "fly-client-ip"),
+         {:ok, address} <- value |> :binary.bin_to_list() |> :inet.parse_strict_address() do
+      address
+    else
+      _absent_duplicated_or_unparseable -> conn.remote_ip
+    end
   end
+
+  # The mapped and compatible IPv6 spellings of one IPv4 address share its
+  # bucket, and a genuine IPv6 client is keyed by its /64 so one host cannot
+  # spend the budget once per address in the block it was handed.
+  defp normalized({_, _, _, _} = ipv4), do: ipv4
+
+  defp normalized({0, 0, 0, 0, 0, embedding, high, low}) when embedding in [0, 0xFFFF] do
+    <<a, b, c, d>> = <<high::16, low::16>>
+    {a, b, c, d}
+  end
+
+  defp normalized({a, b, c, d, _, _, _, _}), do: {a, b, c, d, 0, 0, 0, 0}
 end
