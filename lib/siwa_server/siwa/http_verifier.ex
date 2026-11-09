@@ -113,21 +113,18 @@ defmodule SiwaServer.Siwa.HttpVerifier do
       {%{body_digest: nil, lease: nil}, @types}
       |> Ecto.Changeset.cast(params, @fields, empty_values: [])
       |> Ecto.Changeset.validate_required([:method, :path, :authority, :headers])
-      |> Ecto.Changeset.validate_format(:method, ~r/\S/)
-      |> Ecto.Changeset.validate_format(:path, ~r/\S/)
-      |> Ecto.Changeset.validate_format(:authority, ~r/\S/)
 
     with [] <- Map.keys(params) -- @keys,
          {:ok, request} <- Ecto.Changeset.apply_action(changeset, :verify),
          true <-
-           Enum.all?(request.headers, fn {name, value} -> is_binary(name) and is_binary(value) end) do
-      request = %{
-        request
-        | method: String.trim(request.method),
-          path: String.trim(request.path),
-          authority: String.trim(request.authority)
-      }
-
+           Enum.all?(request.headers, fn {name, value} -> is_binary(name) and is_binary(value) end),
+         request = %{
+           request
+           | method: String.trim(request.method),
+             path: String.trim(request.path),
+             authority: String.trim(request.authority)
+         },
+         false <- "" in [request.method, request.path, request.authority] do
       headers =
         Map.new(request.headers, fn {name, value} ->
           {String.downcase(name), String.trim(value)}

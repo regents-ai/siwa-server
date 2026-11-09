@@ -217,8 +217,6 @@ defmodule SiwaServer.AgentRegistration do
       |> cast(params, fields, empty_values: [])
       |> validate_required(fields -- [:image])
       |> validate_format(:wallet_address, ~r/^0x[0-9a-fA-F]{40}$/)
-      |> validate_format(:name, ~r/\S/)
-      |> validate_format(:description, ~r/\S/)
       |> validate_length(:name, max: 100)
       |> validate_length(:description, max: 1_000)
       |> validate_length(:image, max: 500)
@@ -226,7 +224,8 @@ defmodule SiwaServer.AgentRegistration do
       |> validate_format(:tx_hash, ~r/^0x[0-9a-fA-F]{64}$/)
 
     with [] <- Map.keys(params) -- Enum.map(fields, &Atom.to_string/1),
-         {:ok, request} <- apply_action(changeset, :cast) do
+         {:ok, request} <- apply_action(changeset, :cast),
+         false <- "" in [String.trim(request.name), String.trim(request.description)] do
       {:ok, request}
     else
       _invalid ->

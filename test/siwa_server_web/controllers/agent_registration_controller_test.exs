@@ -61,6 +61,8 @@ defmodule SiwaServerWeb.AgentRegistrationControllerTest do
             %{profile | wallet_address: "not-an-address"},
             Map.delete(profile, :name),
             %{profile | description: " "},
+            %{profile | name: "\u00A0"},
+            %{profile | description: "\u2003"},
             %{profile | image: "http://astra.example/face.png"},
             %{profile | name: String.duplicate("a", 101)},
             Map.put(profile, :agent_uri, "https://agent.example/agent.json")

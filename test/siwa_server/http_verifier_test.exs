@@ -212,6 +212,20 @@ defmodule SiwaServer.HttpVerifierTest do
              })
   end
 
+  test "signed requests reject a method, path or authority made only of spaces" do
+    request = %{
+      "method" => "POST",
+      "path" => "/v1/agent/bug-report",
+      "authority" => "patchbay.help",
+      "headers" => %{}
+    }
+
+    for {field, spaces} <- [{"method", "\u00A0"}, {"path", "\u2003"}, {"authority", "\u3000"}] do
+      assert {:error, {400, "invalid_request", "request body does not match the SIWA contract"}} =
+               verify_http_request(Map.put(request, field, spaces))
+    end
+  end
+
   test "signed requests reject a malformed chain header without crashing" do
     receipt = receipt()
     body = Jason.encode!(%{"summary" => "Malformed chain", "details" => "blocked"})
