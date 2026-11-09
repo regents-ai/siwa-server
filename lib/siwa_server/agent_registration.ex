@@ -4,6 +4,11 @@ defmodule SiwaServer.AgentRegistration do
   optional and changes nothing about sign-in. The agent pays the gas from its
   own wallet; this server never sends or funds a transaction.
 
+  Both steps take the request body as sent and check it once against the
+  contract: a wallet address, a name of at most 100 characters, a description
+  of at most 1,000, an optional `https://` image link of at most 500, and for
+  `outcome/1` the transaction hash; nothing else.
+
     1. `step/1` builds the one transaction, `register(agentURI)`. The URI is
        the agent's public profile on this server, and it names a digest of the
        profile (wallet, name, description, image), so the transaction the
@@ -18,6 +23,9 @@ defmodule SiwaServer.AgentRegistration do
     4. `latest/1` is the wallet's newest registration, for sites to link to.
   """
 
+  import Ecto.Changeset,
+    only: [apply_action: 2, cast: 4, validate_format: 3, validate_length: 3, validate_required: 2]
+
   import Ecto.Query
 
   alias RegentChain.{Address, Call, Outcome, Review}
@@ -28,49 +36,47 @@ defmodule SiwaServer.AgentRegistration do
   @zero_topic "0x" <> String.duplicate("0", 64)
   @registration_type "https://eips.ethereum.org/EIPS/eip-8004#registration-v1"
 
-  @type profile :: %{
-          wallet_address: String.t(),
-          name: String.t(),
-          description: String.t(),
-          image: String.t() | nil
-        }
+  @types %{
+    wallet_address: :string,
+    name: :string,
+    description: :string,
+    image: :string,
+    tx_hash: :string
+  }
+  @profile [:wallet_address, :name, :description, :image]
+
   @type error :: {:error, {pos_integer(), String.t(), String.t()}}
 
   @doc "The unsigned registration transaction for the profile's wallet to send on Base."
-  @spec step(profile()) :: {:ok, map()}
-  def step(profile) do
-    uri = agent_uri(profile)
-    %{to: to, data: data, value: value} = register_step(uri)
+  @spec step(map()) :: {:ok, map()} | error()
+  def step(params) do
+    with {:ok, profile} <- request(params, @profile) do
+      uri = agent_uri(profile)
+      %{to: to, data: data, value: value} = register_step(uri)
 
-    {:ok,
-     %{
-       "code" => "registration_step",
-       "data" => %{
-         "chainId" => AgentRegistry.chain_id(),
-         "from" => Address.normalize!(profile.wallet_address),
-         "to" => to,
-         "data" => data,
-         "value" => value,
-         "agentUri" => uri
-       }
-     }}
+      {:ok,
+       %{
+         "code" => "registration_step",
+         "data" => %{
+           "chainId" => AgentRegistry.chain_id(),
+           "from" => Address.normalize!(profile.wallet_address),
+           "to" => to,
+           "data" => data,
+           "value" => value,
+           "agentUri" => uri
+         }
+       }}
+    end
   end
 
   @doc "What the registration sent as `tx_hash` did, read at the latest Base block."
-  @spec outcome(%{
-          wallet_address: String.t(),
-          name: String.t(),
-          description: String.t(),
-          image: String.t() | nil,
-          tx_hash: String.t()
-        }) :: {:ok, map()} | error()
-  def outcome(%{tx_hash: tx_hash} = request) do
-    hash = String.downcase(tx_hash)
-    wallet_address = request.wallet_address
-
-    with {:ok, chain} <- base_chain(),
+  @spec outcome(map()) :: {:ok, map()} | error()
+  def outcome(params) do
+    with {:ok, request} <- request(params, [:tx_hash | @profile]),
+         hash = String.downcase(request.tx_hash),
+         {:ok, chain} <- base_chain(),
          review =
-           Review.new("agent-registration", wallet_address, chain, [
+           Review.new("agent-registration", request.wallet_address, chain, [
              register_step(agent_uri(request))
            ]),
          {:ok, status} <- Outcome.of(__MODULE__, review, hd(review.steps), hash) do
@@ -144,6 +150,31 @@ defmodule SiwaServer.AgentRegistration do
   @doc false
   def receipt(chain, hash),
     do: Ethereum.json_rpc(chain.rpc_url, "eth_getTransactionReceipt", [hash])
+
+  # The agent's public registry profile: the text is shown as given, so it is
+  # only bounded; an image is a link anyone can open.
+  defp request(params, fields) do
+    changeset =
+      {%{image: nil}, @types}
+      |> cast(params, fields, empty_values: [])
+      |> validate_required(fields -- [:image])
+      |> validate_format(:wallet_address, ~r/^0x[0-9a-fA-F]{40}$/)
+      |> validate_format(:name, ~r/\S/)
+      |> validate_format(:description, ~r/\S/)
+      |> validate_length(:name, max: 100)
+      |> validate_length(:description, max: 1_000)
+      |> validate_length(:image, max: 500)
+      |> validate_format(:image, ~r{\Ahttps://\S+\z})
+      |> validate_format(:tx_hash, ~r/^0x[0-9a-fA-F]{64}$/)
+
+    with [] <- Map.keys(params) -- Enum.map(fields, &Atom.to_string/1),
+         {:ok, request} <- apply_action(changeset, :cast) do
+      {:ok, request}
+    else
+      _invalid ->
+        {:error, {400, "invalid_request", "request body does not match the SIWA contract"}}
+    end
+  end
 
   defp result(:pending, _chain, _request, hash),
     do: {:ok, %{"code" => "registration_pending", "data" => %{"txHash" => hash}}}

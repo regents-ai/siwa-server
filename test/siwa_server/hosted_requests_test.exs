@@ -183,7 +183,7 @@ defmodule SiwaServer.HostedRequestsTest do
              {:error, {401, _, _}},
              HttpVerifier.verify(
                %{params | "body_digest" => Siwa.content_digest_for_body(body <> " ")},
-               audience: "patchbay"
+               "patchbay"
              )
            )
 
@@ -198,7 +198,7 @@ defmodule SiwaServer.HostedRequestsTest do
 
     assert match?(
              {:error, {409, _, _}},
-             HttpVerifier.verify(params, audience: "patchbay")
+             HttpVerifier.verify(params, "patchbay")
            )
   end
 

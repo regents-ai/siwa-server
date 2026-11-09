@@ -44,8 +44,6 @@ features:
     level: protected
     paths:
       - lib/siwa_server_web/agent_siwa_controller.ex
-      - lib/siwa_server_web/agent_siwa_request.ex
-      - lib/siwa_server_web/agent_siwa_request/http_verify.ex
       - lib/siwa_server/siwa/http_verifier.ex
       - lib/siwa_server/siwa/replay_store.ex
     entry:
@@ -83,8 +81,6 @@ features:
     level: protected
     paths:
       - lib/siwa_server_web/agent_registration_controller.ex
-      - lib/siwa_server_web/agent_siwa_request/register_step.ex
-      - lib/siwa_server_web/agent_siwa_request/registered.ex
       - lib/siwa_server/agent_registration.ex
       - lib/siwa_server/agent_registration/record.ex
       - lib/siwa_server/agent_registration/owner_check_worker.ex

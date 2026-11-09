@@ -203,15 +203,13 @@ defmodule SiwaServer.HttpVerifierTest do
       signed_headers(receipt, body, created, expires)
       |> Map.put("x-agent-chain-id", 8453)
 
-    assert {:error, {400, "invalid_headers", message}} =
+    assert {:error, {400, "invalid_request", "request body does not match the SIWA contract"}} =
              verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => bad_headers,
                "body_digest" => Siwa.content_digest_for_body(body)
              })
-
-    assert message =~ "string headers"
   end
 
   test "signed requests reject a malformed chain header without crashing" do
@@ -270,7 +268,7 @@ defmodule SiwaServer.HttpVerifierTest do
                  "headers" => signed_headers(receipt, body, created, expires),
                  "body_digest" => Siwa.content_digest_for_body(body)
                },
-               audience: "patchbay"
+               "patchbay"
              )
 
     assert message =~ "audience"
@@ -791,10 +789,10 @@ defmodule SiwaServer.HttpVerifierTest do
     nonce
   end
 
-  defp verify_http_request(params, opts \\ []) do
+  defp verify_http_request(params, audience \\ "patchbay") do
     params
     |> Map.put_new("authority", "patchbay.help")
-    |> HttpVerifier.verify(Keyword.put_new(opts, :audience, "patchbay"))
+    |> HttpVerifier.verify(audience)
   end
 
   # A signature no ordinary wallet made, so only Base can approve it.

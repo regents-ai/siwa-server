@@ -190,7 +190,11 @@ defmodule SiwaServerWeb.AgentRegistrationControllerTest do
     do: json_post(conn, "/api/shared/siwa/agent/registered", Map.put(profile, :tx_hash, @tx_hash))
 
   defp agent_uri(profile) do
-    {:ok, %{"data" => %{"agentUri" => uri}}} = AgentRegistration.step(profile)
+    {:ok, %{"data" => %{"agentUri" => uri}}} =
+      profile
+      |> Map.new(fn {key, value} -> {to_string(key), value} end)
+      |> AgentRegistration.step()
+
     uri
   end
 

@@ -58,13 +58,13 @@ defmodule SiwaServer.ReplayWindowPropertyTest do
       expires = max(started + expires_offset, created + 1)
       request = sign(signer, receipt, created, expires)
 
-      first = HttpVerifier.verify(request, audience: @audience)
+      first = HttpVerifier.verify(request, @audience)
       first_read = System.os_time(:second)
 
       assert outcome(first) in allowed(created, expires, started..first_read, tolerance)
 
       if outcome(first) == :accepted do
-        second = HttpVerifier.verify(request, audience: @audience)
+        second = HttpVerifier.verify(request, @audience)
         second_read = System.os_time(:second)
 
         replays =

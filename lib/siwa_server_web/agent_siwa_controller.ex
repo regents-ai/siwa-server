@@ -2,17 +2,12 @@ defmodule SiwaServerWeb.AgentSiwaController do
   use SiwaServerWeb, :controller
 
   alias SiwaServer.Siwa.HttpVerifier
-  alias SiwaServerWeb.AgentSiwaRequest
 
   action_fallback SiwaServerWeb.FallbackController
 
   def http_verify(conn, params) do
     with {:ok, audience} <- audience(conn),
-         {:ok, request} <- AgentSiwaRequest.cast_http_verify(params),
-         {:ok, payload} <-
-           request
-           |> AgentSiwaRequest.to_params()
-           |> HttpVerifier.verify(audience: audience) do
+         {:ok, payload} <- HttpVerifier.verify(params, audience) do
       json(conn, payload)
     end
   end

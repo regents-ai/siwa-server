@@ -3,11 +3,12 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   Verifies signed HTTP request envelopes presented by agents signed in with
   their wallet.
 
-  `verify/2` validates the request shape (method, absolute path, the host the
-  site received it at as `authority`, string headers, and the optional
-  `body_digest` the site worked out from the body it read; the body itself never
-  comes here), then delegates to `Siwa.RequestAuth.verify_authenticated_request/2`,
-  which checks:
+  `verify/2` checks the request body once, against the contract: method,
+  absolute path, the host the site received it at as `authority`, string
+  headers (names compared in lower case), the optional `body_digest` the site
+  worked out from the body it read (the body itself never comes here) and the
+  optional `lease`, and nothing else. Then it delegates to
+  `Siwa.RequestAuth.verify_authenticated_request/2`, which checks:
 
     * the wallet receipt issued by `SiwaServer.Siwa.Wallet.verify/1`
       (signature, expiry, and audience binding),
@@ -38,34 +39,36 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   alias SiwaServer.{AgentBook, AgentRegistration, Config, Ethereum}
   alias SiwaServer.Siwa.{ActivityStore, ReplayStore}
 
-  @spec verify(map(), keyword()) :: {:ok, map()} | {:error, {integer(), String.t(), String.t()}}
-  def verify(params, opts \\ []) when is_map(params) do
-    with {:ok, method} <- required_string(params, "method"),
-         {:ok, path} <- required_path(params, "path"),
-         {:ok, authority} <- required_string(params, "authority"),
-         {:ok, body_digest} <- optional_string(params, "body_digest"),
-         {:ok, headers} <- required_header_map(params, "headers"),
-         {:ok, secret} <- receipt_secret(),
+  @types %{
+    method: :string,
+    path: :string,
+    authority: :string,
+    headers: :map,
+    body_digest: :string,
+    lease: :boolean
+  }
+  @fields Map.keys(@types)
+  @keys Enum.map(@fields, &Atom.to_string/1)
+
+  @spec verify(map(), String.t()) ::
+          {:ok, map()} | {:error, {integer(), String.t(), String.t()}}
+  def verify(params, audience) do
+    with {:ok, request} <- cast(params),
+         {:ok, secret} <- Config.receipt_secret(),
          {:ok, verified} <-
            Siwa.RequestAuth.verify_authenticated_request(
-             %{
-               method: method,
-               path: path,
-               authority: authority,
-               headers: headers,
-               body_digest: body_digest
-             },
+             Map.take(request, [:method, :path, :authority, :headers, :body_digest]),
              receipt_secret: secret,
-             audience: Keyword.get(opts, :audience),
-             authorities: authorities(Keyword.get(opts, :audience)),
+             audience: audience,
+             authorities: authorities(audience),
              wallet_audiences: Map.keys(Config.wallet_origins()),
              signature_tolerance_seconds: Config.http_signature_tolerance_seconds(),
              replay_store: &ReplayStore.consume/2,
              chain_rpcs: Ethereum.chain_rpcs()
            ) do
       claims = verified.claims
-      lease_expires_at = lease_expires_at(params, verified)
-      record_activity(claims, Keyword.get(opts, :audience), lease_expires_at)
+      lease_expires_at = lease_expires_at(request, verified)
+      record_activity(claims, audience, lease_expires_at)
 
       {:ok,
        %{
@@ -78,9 +81,13 @@ defmodule SiwaServer.Siwa.HttpVerifier do
              "keyId" => claims["key_id"],
              "verificationMethod" => Atom.to_string(verified.verification_method),
              "receiptExpiresAt" => unix_ms_to_iso8601(claims["exp"]),
-             "requiredHeaders" => Siwa.required_authenticated_request_headers(body_digest),
+             "requiredHeaders" =>
+               Siwa.required_authenticated_request_headers(request.body_digest),
              "requiredCoveredComponents" =>
-               Siwa.required_authenticated_request_components(headers, body_digest),
+               Siwa.required_authenticated_request_components(
+                 request.headers,
+                 request.body_digest
+               ),
              "coveredComponents" => verified.covered_components,
              "agentRegistration" => AgentRegistration.latest(claims["sub"]),
              "agentBook" => AgentBook.human(claims["sub"]),
@@ -94,74 +101,53 @@ defmodule SiwaServer.Siwa.HttpVerifier do
            |> put_lease(lease_expires_at)
        }}
     else
-      {:error, {code, message}} -> {:error, {400, code, message}}
-      {:error, {status, code, message}} -> {:error, {status, code, message}}
+      {:error, {_status, _code, _message}} = error -> error
       {:error, reason} -> {:error, map_shared_error(reason)}
     end
   end
 
-  defp required_string(params, key) do
-    with value when is_binary(value) <- Map.get(params, key),
-         value when value != "" <- String.trim(value) do
-      {:ok, value}
+  # Method, path and authority are compared trimmed, and so are header values;
+  # header names in lower case, so two spellings of one name are refused.
+  defp cast(params) do
+    changeset =
+      {%{body_digest: nil, lease: nil}, @types}
+      |> Ecto.Changeset.cast(params, @fields, empty_values: [])
+      |> Ecto.Changeset.validate_required([:method, :path, :authority, :headers])
+      |> Ecto.Changeset.validate_format(:method, ~r/\S/)
+      |> Ecto.Changeset.validate_format(:path, ~r/\S/)
+      |> Ecto.Changeset.validate_format(:authority, ~r/\S/)
+
+    with [] <- Map.keys(params) -- @keys,
+         {:ok, request} <- Ecto.Changeset.apply_action(changeset, :verify),
+         true <-
+           Enum.all?(request.headers, fn {name, value} -> is_binary(name) and is_binary(value) end) do
+      request = %{
+        request
+        | method: String.trim(request.method),
+          path: String.trim(request.path),
+          authority: String.trim(request.authority)
+      }
+
+      headers =
+        Map.new(request.headers, fn {name, value} ->
+          {String.downcase(name), String.trim(value)}
+        end)
+
+      cond do
+        not String.starts_with?(request.path, "/") ->
+          {:error, {400, "invalid_path", "path must be an absolute path"}}
+
+        map_size(headers) != map_size(request.headers) ->
+          {:error, {400, "invalid_headers", "headers must be an object of string headers"}}
+
+        true ->
+          {:ok, %{request | headers: headers}}
+      end
     else
-      _missing -> {:error, {"missing_#{key}", "#{key} is required"}}
+      _invalid ->
+        {:error, {400, "invalid_request", "request body does not match the SIWA contract"}}
     end
   end
-
-  defp required_path(params, key) do
-    with {:ok, value} <- required_string(params, key),
-         true <- String.starts_with?(value, "/") do
-      {:ok, value}
-    else
-      _ -> {:error, {"invalid_#{key}", "#{key} must be an absolute path"}}
-    end
-  end
-
-  defp optional_string(params, key) do
-    case Map.get(params, key) do
-      nil -> {:ok, nil}
-      value when is_binary(value) -> {:ok, value}
-      _value -> {:error, {"invalid_#{key}", "#{key} must be a string when present"}}
-    end
-  end
-
-  defp required_header_map(params, key) do
-    case Map.get(params, key) do
-      headers when is_map(headers) ->
-        case Enum.reduce_while(headers, %{}, &normalize_header_entry_step/2) do
-          {:error, _reason} ->
-            {:error, {"invalid_#{key}", "#{key} must be an object of string headers"}}
-
-          normalized_headers ->
-            {:ok, normalized_headers}
-        end
-
-      _ ->
-        {:error, {"invalid_#{key}", "#{key} must be an object of string headers"}}
-    end
-  end
-
-  defp normalize_header_entry({name, value}, acc) when is_binary(name) and is_binary(value) do
-    normalized_name = String.downcase(name)
-
-    if Map.has_key?(acc, normalized_name) do
-      {:error, :duplicate}
-    else
-      {:ok, Map.put(acc, normalized_name, String.trim(value))}
-    end
-  end
-
-  defp normalize_header_entry(_entry, _acc), do: {:error, :invalid}
-
-  defp normalize_header_entry_step(entry, acc) do
-    case normalize_header_entry(entry, acc) do
-      {:ok, updated_acc} -> {:cont, updated_acc}
-      {:error, reason} -> {:halt, {:error, reason}}
-    end
-  end
-
-  defp receipt_secret, do: Config.receipt_secret()
 
   @doc "The hosts an audience is served at: the authority of each of its origins."
   @spec authorities(String.t() | nil) :: [String.t()]
@@ -176,12 +162,12 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   # A site asks for a lease only on a request that reads (`Siwa.AgentAuthPlug`'s
   # `read_only: true`). Only a key's signature gets one: the site checks it
   # itself with no chain to ask. A lease never outlasts the receipt.
-  defp lease_expires_at(%{"lease" => true}, %{verification_method: :eoa_recovery, claims: claims}) do
+  defp lease_expires_at(%{lease: true}, %{verification_method: :eoa_recovery, claims: claims}) do
     lease_ends = System.system_time(:millisecond) + Config.lease_seconds() * 1_000
     min(lease_ends, claims["exp"])
   end
 
-  defp lease_expires_at(_params, _verified), do: nil
+  defp lease_expires_at(_request, _verified), do: nil
 
   defp put_lease(data, nil), do: data
 
