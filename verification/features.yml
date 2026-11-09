@@ -48,8 +48,6 @@ features:
       - lib/siwa_server_web/agent_siwa_request/http_verify.ex
       - lib/siwa_server/siwa/http_verifier.ex
       - lib/siwa_server/siwa/replay_store.ex
-      - lib/siwa_server/siwa/replay_record.ex
-      - lib/siwa_server/siwa/error.ex
     entry:
       - route: POST /api/shared/siwa/http-verify
     proofs:

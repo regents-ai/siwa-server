@@ -3,14 +3,6 @@ defmodule SiwaServer.Ethereum do
 
   alias SiwaServer.{Config, RuntimeConfig, Text}
 
-  @spec normalize_address(term()) :: String.t() | nil
-  def normalize_address(value) do
-    case Siwa.Ethereum.normalize_address(value) do
-      {:ok, address} -> address
-      {:error, _reason} -> nil
-    end
-  end
-
   @wallet_chain_names %{1 => "Ethereum", 8453 => "Base"}
 
   @doc "The chains a wallet may sign in on."
