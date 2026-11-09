@@ -422,5 +422,5 @@ exports keys or signs arbitrary messages or transactions. A body that names one 
 only while that site has an origin in `SIWA_WALLET_ORIGINS` (`fly.toml`), since each
 hosted signer signs in like any agent. Products still verify each resulting request
 through http-verify and apply their own pairing and permissions. Each connection's signer
-is stored encrypted in the sign-in database (`SiwaServer.HostedIdentities`), so every machine
+is stored encrypted in the sign-in database (`SiwaServer.HostedRequests`), so every machine
 signs with the same one. A hosted connection creates no on-chain registry listing.

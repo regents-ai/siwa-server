@@ -7,21 +7,37 @@ defmodule SiwaServer.HostedRequests do
   The calling site is the audience of everything signed, and each connection's
   key belongs to the site that registered it: the stored signer is named from
   the site and the site's connection key together, so one site cannot reach
-  another site's connections. Keys stay encrypted (`SiwaServer.HostedIdentities`). This
-  service signs only each site's identity reads and pairing (for its own harness),
-  and Patchbay's free participation; never arbitrary messages, transactions or
-  payment requests. Products still
+  another site's connections. This service signs only each site's identity
+  reads and pairing (for its own harness), and Patchbay's free participation;
+  never arbitrary messages, transactions or payment requests. Products still
   verify every resulting request through the ordinary SIWA verifier and apply
   their own permissions.
+
+  Each connection's signing key is one row of `siwa_hosted_identities`,
+  encrypted with the key store password, so every machine signs with the same
+  key. A key is made the first time its connection registers and is never
+  exported or replaced.
   """
 
-  alias SiwaServer.{Config, HostedIdentities}
+  import Ecto.Query
+
+  alias SiwaKeyring.HostedIdentity
+  alias SiwaServer.{Config, Repo}
   alias SiwaServer.Siwa.{HttpVerifier, Wallet}
 
+  @table "siwa_hosted_identities"
+
+  @doc """
+  Registers a connection (`"register"`), answering with its signer's address,
+  or signs one of the site's allowed requests for it (`"sign"`).
+  """
   def handle(site, %{"operation" => "register", "identity_key" => key} = params)
       when map_size(params) == 2 do
-    with {:ok, identity} <- identity(site, key) do
-      HostedIdentities.ensure(identity)
+    with {:ok, identity} <- identity(site, key),
+         :ok <- create_once(identity),
+         {:ok, signer} <- signer(identity),
+         {:ok, address} <- Siwa.RemoteSigner.get_address(signer) do
+      {:ok, %{address: address}}
     end
   end
 
@@ -33,7 +49,7 @@ defmodule SiwaServer.HostedRequests do
     with {:ok, authority, request} <- authority(site, request),
          :ok <- allowed_request(site, request),
          {:ok, identity} <- identity(site, key),
-         {:ok, signer} <- HostedIdentities.signer(identity),
+         {:ok, signer} <- signer(identity),
          {:ok, address} <- Siwa.RemoteSigner.get_address(signer),
          {:ok, receipt} <- receipt(signer, address, site),
          {:ok, secret} <- Config.receipt_secret() do
@@ -55,6 +71,45 @@ defmodule SiwaServer.HostedRequests do
   end
 
   def handle(_site, _params), do: {:error, :hosted_request_not_allowed}
+
+  @doc "Whether the key store password opens the stored keys, tried on one; `:ok` when none is stored."
+  def keys_readable do
+    case Repo.one(from(h in @table, select: h.encrypted_wallet, limit: 1)) do
+      nil -> :ok
+      encrypted -> with {:ok, _signer} <- open(encrypted), do: :ok
+    end
+  end
+
+  defp signer(identity) do
+    case Repo.one(from(h in @table, where: h.identity == ^identity, select: h.encrypted_wallet)) do
+      nil -> {:error, :wallet_missing}
+      encrypted -> open(encrypted)
+    end
+  end
+
+  # Every key is encrypted with the one password, so a stored key that does not
+  # open means the password is not the one the keys were made with.
+  defp open(encrypted) do
+    case HostedIdentity.signer(encrypted, Config.keystore_password()) do
+      {:error, :keystore_decrypt_failed} -> {:error, :hosted_key_unreadable}
+      opened -> opened
+    end
+  end
+
+  # Two machines registering one identity at once both keep the first key stored.
+  defp create_once(identity) do
+    if Repo.exists?(from(h in @table, where: h.identity == ^identity)) do
+      :ok
+    else
+      with {:ok, encrypted} <- HostedIdentity.new(Config.keystore_password()) do
+        Repo.insert_all(@table, [%{identity: identity, encrypted_wallet: encrypted}],
+          on_conflict: :nothing
+        )
+
+        :ok
+      end
+    end
+  end
 
   # The request is sent to one of the site's own hosts, so it is refused at any other.
   defp authority(site, %{"authority" => authority} = request) do

@@ -2,9 +2,7 @@ defmodule SiwaServer.Readiness do
   @moduledoc false
 
   alias Siwa.Ethereum
-  alias SiwaServer.Config
-  alias SiwaServer.HostedIdentities
-  alias SiwaServer.Repo
+  alias SiwaServer.{Config, HostedRequests, Repo}
 
   @base_chain_id_hex "0x2105"
   @ethereum_chain_id_hex "0x1"
@@ -71,7 +69,7 @@ defmodule SiwaServer.Readiness do
   end
 
   defp hosted_keys_check do
-    case HostedIdentities.readable() do
+    case HostedRequests.keys_readable() do
       :ok ->
         :ok
 

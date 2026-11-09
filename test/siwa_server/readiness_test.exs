@@ -1,7 +1,7 @@
 defmodule SiwaServer.ReadinessTest do
   use SiwaServerWeb.ConnCase, async: false
 
-  alias SiwaServer.HostedIdentities
+  alias SiwaServer.HostedRequests
   alias SiwaServer.Readiness
   alias SiwaServer.TestRpcServer
 
@@ -69,7 +69,12 @@ defmodule SiwaServer.ReadinessTest do
     System.put_env("BASE_RPC_URL", TestRpcServer.chain_id(8453))
     assert %{ready: true, checks: %{hosted_keys: true}} = Readiness.check()
 
-    assert {:ok, _address} = HostedIdentities.ensure(String.duplicate("a", 64))
+    assert {:ok, %{address: _address}} =
+             HostedRequests.handle("patchbay", %{
+               "operation" => "register",
+               "identity_key" => String.duplicate("a", 64)
+             })
+
     assert %{ready: true, checks: %{hosted_keys: true}} = Readiness.check()
 
     siwa = Application.get_env(:siwa_server, :siwa)

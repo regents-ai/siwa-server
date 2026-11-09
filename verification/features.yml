@@ -133,7 +133,6 @@ features:
       - lib/siwa_server_web/hosted_controller.ex
       - lib/siwa_server/hosted_requests.ex
       - lib/siwa_server/config.ex
-      - lib/siwa_server/hosted_identities.ex
     entry:
       - route: POST /api/shared/siwa/hosted
     proofs:
