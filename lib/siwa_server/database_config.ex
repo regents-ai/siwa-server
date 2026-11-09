@@ -143,6 +143,8 @@ defmodule SiwaServer.DatabaseConfig do
 
   defp valid_userinfo?(_userinfo), do: false
 
+  # Ecto has no non-raising check, and its error prints the whole URL, password
+  # included, so the start-up log gets only the plain refusal above.
   defp valid_ecto_url?(database_url) do
     Ecto.Repo.Supervisor.parse_url(database_url)
     true
