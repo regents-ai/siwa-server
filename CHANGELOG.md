@@ -5,6 +5,9 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- A challenge or sign-in lifetime, or the signed-request window, that is not a positive whole
+  number now stops the service from starting, instead of letting it start and say it is not
+  ready (`siwa_ttls`). An RPC address with no host now also fails its readiness address check.
 - A signed request's single use is on the database's disk before http-verify answers, so a
   database crash can no longer let one request through twice. A verification now waits
   while the database's disk pauses.
