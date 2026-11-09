@@ -22,13 +22,13 @@ defmodule SiwaServer.AgentBook do
   alias RegentChain.Call
   alias SiwaServer.AgentBook.Acceptance
   alias SiwaServer.{Config, Ethereum, Repo}
-  alias SiwaServer.Siwa.NonceStore
+  alias SiwaServer.Siwa.Challenge
 
   @chain_id 480
   @address "0xa23ab2712ea7bba896930544c7d6636a96b944da"
   @audience "agent-book"
-  @challenge_fields ~w(wallet_address chain_id)
-  @accept_fields @challenge_fields ++ ~w(nonce message signature)
+  @challenge_fields [:wallet_address, :chain_id]
+  @accept_fields @challenge_fields ++ [:nonce, :message, :signature]
 
   @type error :: {:error, {pos_integer(), String.t(), String.t()}}
 
@@ -66,38 +66,27 @@ defmodule SiwaServer.AgentBook do
   """
   @spec challenge(map()) :: {:ok, map()} | error()
   def challenge(params) do
-    with {:ok, fields} <- validate(params, @challenge_fields),
-         :ok <- unaccepted(fields["wallet_address"]),
-         {:ok, human_id} <- named(fields["wallet_address"]) do
-      now = DateTime.utc_now() |> DateTime.truncate(:second)
-      expires = DateTime.add(now, Config.nonce_ttl_seconds())
-      nonce = :crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower)
-      message = message(fields, human_id, nonce, now, expires)
-
-      attrs = %{
-        nonce_key: nonce_key(fields),
-        nonce: nonce,
-        address: fields["wallet_address"],
-        chain_id: fields["chain_id"],
-        audience: @audience,
-        issued_at: now,
-        expiration_time: expires,
-        canonical_message: message
-      }
-
-      {:ok, _record} = NonceStore.put(attrs)
+    with {:ok, request} <- request(params, @challenge_fields),
+         :ok <- unaccepted(request.wallet_address),
+         {:ok, human_id} <- named(request.wallet_address) do
+      challenge =
+        Challenge.issue(
+          scope(request),
+          %{address: request.wallet_address, chain_id: request.chain_id, audience: @audience},
+          &message(human_id, &1)
+        )
 
       {:ok,
        %{
          "code" => "agent_book_challenge",
          "data" => %{
-           "walletAddress" => fields["wallet_address"],
-           "chainId" => fields["chain_id"],
+           "walletAddress" => challenge.address,
+           "chainId" => challenge.chain_id,
            "humanId" => human_id,
-           "nonce" => nonce,
-           "message" => message,
-           "issuedAt" => DateTime.to_iso8601(now),
-           "expiresAt" => DateTime.to_iso8601(expires)
+           "nonce" => challenge.nonce,
+           "message" => challenge.canonical_message,
+           "issuedAt" => DateTime.to_iso8601(challenge.issued_at),
+           "expiresAt" => DateTime.to_iso8601(challenge.expiration_time)
          }
        }}
     end
@@ -109,23 +98,20 @@ defmodule SiwaServer.AgentBook do
   """
   @spec accept(map()) :: {:ok, map()} | error()
   def accept(params) do
-    with {:ok, fields} <- validate(params, @accept_fields),
-         {:ok, record} <- NonceStore.get(nonce_key(fields), fields["nonce"]),
-         :ok <- current(fields, record),
-         :ok <- unaccepted(record.address),
-         {:ok, human_id} <- named(record.address),
-         :ok <- unchanged(fields, record, human_id),
-         :ok <- signed(record, fields),
-         {:ok, _acceptance} <- keep(record, human_id) do
+    with {:ok, request} <- request(params, @accept_fields),
+         {:ok, challenge} <- Challenge.fetch(scope(request), request.nonce),
+         :ok <- current(challenge, request.message),
+         :ok <- unaccepted(challenge.address),
+         {:ok, human_id} <- named(challenge.address),
+         :ok <- unchanged(challenge, human_id),
+         {:ok, _method} <- Challenge.signed(challenge, request.message, request.signature),
+         {:ok, _acceptance} <- keep(challenge, human_id) do
       {:ok,
        %{
          "code" => "agent_book_accepted",
-         "data" => %{"walletAddress" => record.address, "humanId" => human_id}
+         "data" => %{"walletAddress" => challenge.address, "humanId" => human_id}
        }}
     else
-      {:error, :unknown_nonce} ->
-        {:error, {404, "nonce_not_found", "challenge absent, expired or consumed"}}
-
       {:error, %Ecto.Changeset{}} ->
         already_accepted()
 
@@ -172,12 +158,12 @@ defmodule SiwaServer.AgentBook do
        {409, "agent_book_already_accepted",
         "this wallet has already accepted its World ID person, for good"}}
 
-  defp current(fields, record) do
+  defp current(challenge, message) do
     cond do
-      DateTime.compare(record.expiration_time, DateTime.utc_now()) != :gt ->
+      DateTime.compare(challenge.expiration_time, DateTime.utc_now()) != :gt ->
         {:error, {401, "nonce_expired", "the challenge has expired"}}
 
-      fields["message"] != record.canonical_message ->
+      message != challenge.canonical_message ->
         {:error, {401, "message_invalid", "sign the exact current server-issued challenge"}}
 
       true ->
@@ -186,100 +172,54 @@ defmodule SiwaServer.AgentBook do
   end
 
   # The challenge named the person AgentBook named then; AgentBook must still name them.
-  defp unchanged(fields, record, human_id) do
-    if message(fields, human_id, record.nonce, record.issued_at, record.expiration_time) ==
-         record.canonical_message,
-       do: :ok,
-       else:
-         {:error,
-          {409, "agent_book_changed",
-           "World's AgentBook names a different person behind this wallet than the challenge did"}}
-  end
-
-  defp signed(record, fields) do
-    case Ethereum.verify_signature(
-           record.address,
-           fields["message"],
-           fields["signature"],
-           record.chain_id
-         ) do
-      {:ok, _method} ->
-        :ok
-
-      {:error, :signature_invalid} ->
-        {:error, {401, "signature_invalid", "signature does not match wallet"}}
-
-      {:error, {:lookup_failed, reason}} ->
+  defp unchanged(challenge, human_id) do
+    if message(human_id, challenge) == challenge.canonical_message,
+      do: :ok,
+      else:
         {:error,
-         {502, "signature_lookup_failed",
-          "could not check the wallet signature on #{Ethereum.chain_name(record.chain_id)}: #{reason}"}}
-    end
+         {409, "agent_book_changed",
+          "World's AgentBook names a different person behind this wallet than the challenge did"}}
   end
 
   # Uses the challenge up and keeps the person. The wallet's row is unique, so
   # a second acceptance fails here even when two challenges raced.
-  defp keep(record, human_id) do
+  defp keep(challenge, human_id) do
     Repo.transact(fn ->
-      with :ok <- NonceStore.consume(record) do
-        %{wallet_address: record.address, human_id: human_id}
+      with :ok <- Challenge.consume(challenge) do
+        %{wallet_address: challenge.address, human_id: human_id}
         |> Acceptance.changeset()
         |> Repo.insert()
       end
     end)
   end
 
-  defp validate(params, allowed) when is_map(params) do
-    with true <- Enum.sort(Map.keys(params)) == Enum.sort(allowed),
-         true <- params["chain_id"] in Ethereum.wallet_chain_ids(),
-         address when is_binary(address) <- params["wallet_address"],
-         true <- Regex.match?(~r/^0x[0-9a-fA-F]{40}$/, address),
-         true <- valid_proof_fields?(params) do
-      {:ok, Map.put(params, "wallet_address", String.downcase(address))}
-    else
-      _ -> invalid_request()
+  defp request(params, fields) do
+    case Challenge.cast(params, fields) do
+      {:ok, request} ->
+        {:ok, request}
+
+      :error ->
+        {:error, {400, "invalid_request", "request body does not match the AgentBook contract"}}
     end
   end
 
-  defp validate(_params, _allowed), do: invalid_request()
+  defp scope(request), do: [@audience, request.chain_id, request.wallet_address]
 
-  defp valid_proof_fields?(%{"message" => message, "nonce" => nonce, "signature" => signature})
-       when is_binary(message) and byte_size(message) in 1..2048 and is_binary(nonce) and
-              is_binary(signature),
-       do:
-         Regex.match?(~r/^[a-f0-9]{32}$/, nonce) and
-           byte_size(signature) <= 2 + 2 * Siwa.WalletSignature.max_bytes() and
-           Regex.match?(~r/^0x(?:[0-9a-fA-F]{2})+$/, signature)
-
-  defp valid_proof_fields?(params), do: not Map.has_key?(params, "message")
-
-  defp invalid_request,
-    do: {:error, {400, "invalid_request", "request body does not match the AgentBook contract"}}
-
-  defp nonce_key(fields) do
-    digest =
-      :crypto.hash(
-        :sha256,
-        Jason.encode!([@audience, fields["chain_id"], fields["wallet_address"]])
-      )
-
-    "#{@audience}:" <> Base.encode16(digest, case: :lower)
-  end
-
-  defp message(fields, human_id, nonce, issued, expires) do
+  defp message(human_id, challenge) do
     Enum.join(
       [
         "Accept a World ID person for this agent wallet on Regent sites",
         "",
-        "Wallet: #{fields["wallet_address"]}",
+        "Wallet: #{challenge.address}",
         "Person: #{human_id}",
         "",
         "World's AgentBook names this person behind the wallet. Regent sites show",
         "this person behind the wallet for good; it cannot accept another.",
         "",
-        "Chain ID: #{fields["chain_id"]}",
-        "Nonce: #{nonce}",
-        "Issued At: #{DateTime.to_iso8601(issued)}",
-        "Expiration Time: #{DateTime.to_iso8601(expires)}"
+        "Chain ID: #{challenge.chain_id}",
+        "Nonce: #{challenge.nonce}",
+        "Issued At: #{DateTime.to_iso8601(challenge.issued_at)}",
+        "Expiration Time: #{DateTime.to_iso8601(challenge.expiration_time)}"
       ],
       "\n"
     )

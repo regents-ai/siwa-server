@@ -1,73 +1,63 @@
 defmodule SiwaServer.Siwa.Wallet do
   @moduledoc "Wallet proof, distinct from registered-agent and human identity."
 
-  alias SiwaServer.{Config, Ethereum}
-  alias SiwaServer.Siwa.NonceStore
+  alias SiwaServer.Config
+  alias SiwaServer.Siwa.Challenge
 
-  @nonce_fields ~w(wallet_address chain_id audience)
-  @verify_fields @nonce_fields ++ ~w(nonce message signature)
+  @nonce_fields [:wallet_address, :chain_id, :audience]
+  @verify_fields @nonce_fields ++ [:nonce, :message, :signature]
 
   def issue_nonce(params) do
-    with {:ok, fields, origin} <- validate(params, @nonce_fields),
+    with {:ok, request, origin} <- request(params, @nonce_fields),
          {:ok, _secret} <- Config.receipt_secret() do
-      now = DateTime.utc_now() |> DateTime.truncate(:second)
-      expires = DateTime.add(now, Config.nonce_ttl_seconds())
-      nonce = :crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower)
-      message = message(fields, origin, nonce, now, expires)
+      challenge =
+        Challenge.issue(
+          scope(request),
+          %{
+            address: request.wallet_address,
+            chain_id: request.chain_id,
+            audience: request.audience
+          },
+          &message(origin, &1)
+        )
 
-      attrs = %{
-        nonce_key: nonce_key(fields),
-        nonce: nonce,
-        address: fields["wallet_address"],
-        chain_id: fields["chain_id"],
-        audience: fields["audience"],
-        issued_at: now,
-        expiration_time: expires,
-        canonical_message: message
-      }
-
-      case NonceStore.put(attrs) do
-        {:ok, _record} ->
-          {:ok,
-           %{
-             "code" => "nonce_issued",
-             "data" => %{
-               "walletAddress" => fields["wallet_address"],
-               "chainId" => fields["chain_id"],
-               "audience" => fields["audience"],
-               "nonce" => nonce,
-               "message" => message,
-               "issuedAt" => DateTime.to_iso8601(now),
-               "expiresAt" => DateTime.to_iso8601(expires)
-             }
-           }}
-
-        _ ->
-          unavailable()
-      end
+      {:ok,
+       %{
+         "code" => "nonce_issued",
+         "data" => %{
+           "walletAddress" => challenge.address,
+           "chainId" => challenge.chain_id,
+           "audience" => challenge.audience,
+           "nonce" => challenge.nonce,
+           "message" => challenge.canonical_message,
+           "issuedAt" => DateTime.to_iso8601(challenge.issued_at),
+           "expiresAt" => DateTime.to_iso8601(challenge.expiration_time)
+         }
+       }}
     end
   rescue
     _error in [Postgrex.Error, DBConnection.ConnectionError] -> unavailable()
   end
 
   def verify(params) do
-    with {:ok, fields, origin} <- validate(params, @verify_fields),
+    with {:ok, request, origin} <- request(params, @verify_fields),
          {:ok, secret} <- Config.receipt_secret(),
-         {:ok, record} <- NonceStore.get(nonce_key(fields), fields["nonce"]),
-         :ok <- validate_challenge(fields, origin, record),
-         {:ok, verification_method} <- verify_signature(record, fields),
-         :ok <- NonceStore.consume(record),
+         {:ok, challenge} <- Challenge.fetch(scope(request), request.nonce),
+         :ok <- current(challenge, request.message, origin),
+         {:ok, verification_method} <-
+           Challenge.signed(challenge, request.message, request.signature),
+         :ok <- Challenge.consume(challenge),
          {:ok, receipt} <-
            Siwa.create_receipt(
              %{
                "typ" => "siwa_wallet_receipt",
                "verified" => "wallet_signature",
                "jti" => Ecto.UUID.generate(),
-               "sub" => record.address,
-               "key_id" => record.address,
-               "aud" => record.audience,
-               "chain_id" => record.chain_id,
-               "nonce" => record.nonce
+               "sub" => challenge.address,
+               "key_id" => challenge.address,
+               "aud" => challenge.audience,
+               "chain_id" => challenge.chain_id,
+               "nonce" => challenge.nonce
              },
              receipt_secret: secret,
              ttl_ms: Config.receipt_ttl_seconds() * 1_000
@@ -78,10 +68,10 @@ defmodule SiwaServer.Siwa.Wallet do
          "data" => %{
            "verified" => true,
            "proof" => "wallet_signature",
-           "walletAddress" => record.address,
-           "chainId" => record.chain_id,
-           "audience" => record.audience,
-           "keyId" => record.address,
+           "walletAddress" => challenge.address,
+           "chainId" => challenge.chain_id,
+           "audience" => challenge.audience,
+           "keyId" => challenge.address,
            "signatureScheme" => "evm_personal_sign",
            "verificationMethod" => Atom.to_string(verification_method),
            "receipt" => receipt.token,
@@ -89,89 +79,37 @@ defmodule SiwaServer.Siwa.Wallet do
          }
        }}
     else
-      {:error, {status, code, message}} ->
-        {:error, {status, code, message}}
-
-      {:error, :unknown_nonce} ->
-        {:error, {404, "nonce_not_found", "challenge absent, expired or consumed"}}
-
-      _ ->
-        unavailable()
+      {:error, {_status, _code, _message}} = error -> error
+      _unavailable -> unavailable()
     end
   rescue
     _error in [Postgrex.Error, DBConnection.ConnectionError] -> unavailable()
   end
 
-  defp verify_signature(record, fields) do
-    case Ethereum.verify_signature(
-           record.address,
-           fields["message"],
-           fields["signature"],
-           record.chain_id
-         ) do
-      {:ok, method} ->
-        {:ok, method}
-
-      {:error, :signature_invalid} ->
-        {:error, {401, "signature_invalid", "signature does not match wallet"}}
-
-      {:error, {:lookup_failed, reason}} ->
-        {:error,
-         {502, "signature_lookup_failed",
-          "could not check the wallet signature on #{Ethereum.chain_name(record.chain_id)}: #{reason}"}}
-    end
-  end
-
-  defp validate(params, allowed) when is_map(params) do
-    with true <- Enum.sort(Map.keys(params)) == Enum.sort(allowed),
-         true <- params["chain_id"] in Ethereum.wallet_chain_ids(),
-         address when is_binary(address) <- params["wallet_address"],
-         true <- Regex.match?(~r/^0x[0-9a-fA-F]{40}$/, address),
-         audience when is_binary(audience) and byte_size(audience) in 1..200 <- params["audience"],
-         true <- valid_proof_fields?(params),
-         {:ok, origin} <- enabled_origin(audience) do
-      {:ok, Map.put(params, "wallet_address", String.downcase(address)), origin}
+  defp request(params, fields) do
+    with {:ok, request} <- Challenge.cast(params, fields),
+         [origin | _more] <- Map.get(Config.wallet_origins(), request.audience) do
+      {:ok, request, origin}
     else
-      {:error, _} = error -> error
-      _ -> {:error, {400, "invalid_request", "request body does not match the wallet contract"}}
-    end
-  end
-
-  defp validate(_params, _allowed),
-    do: {:error, {400, "invalid_request", "invalid wallet request"}}
-
-  defp valid_proof_fields?(%{"message" => message, "nonce" => nonce, "signature" => signature})
-       when is_binary(message) and byte_size(message) in 1..2048 and is_binary(nonce) and
-              is_binary(signature),
-       do:
-         Regex.match?(~r/^[a-f0-9]{32}$/, nonce) and
-           byte_size(signature) <= 2 + 2 * Siwa.WalletSignature.max_bytes() and
-           Regex.match?(~r/^0x(?:[0-9a-fA-F]{2})+$/, signature)
-
-  defp valid_proof_fields?(params), do: not Map.has_key?(params, "message")
-
-  defp enabled_origin(audience) do
-    case Map.fetch(Config.wallet_origins(), audience) do
-      {:ok, [origin | _]} ->
-        {:ok, origin}
-
       :error ->
+        {:error, {400, "invalid_request", "request body does not match the wallet contract"}}
+
+      nil ->
         {:error,
          {403, "wallet_audience_disabled",
           "wallet author sign-in is not enabled for this audience"}}
     end
   end
 
-  defp validate_challenge(fields, origin, record) do
-    canonical = message(fields, origin, record.nonce, record.issued_at, record.expiration_time)
-
+  # The challenge names the audience's first origin when it was issued; one
+  # that has changed since, or a message that is not the challenge, is refused.
+  defp current(challenge, message, origin) do
     cond do
-      DateTime.compare(record.expiration_time, DateTime.utc_now()) != :gt ->
+      DateTime.compare(challenge.expiration_time, DateTime.utc_now()) != :gt ->
         {:error, {401, "nonce_expired", "wallet challenge expired"}}
 
-      record.address != fields["wallet_address"] or record.chain_id != fields["chain_id"] or
-        record.audience != fields["audience"] or fields["message"] != record.canonical_message or
-          canonical != record.canonical_message ->
+      message != challenge.canonical_message or
+          message(origin, challenge) != challenge.canonical_message ->
         {:error, {401, "message_invalid", "sign the exact current server-issued challenge"}}
 
       true ->
@@ -179,37 +117,25 @@ defmodule SiwaServer.Siwa.Wallet do
     end
   end
 
-  defp nonce_key(fields) do
-    digest =
-      :crypto.hash(
-        :sha256,
-        Jason.encode!([
-          "wallet",
-          fields["chain_id"],
-          fields["wallet_address"],
-          fields["audience"]
-        ])
-      )
+  defp scope(request),
+    do: ["wallet", request.chain_id, request.wallet_address, request.audience]
 
-    "wallet:" <> Base.encode16(digest, case: :lower)
-  end
-
-  defp message(fields, origin, nonce, issued, expires) do
+  defp message(origin, challenge) do
     Enum.join(
       [
         "#{URI.parse(origin).host} wants you to sign in with your Ethereum account:",
-        checksum_address(fields["wallet_address"]),
+        checksum_address(challenge.address),
         "",
-        "Authorize wallet-signed requests for #{fields["audience"]}. No human profile or agent registration is asserted.",
+        "Authorize wallet-signed requests for #{challenge.audience}. No human profile or agent registration is asserted.",
         "",
         "URI: #{origin}",
         "Version: 1",
-        "Chain ID: #{fields["chain_id"]}",
-        "Nonce: #{nonce}",
-        "Issued At: #{DateTime.to_iso8601(issued)}",
-        "Expiration Time: #{DateTime.to_iso8601(expires)}",
+        "Chain ID: #{challenge.chain_id}",
+        "Nonce: #{challenge.nonce}",
+        "Issued At: #{DateTime.to_iso8601(challenge.issued_at)}",
+        "Expiration Time: #{DateTime.to_iso8601(challenge.expiration_time)}",
         "Resources:",
-        "- urn:regent:audience:#{fields["audience"]}"
+        "- urn:regent:audience:#{challenge.audience}"
       ],
       "\n"
     )

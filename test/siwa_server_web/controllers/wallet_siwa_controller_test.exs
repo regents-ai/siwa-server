@@ -2,7 +2,7 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
   use SiwaServerWeb.ConnCase, async: false
 
   alias SiwaServer.{AgentBook, Repo, TestRpcServer, TestWallet}
-  alias SiwaServer.Siwa.{ActivityStore, NonceRecord, NonceStore, ReplayStore, Wallet}
+  alias SiwaServer.Siwa.{ActivityStore, Challenge, ReplayStore, Wallet}
   import Ecto.Query
 
   setup do
@@ -86,7 +86,7 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
     config = Application.get_env(:siwa_server, :siwa)
     Application.put_env(:siwa_server, :siwa, Keyword.put(config, :wallet_origins, %{}))
     assert json_post("/api/shared/siwa/wallet/verify", proof(nonce)) |> json_response(403)
-    assert Repo.aggregate(NonceRecord, :count) == 1
+    assert Repo.aggregate(Challenge, :count) == 1
   end
 
   test "a closed site's refusal names the sites that accept agents" do
@@ -269,14 +269,16 @@ defmodule SiwaServerWeb.WalletSiwaControllerTest do
 
   test "expired challenges fail and the database refuses a delayed consume" do
     nonce = issue()
-    record = Repo.one!(NonceRecord)
+    record = Repo.one!(Challenge)
 
-    Repo.update_all(from(n in NonceRecord, where: n.id == ^record.id),
+    Repo.update_all(from(n in Challenge, where: n.id == ^record.id),
       set: [expiration_time: DateTime.add(DateTime.utc_now(), -1)]
     )
 
     assert json_post("/api/shared/siwa/wallet/verify", proof(nonce)) |> json_response(401)
-    assert {:error, :unknown_nonce} = NonceStore.consume(record)
+
+    assert {:error, {404, "nonce_not_found", "challenge absent, expired or consumed"}} =
+             Challenge.consume(record)
   end
 
   test "origin changes invalidate an outstanding challenge" do

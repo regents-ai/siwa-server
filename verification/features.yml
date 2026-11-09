@@ -10,8 +10,7 @@ features:
     paths:
       - lib/siwa_server_web/wallet_siwa_controller.ex
       - lib/siwa_server/siwa/wallet.ex
-      - lib/siwa_server/siwa/nonce_store.ex
-      - lib/siwa_server/siwa/nonce_record.ex
+      - lib/siwa_server/siwa/challenge.ex
       - lib/siwa_server/config.ex
       - lib/siwa_server/ethereum.ex
     entry:
@@ -20,7 +19,7 @@ features:
       - route: GET /api/shared/siwa/audiences
     proofs:
       - test/siwa_server_web/controllers/wallet_siwa_controller_test.exs
-      - test/siwa_server/nonce_store_test.exs
+      - test/siwa_server/challenge_test.exs
       - test/siwa_server/wallet_concurrency_test.exs
       - test/siwa_server/wallet_origins_test.exs
       - test/siwa_server/ethereum_test.exs
@@ -103,6 +102,7 @@ features:
       - lib/siwa_server_web/agent_book_controller.ex
       - lib/siwa_server/agent_book.ex
       - lib/siwa_server/agent_book/acceptance.ex
+      - lib/siwa_server/siwa/challenge.ex
     entry:
       - route: POST /api/shared/siwa/agent-book/challenge
       - route: POST /api/shared/siwa/agent-book/accept

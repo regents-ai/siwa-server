@@ -2,7 +2,7 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
   use SiwaServer.DataCase, async: false
   use Oban.Testing, repo: SiwaServer.Repo
 
-  alias SiwaServer.Siwa.{CleanupWorker, NonceRecord}
+  alias SiwaServer.Siwa.{Challenge, CleanupWorker}
 
   test "the cron job removes expired nonce and replay rows and keeps active ones" do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -84,8 +84,7 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
   end
 
   defp insert_nonce!(nonce, expiration_time) do
-    %NonceRecord{}
-    |> NonceRecord.changeset(%{
+    Repo.insert!(%Challenge{
       nonce_key: "key-#{nonce}",
       nonce: nonce,
       address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
@@ -95,7 +94,6 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
       issued_at: DateTime.add(expiration_time, -300, :second),
       expiration_time: expiration_time
     })
-    |> Repo.insert!()
   end
 
   defp insert_replay!(replay_key, expires_at) do
@@ -111,7 +109,7 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
   end
 
   defp nonce_count(nonce) do
-    Repo.aggregate(from(n in NonceRecord, where: n.nonce == ^nonce), :count, :id)
+    Repo.aggregate(from(n in Challenge, where: n.nonce == ^nonce), :count, :id)
   end
 
   defp replay_count(replay_key) do

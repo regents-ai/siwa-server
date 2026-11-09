@@ -3,7 +3,7 @@ defmodule SiwaServer.WalletConcurrencyTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias SiwaServer.{Config, Repo}
-  alias SiwaServer.Siwa.{NonceRecord, NonceStore, ReplayStore, Wallet}
+  alias SiwaServer.Siwa.{Challenge, ReplayStore, Wallet}
   import Ecto.Query
 
   test "committed wallet nonce and replay have one winner across independent connections" do
@@ -27,7 +27,7 @@ defmodule SiwaServer.WalletConcurrencyTest do
     on_exit(fn ->
       Sandbox.unboxed_run(Repo, fn ->
         Repo.delete_all(
-          from n in NonceRecord, where: n.address == ^signer.address and n.nonce == ^nonce_value
+          from n in Challenge, where: n.address == ^signer.address and n.nonce == ^nonce_value
         )
 
         Repo.query!("DELETE FROM siwa_request_replays WHERE replay_key = ANY($1)", [
@@ -74,9 +74,9 @@ defmodule SiwaServer.WalletConcurrencyTest do
   test "nonce lock wait crossing expiry never issues a successful consume" do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    {:ok, record} =
+    record =
       Sandbox.unboxed_run(Repo, fn ->
-        NonceStore.put(%{
+        Repo.insert!(%Challenge{
           nonce_key: "lock-expiry:#{Ecto.UUID.generate()}",
           nonce: "lock-fixture",
           address: "0x1111111111111111111111111111111111111111",
@@ -90,7 +90,7 @@ defmodule SiwaServer.WalletConcurrencyTest do
 
     on_exit(fn ->
       Sandbox.unboxed_run(Repo, fn ->
-        Repo.delete_all(from n in NonceRecord, where: n.id == ^record.id)
+        Repo.delete_all(from n in Challenge, where: n.id == ^record.id)
       end)
     end)
 
@@ -122,7 +122,7 @@ defmodule SiwaServer.WalletConcurrencyTest do
 
     contender =
       Task.Supervisor.async_nolink(supervisor, fn ->
-        Sandbox.unboxed_run(Repo, fn -> NonceStore.consume(record) end)
+        Sandbox.unboxed_run(Repo, fn -> Challenge.consume(record) end)
       end)
 
     await_nonce_lock_wait(100)
@@ -137,7 +137,9 @@ defmodule SiwaServer.WalletConcurrencyTest do
 
     send(holder_pid, :release)
     assert {:ok, :ok} = Task.await(holder)
-    assert {:error, :unknown_nonce} = Task.await(contender)
+
+    assert {:error, {404, "nonce_not_found", "challenge absent, expired or consumed"}} =
+             Task.await(contender)
   end
 
   defp await_nonce_lock_wait(0), do: flunk("nonce consume did not block on the held row")

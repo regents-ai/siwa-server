@@ -6,7 +6,7 @@ defmodule SiwaServer.NonceRedeemOncePropertyTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias SiwaServer.{Ethereum, Repo}
-  alias SiwaServer.Siwa.{NonceRecord, Wallet}
+  alias SiwaServer.Siwa.{Challenge, Wallet}
 
   setup do
     assert String.starts_with?(Repo.config()[:database], "siwa_server_test")
@@ -65,7 +65,7 @@ defmodule SiwaServer.NonceRedeemOncePropertyTest do
         address = String.downcase(signer.address)
 
         Sandbox.unboxed_run(Repo, fn ->
-          Repo.delete_all(from n in NonceRecord, where: n.address == ^address)
+          Repo.delete_all(from n in Challenge, where: n.address == ^address)
         end)
       end
     end
