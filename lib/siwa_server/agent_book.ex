@@ -21,7 +21,7 @@ defmodule SiwaServer.AgentBook do
 
   alias RegentChain.Call
   alias SiwaServer.AgentBook.Acceptance
-  alias SiwaServer.{Ethereum, Repo, RuntimeConfig}
+  alias SiwaServer.{Config, Ethereum, Repo}
   alias SiwaServer.Siwa.NonceStore
 
   @chain_id 480
@@ -70,7 +70,7 @@ defmodule SiwaServer.AgentBook do
          :ok <- unaccepted(fields["wallet_address"]),
          {:ok, human_id} <- named(fields["wallet_address"]) do
       now = DateTime.utc_now() |> DateTime.truncate(:second)
-      expires = DateTime.add(now, RuntimeConfig.siwa_nonce_ttl_seconds())
+      expires = DateTime.add(now, Config.nonce_ttl_seconds())
       nonce = :crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower)
       message = message(fields, human_id, nonce, now, expires)
 
@@ -137,7 +137,7 @@ defmodule SiwaServer.AgentBook do
   defp lookup(wallet_address) do
     call = %{to: @address, data: Call.encode("lookupHuman(address)", [wallet_address])}
 
-    case Ethereum.json_rpc(RuntimeConfig.world_rpc_url(), "eth_call", [call, "latest"]) do
+    case Ethereum.json_rpc(Config.world_rpc_url(), "eth_call", [call, "latest"]) do
       {:ok, "0x" <> word} when byte_size(word) == 64 -> {:ok, String.to_integer(word, 16)}
       {:ok, answer} -> {:error, "AgentBook answered #{inspect(answer)}"}
       {:error, reason} -> {:error, reason}

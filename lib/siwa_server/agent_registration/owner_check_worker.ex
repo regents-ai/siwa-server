@@ -23,7 +23,7 @@ defmodule SiwaServer.AgentRegistration.OwnerCheckWorker do
 
   alias RegentChain.Call
   alias SiwaServer.AgentRegistration.Record
-  alias SiwaServer.{AgentRegistry, Ethereum, Repo, RuntimeConfig}
+  alias SiwaServer.{AgentRegistry, Config, Ethereum, Repo}
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
@@ -52,7 +52,7 @@ defmodule SiwaServer.AgentRegistration.OwnerCheckWorker do
       data: Call.encode("ownerOf(uint256)", [String.to_integer(token_id)])
     }
 
-    case Ethereum.json_rpc(RuntimeConfig.base_rpc_url(), "eth_call", [call, "latest"]) do
+    case Ethereum.json_rpc(Config.base_rpc_url(), "eth_call", [call, "latest"]) do
       {:ok, "0x" <> word} when byte_size(word) == 64 ->
         {:ok, "0x" <> String.downcase(binary_part(word, 24, 40))}
 

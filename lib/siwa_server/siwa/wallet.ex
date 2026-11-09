@@ -1,7 +1,7 @@
 defmodule SiwaServer.Siwa.Wallet do
   @moduledoc "Wallet proof, distinct from registered-agent and human identity."
 
-  alias SiwaServer.{Ethereum, RuntimeConfig}
+  alias SiwaServer.{Config, Ethereum}
   alias SiwaServer.Siwa.NonceStore
 
   @nonce_fields ~w(wallet_address chain_id audience)
@@ -9,9 +9,9 @@ defmodule SiwaServer.Siwa.Wallet do
 
   def issue_nonce(params) do
     with {:ok, fields, origin} <- validate(params, @nonce_fields),
-         {:ok, _secret} <- RuntimeConfig.siwa_receipt_secret() do
+         {:ok, _secret} <- Config.receipt_secret() do
       now = DateTime.utc_now() |> DateTime.truncate(:second)
-      expires = DateTime.add(now, RuntimeConfig.siwa_nonce_ttl_seconds())
+      expires = DateTime.add(now, Config.nonce_ttl_seconds())
       nonce = :crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower)
       message = message(fields, origin, nonce, now, expires)
 
@@ -52,7 +52,7 @@ defmodule SiwaServer.Siwa.Wallet do
 
   def verify(params) do
     with {:ok, fields, origin} <- validate(params, @verify_fields),
-         {:ok, secret} <- RuntimeConfig.siwa_receipt_secret(),
+         {:ok, secret} <- Config.receipt_secret(),
          {:ok, record} <- NonceStore.get(nonce_key(fields), fields["nonce"]),
          :ok <- validate_challenge(fields, origin, record),
          {:ok, verification_method} <- verify_signature(record, fields),
@@ -70,7 +70,7 @@ defmodule SiwaServer.Siwa.Wallet do
                "nonce" => record.nonce
              },
              receipt_secret: secret,
-             ttl_ms: RuntimeConfig.siwa_receipt_ttl_seconds() * 1_000
+             ttl_ms: Config.receipt_ttl_seconds() * 1_000
            ) do
       {:ok,
        %{
@@ -151,7 +151,7 @@ defmodule SiwaServer.Siwa.Wallet do
   defp valid_proof_fields?(params), do: not Map.has_key?(params, "message")
 
   defp enabled_origin(audience) do
-    case Map.fetch(RuntimeConfig.siwa_wallet_origins(), audience) do
+    case Map.fetch(Config.wallet_origins(), audience) do
       {:ok, [origin | _]} ->
         {:ok, origin}
 

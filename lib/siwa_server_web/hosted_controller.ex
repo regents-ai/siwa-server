@@ -10,7 +10,7 @@ defmodule SiwaServerWeb.HostedController do
 
   require Logger
 
-  alias SiwaServer.{HostedRequests, HostedSigners, RuntimeConfig}
+  alias SiwaServer.{Config, HostedRequests}
 
   action_fallback SiwaServerWeb.FallbackController
 
@@ -38,7 +38,7 @@ defmodule SiwaServerWeb.HostedController do
 
   defp authorize(conn) do
     with [presented] <- get_req_header(conn, "authorization"),
-         {:ok, site} <- HostedSigners.site(RuntimeConfig.siwa_hosted_signers(), presented) do
+         {:ok, site} <- Config.hosted_signer(presented) do
       counted(site)
       {:ok, site}
     else

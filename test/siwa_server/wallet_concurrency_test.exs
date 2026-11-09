@@ -2,7 +2,7 @@ defmodule SiwaServer.WalletConcurrencyTest do
   use ExUnit.Case, async: false
 
   alias Ecto.Adapters.SQL.Sandbox
-  alias SiwaServer.{Repo, RuntimeConfig}
+  alias SiwaServer.{Config, Repo}
   alias SiwaServer.Siwa.{NonceRecord, NonceStore, ReplayStore, Wallet}
   import Ecto.Query
 
@@ -50,7 +50,7 @@ defmodule SiwaServer.WalletConcurrencyTest do
     assert Enum.count(results, &match?({:error, {404, "nonce_not_found", _}}, &1)) == 3
 
     [{:ok, verified}] = Enum.filter(results, &match?({:ok, _}, &1))
-    {:ok, secret} = RuntimeConfig.siwa_receipt_secret()
+    {:ok, secret} = Config.receipt_secret()
 
     assert {:ok, %{"typ" => "siwa_wallet_receipt"}} =
              Siwa.verify_receipt(verified["data"]["receipt"],

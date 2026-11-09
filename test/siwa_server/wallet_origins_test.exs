@@ -1,15 +1,15 @@
 defmodule SiwaServer.WalletOriginsTest do
   use ExUnit.Case, async: true
 
-  alias SiwaServer.WalletOrigins
+  alias SiwaServer.Config
 
   test "empty configuration disables every wallet audience" do
-    assert WalletOrigins.parse!(nil) == %{}
-    assert WalletOrigins.parse!("") == %{}
+    assert Config.wallet_origins!(nil) == %{}
+    assert Config.wallet_origins!("") == %{}
   end
 
   test "parses several audiences, keeps each audience's origins in order and trims trailing slashes" do
-    assert WalletOrigins.parse!(
+    assert Config.wallet_origins!(
              " patchbay=https://patchbay.help/ , keyfleet=https://keyfleet.example," <>
                "keyfleet=https://club.notebooks.keyfleet.example"
            ) ==
@@ -34,25 +34,25 @@ defmodule SiwaServer.WalletOriginsTest do
           "patchbay=https://patchbay.help,patchbay=https://patchbay.help/",
           "patchbay=https://patchbay.help,keyfleet=https://patchbay.help"
         ] do
-      assert_raise ArgumentError, fn -> WalletOrigins.parse!(bad) end
+      assert_raise ArgumentError, fn -> Config.wallet_origins!(bad) end
     end
   end
 
   test "a server run for local work also accepts a localhost origin with a port" do
     local = "keyfleet=https://keyfleet.ai,keyfleet=http://localhost:4000"
 
-    assert WalletOrigins.parse!(local, local: true) == %{
+    assert Config.wallet_origins!(local, local: true) == %{
              "keyfleet" => ["https://keyfleet.ai", "http://localhost:4000"]
            }
 
-    assert_raise ArgumentError, fn -> WalletOrigins.parse!(local) end
+    assert_raise ArgumentError, fn -> Config.wallet_origins!(local) end
 
     for bad <- [
           "site=http://localhost",
           "site=http://127.0.0.1:4000",
           "site=http://keyfleet.ai:4000"
         ] do
-      assert_raise ArgumentError, fn -> WalletOrigins.parse!(bad, local: true) end
+      assert_raise ArgumentError, fn -> Config.wallet_origins!(bad, local: true) end
     end
   end
 
@@ -68,12 +68,12 @@ defmodule SiwaServer.WalletOriginsTest do
           "site=https://a.123",
           "site=https://" <> String.duplicate("a", 64) <> ".example"
         ] do
-      assert_raise ArgumentError, fn -> WalletOrigins.parse!(bad) end
+      assert_raise ArgumentError, fn -> Config.wallet_origins!(bad) end
     end
 
     label = String.duplicate("a", 63)
 
-    assert WalletOrigins.parse!(
+    assert Config.wallet_origins!(
              "a=https://xn--bcher-kva.example,b=https://123.example,c=https://localhost,d=https://#{label}.example"
            ) == %{
              "a" => ["https://xn--bcher-kva.example"],

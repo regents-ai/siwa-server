@@ -2,7 +2,7 @@ defmodule SiwaServer.SiwaMessageRoundTripPropertyTest do
   use SiwaServer.DataCase, async: false
   use ExUnitProperties
 
-  alias SiwaServer.{Ethereum, RuntimeConfig}
+  alias SiwaServer.{Config, Ethereum}
   alias SiwaServer.Siwa.Wallet
 
   @alphanumeric Enum.concat(?a..?z, ?0..?9)
@@ -74,7 +74,7 @@ defmodule SiwaServer.SiwaMessageRoundTripPropertyTest do
       assert {verified["walletAddress"], verified["chainId"], verified["audience"]} ==
                {wallet, chain_id, audience}
 
-      {:ok, secret} = RuntimeConfig.siwa_receipt_secret()
+      {:ok, secret} = Config.receipt_secret()
 
       assert {:ok, claims} =
                Siwa.verify_receipt(verified["receipt"],

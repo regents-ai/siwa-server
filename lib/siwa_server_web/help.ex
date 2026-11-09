@@ -11,7 +11,7 @@ defmodule SiwaServerWeb.Help do
 
   import Plug.Conn, only: [get_req_header: 2]
 
-  alias SiwaServer.RuntimeConfig
+  alias SiwaServer.Config
 
   @guide "https://siwa.regents.sh/skill.md"
   @smart_wallet_chain "A smart wallet's signature holds only on the chain it lives on: if yours lives on Ethereum, run `use-wallet` again with `--chain ethereum --force`."
@@ -247,14 +247,14 @@ defmodule SiwaServerWeb.Help do
   defp site_name(nil), do: "This site"
 
   defp site_name(audience) do
-    case RuntimeConfig.siwa_wallet_origins() do
+    case Config.wallet_origins() do
       %{^audience => [origin | _]} -> origin
       _closed -> audience
     end
   end
 
   defp open_sites do
-    RuntimeConfig.siwa_wallet_origins()
+    Config.wallet_origins()
     |> Map.values()
     |> List.flatten()
     |> Enum.sort()

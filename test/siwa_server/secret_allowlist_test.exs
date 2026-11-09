@@ -2,9 +2,9 @@ defmodule SiwaServer.SecretAllowlistTest do
   use ExUnit.Case, async: true
 
   # A setting is read by System.get_env or System.fetch_env, by config/runtime.exs's
-  # env_value, env_integer, env_boolean and required_env, or by
-  # SiwaServer.RuntimeConfig's fetch and fetch_integer, always with the name written out.
-  @setting_read ~r/(?:System\.(?:get_env|fetch_env!?)|\b(?:env_value|env_integer|env_boolean|required_env)\.|(?<![.\w])fetch(?:_integer)?)\(\s*"([A-Z][A-Z0-9_]*)"/
+  # env_value, env_integer, env_boolean and required_env, or by SiwaServer.Config's
+  # env_url, always with the name written out.
+  @setting_read ~r/(?:System\.(?:get_env|fetch_env!?)|\b(?:env_value|env_integer|env_boolean|required_env)\.|(?<![.\w])env_url)\(\s*"([A-Z][A-Z0-9_]*)"/
 
   test "secret allowlist keeps shared SIWA secrets inside this repo boundary" do
     allowlist = File.read!("docs/secret-allowlist.yaml")

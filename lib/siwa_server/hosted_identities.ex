@@ -9,7 +9,7 @@ defmodule SiwaServer.HostedIdentities do
   import Ecto.Query
 
   alias SiwaKeyring.HostedIdentity
-  alias SiwaServer.{Repo, RuntimeConfig}
+  alias SiwaServer.{Config, Repo}
 
   @table "siwa_hosted_identities"
 
@@ -62,5 +62,5 @@ defmodule SiwaServer.HostedIdentities do
     end
   end
 
-  defp password, do: RuntimeConfig.siwa_keystore_password()
+  defp password, do: Config.keystore_password()
 end

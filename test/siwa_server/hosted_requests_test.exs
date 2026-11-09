@@ -1,7 +1,7 @@
 defmodule SiwaServer.HostedRequestsTest do
   use SiwaServer.DataCase, async: false
 
-  alias SiwaServer.{HostedRequests, RuntimeConfig}
+  alias SiwaServer.{Config, HostedRequests}
   alias SiwaServer.Siwa.HttpVerifier
   alias SiwaServerWeb.Endpoint
 
@@ -142,7 +142,7 @@ defmodule SiwaServer.HostedRequestsTest do
         }
       })
 
-    {:ok, secret} = RuntimeConfig.siwa_receipt_secret()
+    {:ok, secret} = Config.receipt_secret()
 
     opts = [
       receipt_secret: secret,
@@ -239,7 +239,7 @@ defmodule SiwaServer.HostedRequestsTest do
         ] do
       assert {:ok, signed} = sign.(site, request)
 
-      {:ok, secret} = RuntimeConfig.siwa_receipt_secret()
+      {:ok, secret} = Config.receipt_secret()
 
       envelope =
         signed

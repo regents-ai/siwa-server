@@ -12,7 +12,7 @@ features:
       - lib/siwa_server/siwa/wallet.ex
       - lib/siwa_server/siwa/nonce_store.ex
       - lib/siwa_server/siwa/nonce_record.ex
-      - lib/siwa_server/wallet_origins.ex
+      - lib/siwa_server/config.ex
       - lib/siwa_server/ethereum.ex
     entry:
       - route: POST /api/shared/siwa/wallet/nonce
@@ -122,13 +122,13 @@ features:
     level: protected
     paths:
       - lib/siwa_server_web/activity_controller.ex
-      - lib/siwa_server/activity_readers.ex
+      - lib/siwa_server/config.ex
       - lib/siwa_server/siwa/activity_store.ex
     entry:
       - route: POST /api/shared/siwa/activity
     proofs:
       - test/siwa_server_web/controllers/activity_controller_test.exs
-      - test/siwa_server/activity_readers_test.exs
+      - test/siwa_server/config_test.exs
     gaps:
       - No property proof that one site's key never reads under another site's name.
 
@@ -139,7 +139,7 @@ features:
     paths:
       - lib/siwa_server_web/hosted_controller.ex
       - lib/siwa_server/hosted_requests.ex
-      - lib/siwa_server/hosted_signers.ex
+      - lib/siwa_server/config.ex
       - lib/siwa_server/hosted_identities.ex
     entry:
       - route: POST /api/shared/siwa/hosted
@@ -155,7 +155,6 @@ features:
     paths:
       - lib/siwa_server_web.ex
       - lib/siwa_server_web/endpoint.ex
-      - lib/siwa_server/text.ex
     proofs:
       - test/siwa_server_web/controllers/agent_siwa_controller_test.exs
 
@@ -245,7 +244,6 @@ features:
     level: protected
     paths:
       - config/**
-      - lib/siwa_server/runtime_config.ex
       - lib/siwa_server/config.ex
       - lib/siwa_server/database_config.ex
       - lib/siwa_server/repo.ex
@@ -257,7 +255,7 @@ features:
       - .env.example
       - docs/secret-allowlist.yaml
     proofs:
-      - test/siwa_server/runtime_config_test.exs
+      - test/siwa_server/config_test.exs
       - test/siwa_server/secret_allowlist_test.exs
       - test/siwa_server/database_config_test.exs
     regressions:

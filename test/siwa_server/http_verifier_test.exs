@@ -1,7 +1,7 @@
 defmodule SiwaServer.HttpVerifierTest do
   use SiwaServer.DataCase, async: false
 
-  alias SiwaServer.{Ethereum, Repo, RuntimeConfig, TestRpcServer, TestWallet}
+  alias SiwaServer.{Config, Ethereum, Repo, TestRpcServer, TestWallet}
   alias SiwaServer.Siwa.HttpVerifier
 
   @wallet_address TestWallet.address()
@@ -50,7 +50,7 @@ defmodule SiwaServer.HttpVerifierTest do
   test "signed requests reject stale signature windows" do
     receipt = receipt()
     body = Jason.encode!(%{"summary" => "Stale request", "details" => "body binding"})
-    created = System.os_time(:second) - RuntimeConfig.siwa_http_signature_tolerance_seconds() - 1
+    created = System.os_time(:second) - Config.http_signature_tolerance_seconds() - 1
     expires = System.os_time(:second) + 30
 
     assert {:error, {401, "http_signature_invalid", message}} =

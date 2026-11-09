@@ -2,7 +2,7 @@ defmodule SiwaServer.HostedRequests do
   @moduledoc """
   Signing for an account's persistent hosted connection (Patchbay's ChatGPT app,
   and the Claude connectors of Keyfleet and the template, `ash-template`), asked
-  for by a site with its own hosted signing key (`SiwaServer.HostedSigners`).
+  for by a site with its own hosted signing key (`SiwaServer.Config.hosted_signer/1`).
 
   The calling site is the audience of everything signed, and each connection's
   key belongs to the site that registered it: the stored signer is named from
@@ -15,7 +15,7 @@ defmodule SiwaServer.HostedRequests do
   their own permissions.
   """
 
-  alias SiwaServer.{HostedIdentities, RuntimeConfig}
+  alias SiwaServer.{Config, HostedIdentities}
   alias SiwaServer.Siwa.{HttpVerifier, Wallet}
 
   def handle(site, %{"operation" => "register", "identity_key" => key} = params)
@@ -36,7 +36,7 @@ defmodule SiwaServer.HostedRequests do
          {:ok, signer} <- HostedIdentities.signer(identity),
          {:ok, address} <- Siwa.RemoteSigner.get_address(signer),
          {:ok, receipt} <- receipt(signer, address, site),
-         {:ok, secret} <- RuntimeConfig.siwa_receipt_secret() do
+         {:ok, secret} <- Config.receipt_secret() do
       Siwa.sign_authenticated_request(
         %{
           method: request["method"],
@@ -49,7 +49,7 @@ defmodule SiwaServer.HostedRequests do
         signer,
         receipt_secret: secret,
         audience: site,
-        wallet_audiences: Map.keys(RuntimeConfig.siwa_wallet_origins())
+        wallet_audiences: Map.keys(Config.wallet_origins())
       )
     end
   end

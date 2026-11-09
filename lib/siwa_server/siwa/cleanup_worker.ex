@@ -20,7 +20,7 @@ defmodule SiwaServer.Siwa.CleanupWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    batch_size = Keyword.fetch!(SiwaServer.Config.siwa_cleanup(), :batch_size)
+    batch_size = Application.fetch_env!(:siwa_server, :siwa_cleanup)[:batch_size]
 
     with {:ok, _counts} <- cleanup_once(DateTime.utc_now(), batch_size), do: :ok
   end

@@ -5,9 +5,8 @@ defmodule SiwaServerWeb.Telemetry do
   @request_duration_buckets [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]
   @query_duration_buckets [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0]
 
-  def prometheus_reporter do
-    SiwaServer.Config.prometheus_reporter()
-  end
+  def prometheus_reporter,
+    do: Application.fetch_env!(:siwa_server, __MODULE__)[:prometheus_reporter]
 
   def start_link(arg) do
     Supervisor.start_link(__MODULE__, arg, name: __MODULE__)

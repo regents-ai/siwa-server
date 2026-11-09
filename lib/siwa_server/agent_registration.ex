@@ -22,7 +22,7 @@ defmodule SiwaServer.AgentRegistration do
 
   alias RegentChain.{Address, Call, Outcome, Review}
   alias SiwaServer.AgentRegistration.Record
-  alias SiwaServer.{AgentRegistry, Ethereum, Repo, RuntimeConfig, Text}
+  alias SiwaServer.{AgentRegistry, Config, Ethereum, Repo}
 
   @transfer_topic "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
   @zero_topic "0x" <> String.duplicate("0", 64)
@@ -253,7 +253,7 @@ defmodule SiwaServer.AgentRegistration do
   defp agent_registry, do: "eip155:#{AgentRegistry.chain_id()}:#{AgentRegistry.address()}"
 
   defp base_chain do
-    case Text.normalize_optional_text(RuntimeConfig.base_rpc_url()) do
+    case Config.base_rpc_url() do
       nil -> lookup_failed("base rpc url is not configured")
       rpc_url -> {:ok, %{chain_id: AgentRegistry.chain_id(), name: "Base", rpc_url: rpc_url}}
     end

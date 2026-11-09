@@ -2,7 +2,7 @@ defmodule SiwaServer.WalletOriginsPropertyTest do
   use ExUnit.Case, async: true
   use ExUnitProperties
 
-  alias SiwaServer.WalletOrigins
+  alias SiwaServer.Config
 
   @alphanumeric Enum.concat(?a..?z, ?0..?9)
 
@@ -14,7 +14,7 @@ defmodule SiwaServer.WalletOriginsPropertyTest do
               slash <- member_of(["", "/"]),
               space <- member_of(["", " "]) do
       entry = "#{space}#{audience}=#{space}https://#{host}#{slash}#{space}"
-      assert WalletOrigins.parse!(entry) == %{audience => ["https://#{host}"]}
+      assert Config.wallet_origins!(entry) == %{audience => ["https://#{host}"]}
     end
   end
 
@@ -25,7 +25,7 @@ defmodule SiwaServer.WalletOriginsPropertyTest do
     check all host <- host(),
               other <- label(),
               lookalike <- lookalike(host, other) do
-      assert_raise ArgumentError, fn -> WalletOrigins.parse!("site=" <> lookalike) end
+      assert_raise ArgumentError, fn -> Config.wallet_origins!("site=" <> lookalike) end
     end
   end
 
@@ -36,7 +36,7 @@ defmodule SiwaServer.WalletOriginsPropertyTest do
               other <- label(),
               neighbour <-
                 member_of(["#{other}.#{host}", "#{host}.#{other}.com", "#{other}#{host}"]) do
-      assert WalletOrigins.parse!("site=https://#{host},other=https://#{neighbour}") == %{
+      assert Config.wallet_origins!("site=https://#{host},other=https://#{neighbour}") == %{
                "site" => ["https://#{host}"],
                "other" => ["https://#{neighbour}"]
              }
@@ -49,7 +49,7 @@ defmodule SiwaServer.WalletOriginsPropertyTest do
     check all host <- host(),
               slash <- member_of(["", "/"]) do
       assert_raise ArgumentError, fn ->
-        WalletOrigins.parse!("site=https://#{host},other=https://#{host}#{slash}")
+        Config.wallet_origins!("site=https://#{host},other=https://#{host}#{slash}")
       end
     end
   end

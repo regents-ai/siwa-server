@@ -1,6 +1,6 @@
 defmodule SiwaServer.ReadinessKeeper do
   @moduledoc """
-  Keeps the last readiness answer for `SiwaServer.Config.readiness_keep_ms/0`.
+  Keeps the last readiness answer for `:readiness_keep_ms` (30 seconds unless set).
 
   `/readyz` is public, so every request used to make three chain-id calls and a
   keystore write. Requests now share one check: a caller that finds the kept
@@ -17,7 +17,6 @@ defmodule SiwaServer.ReadinessKeeper do
 
   require Logger
 
-  alias SiwaServer.Config
   alias SiwaServer.Readiness
 
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -37,7 +36,7 @@ defmodule SiwaServer.ReadinessKeeper do
   @impl true
   def handle_call(:answer, _from, kept) do
     now = System.monotonic_time(:millisecond)
-    keep_ms = Config.readiness_keep_ms()
+    keep_ms = Application.get_env(:siwa_server, :readiness_keep_ms, 30_000)
 
     case kept do
       {checked_at, readiness} when now - checked_at < keep_ms ->

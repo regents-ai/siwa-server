@@ -14,7 +14,7 @@ defmodule SiwaServerWeb.ActivityController do
 
   require Logger
 
-  alias SiwaServer.{ActivityReaders, AgentBook, AgentRegistration, RuntimeConfig}
+  alias SiwaServer.{AgentBook, AgentRegistration, Config}
   alias SiwaServer.Siwa.ActivityStore
 
   action_fallback SiwaServerWeb.FallbackController
@@ -38,7 +38,7 @@ defmodule SiwaServerWeb.ActivityController do
 
   defp authorize(conn) do
     with [presented] <- get_req_header(conn, "authorization"),
-         {:ok, reader} <- ActivityReaders.reader(RuntimeConfig.siwa_activity_readers(), presented) do
+         {:ok, reader} <- Config.activity_reader(presented) do
       counted(reader)
       {:ok, reader}
     else

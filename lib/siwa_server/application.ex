@@ -19,7 +19,7 @@ defmodule SiwaServer.Application do
         {Finch, name: SiwaServer.Finch},
         {Task.Supervisor, name: SiwaServer.TaskSupervisor},
         SiwaServer.ReadinessKeeper,
-        {DNSCluster, query: SiwaServer.Config.dns_cluster_query() || :ignore},
+        {DNSCluster, query: Application.get_env(:siwa_server, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: SiwaServer.PubSub},
         SiwaServerWeb.Endpoint,
         metrics_child()

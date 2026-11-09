@@ -2,13 +2,12 @@ defmodule SiwaServerWeb.AgentSiwaController do
   use SiwaServerWeb, :controller
 
   alias SiwaServer.Siwa.HttpVerifier
-  alias SiwaServer.Text
   alias SiwaServerWeb.AgentSiwaRequest
 
   action_fallback SiwaServerWeb.FallbackController
 
   def http_verify(conn, params) do
-    with {:ok, audience} <- required_header(conn, "x-siwa-audience"),
+    with {:ok, audience} <- audience(conn),
          {:ok, request} <- AgentSiwaRequest.cast_http_verify(params),
          {:ok, payload} <-
            request
@@ -18,17 +17,12 @@ defmodule SiwaServerWeb.AgentSiwaController do
     end
   end
 
-  defp required_header(conn, name) do
-    conn
-    |> get_req_header(name)
-    |> List.first()
-    |> Text.normalize_optional_text()
-    |> case do
-      nil -> audience_required_error()
-      audience -> {:ok, audience}
+  defp audience(conn) do
+    with [value | _rest] <- get_req_header(conn, "x-siwa-audience"),
+         audience when audience != "" <- String.trim(value) do
+      {:ok, audience}
+    else
+      _missing -> {:error, {401, "receipt_audience_required", "request audience is required"}}
     end
   end
-
-  defp audience_required_error,
-    do: {:error, {401, "receipt_audience_required", "request audience is required"}}
 end

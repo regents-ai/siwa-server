@@ -37,9 +37,9 @@ env_integer = fn name, default ->
 end
 
 env_value = fn name, default ->
-  case System.get_env(name) do
-    value when is_binary(value) and value != "" -> value
-    _ -> default
+  case String.trim(System.get_env(name, "")) do
+    "" -> default
+    value -> value
   end
 end
 
@@ -82,7 +82,7 @@ port = String.to_integer(System.get_env("PORT", "4000"))
 receipt_secret =
   if prod?,
     do: required_env.("SIWA_RECEIPT_SECRET"),
-    else: env_value.("SIWA_RECEIPT_SECRET", Keyword.get(current_siwa, :receipt_secret))
+    else: env_value.("SIWA_RECEIPT_SECRET", Keyword.fetch!(current_siwa, :receipt_secret))
 
 keystore_password =
   if prod?,
@@ -93,7 +93,7 @@ activity_readers =
   case env_value.("SIWA_ACTIVITY_READERS", nil) do
     nil when prod? -> required_env.("SIWA_ACTIVITY_READERS")
     nil -> Keyword.fetch!(current_siwa, :activity_readers)
-    value -> SiwaServer.ActivityReaders.parse!(value)
+    value -> SiwaServer.Config.activity_readers!(value)
   end
 
 if prod?, do: required_env.("BASE_RPC_URL")
@@ -103,24 +103,26 @@ if prod?, do: required_env.("WORLD_RPC_URL")
 config :siwa_server, SiwaServerWeb.Endpoint, http: [port: port]
 
 wallet_origins =
-  SiwaServer.WalletOrigins.parse!(System.get_env("SIWA_WALLET_ORIGINS"),
+  SiwaServer.Config.wallet_origins!(System.get_env("SIWA_WALLET_ORIGINS"),
     local: config_env() != :prod
   )
 
 hosted_signers =
   case env_value.("SIWA_HOSTED_SIGNERS", nil) do
     nil -> Keyword.fetch!(current_siwa, :hosted_signers)
-    value -> SiwaServer.HostedSigners.parse!(value)
+    value -> SiwaServer.Config.hosted_signers!(value)
   end
 
 config :siwa_server, :siwa,
   wallet_origins: wallet_origins,
   nonce_ttl_seconds:
-    env_integer.("SIWA_NONCE_TTL_SECONDS", Keyword.get(current_siwa, :nonce_ttl_seconds, 300)),
+    env_integer.("SIWA_NONCE_TTL_SECONDS", Keyword.fetch!(current_siwa, :nonce_ttl_seconds)),
   receipt_ttl_seconds:
+    env_integer.("SIWA_RECEIPT_TTL_SECONDS", Keyword.fetch!(current_siwa, :receipt_ttl_seconds)),
+  http_signature_tolerance_seconds:
     env_integer.(
-      "SIWA_RECEIPT_TTL_SECONDS",
-      Keyword.get(current_siwa, :receipt_ttl_seconds, 3_600)
+      "SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS",
+      Keyword.fetch!(current_siwa, :http_signature_tolerance_seconds)
     ),
   receipt_secret: receipt_secret,
   activity_readers: activity_readers,
@@ -129,7 +131,7 @@ config :siwa_server, :siwa,
 
 config :siwa_server, :siwa_cleanup,
   batch_size:
-    env_integer.("SIWA_CLEANUP_BATCH_SIZE", Keyword.get(current_siwa_cleanup, :batch_size, 1_000))
+    env_integer.("SIWA_CLEANUP_BATCH_SIZE", Keyword.fetch!(current_siwa_cleanup, :batch_size))
 
 if prod? do
   database_url =

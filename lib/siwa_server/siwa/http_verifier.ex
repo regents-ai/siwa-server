@@ -26,7 +26,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   World's AgentBook last named behind the wallet (see `SiwaServer.AgentBook`).
 
   A site asks for a lease (`"lease": true`) on a request that reads. For a key's
-  signature the answer adds `leaseExpiresAt`, `RuntimeConfig.siwa_lease_seconds/0`
+  signature the answer adds `leaseExpiresAt`, `SiwaServer.Config.lease_seconds/0`
   from now and never past the receipt's expiry; until then the site checks that
   agent's reads under the same receipt itself, and this server sees none of them.
   A smart wallet's signature never gets a lease.
@@ -35,9 +35,8 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   tuples by the shared contract's `refusals` (`Siwa.Contract.refusal/1`).
   """
 
-  alias SiwaServer.{AgentBook, AgentRegistration, Ethereum, RuntimeConfig}
+  alias SiwaServer.{AgentBook, AgentRegistration, Config, Ethereum}
   alias SiwaServer.Siwa.{ActivityStore, ReplayStore}
-  alias SiwaServer.Text
 
   @spec verify(map(), keyword()) :: {:ok, map()} | {:error, {integer(), String.t(), String.t()}}
   def verify(params, opts \\ []) when is_map(params) do
@@ -59,8 +58,8 @@ defmodule SiwaServer.Siwa.HttpVerifier do
              receipt_secret: secret,
              audience: Keyword.get(opts, :audience),
              authorities: authorities(Keyword.get(opts, :audience)),
-             wallet_audiences: Map.keys(RuntimeConfig.siwa_wallet_origins()),
-             signature_tolerance_seconds: RuntimeConfig.siwa_http_signature_tolerance_seconds(),
+             wallet_audiences: Map.keys(Config.wallet_origins()),
+             signature_tolerance_seconds: Config.http_signature_tolerance_seconds(),
              replay_store: &ReplayStore.consume/2,
              chain_rpcs: Ethereum.chain_rpcs()
            ) do
@@ -102,9 +101,11 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   end
 
   defp required_string(params, key) do
-    case Text.normalize_optional_text(Map.get(params, key)) do
-      nil -> {:error, {"missing_#{key}", "#{key} is required"}}
-      value -> {:ok, value}
+    with value when is_binary(value) <- Map.get(params, key),
+         value when value != "" <- String.trim(value) do
+      {:ok, value}
+    else
+      _missing -> {:error, {"missing_#{key}", "#{key} is required"}}
     end
   end
 
@@ -160,12 +161,12 @@ defmodule SiwaServer.Siwa.HttpVerifier do
     end
   end
 
-  defp receipt_secret, do: RuntimeConfig.siwa_receipt_secret()
+  defp receipt_secret, do: Config.receipt_secret()
 
   @doc "The hosts an audience is served at: the authority of each of its origins."
   @spec authorities(String.t() | nil) :: [String.t()]
   def authorities(audience) do
-    RuntimeConfig.siwa_wallet_origins()
+    Config.wallet_origins()
     |> Map.get(audience, [])
     |> Enum.map(&Siwa.Contract.authority/1)
   end
@@ -176,7 +177,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   # `read_only: true`). Only a key's signature gets one: the site checks it
   # itself with no chain to ask. A lease never outlasts the receipt.
   defp lease_expires_at(%{"lease" => true}, %{verification_method: :eoa_recovery, claims: claims}) do
-    lease_ends = System.system_time(:millisecond) + RuntimeConfig.siwa_lease_seconds() * 1_000
+    lease_ends = System.system_time(:millisecond) + Config.lease_seconds() * 1_000
     min(lease_ends, claims["exp"])
   end
 

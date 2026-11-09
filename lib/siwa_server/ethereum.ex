@@ -1,7 +1,7 @@
 defmodule SiwaServer.Ethereum do
   @moduledoc false
 
-  alias SiwaServer.{Config, RuntimeConfig, Text}
+  alias SiwaServer.Config
 
   @wallet_chain_names %{1 => "Ethereum", 8453 => "Base"}
 
@@ -41,14 +41,14 @@ defmodule SiwaServer.Ethereum do
 
   defp rpc_opts(chain_id) do
     [
-      rpc_url: Text.normalize_optional_text(rpc_url(chain_id)) || "",
+      rpc_url: rpc_url(chain_id) || "",
       finch: SiwaServer.Finch,
       timeout_ms: rpc_timeout_ms()
     ]
   end
 
-  defp rpc_url(1), do: RuntimeConfig.ethereum_rpc_url()
-  defp rpc_url(8453), do: RuntimeConfig.base_rpc_url()
+  defp rpc_url(1), do: Config.ethereum_rpc_url()
+  defp rpc_url(8453), do: Config.base_rpc_url()
 
   defp lookup_reason(:rpc_url_required, chain_id),
     do: "#{String.downcase(chain_name(chain_id))} rpc url is not configured"
@@ -71,7 +71,7 @@ defmodule SiwaServer.Ethereum do
     end)
   end
 
-  defp rpc_timeout_ms, do: Config.ethereum_rpc_timeout_ms()
+  defp rpc_timeout_ms, do: Application.get_env(:siwa_server, :ethereum_rpc_timeout_ms, 5_000)
 
   defp telemetry_span(operation, metadata, fun) do
     :telemetry.span(

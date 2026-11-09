@@ -2,7 +2,7 @@ defmodule SiwaServer.ReplayWindowPropertyTest do
   use SiwaServer.DataCase, async: false
   use ExUnitProperties
 
-  alias SiwaServer.RuntimeConfig
+  alias SiwaServer.Config
   alias SiwaServer.Siwa.{HttpVerifier, Wallet}
 
   @audience "patchbay"
@@ -43,7 +43,7 @@ defmodule SiwaServer.ReplayWindowPropertyTest do
   # clock readings.
   property "a signed request is accepted once inside its window and refused outside it",
            %{signer: signer, receipt: receipt} do
-    tolerance = RuntimeConfig.siwa_http_signature_tolerance_seconds()
+    tolerance = Config.http_signature_tolerance_seconds()
 
     check all created_offset <-
                 one_of([
@@ -77,7 +77,7 @@ defmodule SiwaServer.ReplayWindowPropertyTest do
   end
 
   defp sign(signer, receipt, created, expires) do
-    {:ok, secret} = RuntimeConfig.siwa_receipt_secret()
+    {:ok, secret} = Config.receipt_secret()
 
     {:ok, signed} =
       Siwa.sign_authenticated_request(
