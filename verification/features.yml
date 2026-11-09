@@ -99,7 +99,6 @@ features:
     paths:
       - lib/siwa_server_web/agent_book_controller.ex
       - lib/siwa_server/agent_book.ex
-      - lib/siwa_server/agent_book/acceptance.ex
       - lib/siwa_server/siwa/challenge.ex
     entry:
       - route: POST /api/shared/siwa/agent-book/challenge

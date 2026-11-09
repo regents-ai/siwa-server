@@ -14,13 +14,15 @@ defmodule SiwaServer.AgentBook do
   Accepting is once and for good. Sites receive the accepted person with every
   verified request (`human/1`), whatever AgentBook names later, with how many
   agent wallets accepted the same person; a wallet that has accepted cannot
-  accept another.
+  accept another. Each acceptance is a row of `agent_book_acceptances`, keyed
+  by the wallet, that the database refuses to change.
   """
+
+  use Ecto.Schema
 
   import Ecto.Query
 
   alias RegentChain.Call
-  alias SiwaServer.AgentBook.Acceptance
   alias SiwaServer.{Config, Ethereum, Repo}
   alias SiwaServer.Siwa.Challenge
 
@@ -29,6 +31,14 @@ defmodule SiwaServer.AgentBook do
   @audience "agent-book"
   @challenge_fields [:wallet_address, :chain_id]
   @accept_fields @challenge_fields ++ [:nonce, :message, :signature]
+
+  @primary_key {:wallet_address, :string, autogenerate: false}
+
+  schema "agent_book_acceptances" do
+    field :human_id, :string
+
+    timestamps(type: :utc_datetime)
+  end
 
   @type error :: {:error, {pos_integer(), String.t(), String.t()}}
 
@@ -46,15 +56,15 @@ defmodule SiwaServer.AgentBook do
   """
   @spec human(String.t()) :: %{String.t() => String.t() | pos_integer()} | nil
   def human(wallet_address) do
-    case Repo.get(Acceptance, String.downcase(wallet_address)) do
+    case Repo.get(__MODULE__, String.downcase(wallet_address)) do
       nil ->
         nil
 
-      %Acceptance{human_id: human_id} ->
+      %__MODULE__{human_id: human_id} ->
         %{
           "humanId" => human_id,
           "agentCount" =>
-            Repo.aggregate(from(a in Acceptance, where: a.human_id == ^human_id), :count)
+            Repo.aggregate(from(a in __MODULE__, where: a.human_id == ^human_id), :count)
         }
     end
   end
@@ -147,7 +157,7 @@ defmodule SiwaServer.AgentBook do
   end
 
   defp unaccepted(wallet_address) do
-    if Repo.exists?(from a in Acceptance, where: a.wallet_address == ^wallet_address),
+    if Repo.exists?(from a in __MODULE__, where: a.wallet_address == ^wallet_address),
       do: already_accepted(),
       else: :ok
   end
@@ -186,8 +196,9 @@ defmodule SiwaServer.AgentBook do
   defp keep(challenge, human_id) do
     Repo.transact(fn ->
       with :ok <- Challenge.consume(challenge) do
-        %{wallet_address: challenge.address, human_id: human_id}
-        |> Acceptance.changeset()
+        %__MODULE__{wallet_address: challenge.address, human_id: human_id}
+        |> Ecto.Changeset.change()
+        |> Ecto.Changeset.unique_constraint(:wallet_address, name: :agent_book_acceptances_pkey)
         |> Repo.insert()
       end
     end)
