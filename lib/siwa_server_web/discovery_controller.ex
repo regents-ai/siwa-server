@@ -17,7 +17,7 @@ defmodule SiwaServerWeb.DiscoveryController do
   end
 
   def readyz(conn, _params) do
-    readiness = SiwaServer.ReadinessKeeper.answer()
+    readiness = SiwaServer.Readiness.answer()
     status = if readiness.ready, do: 200, else: 503
 
     conn

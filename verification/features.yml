@@ -208,7 +208,6 @@ features:
     paths:
       - lib/siwa_server_web/discovery_controller.ex
       - lib/siwa_server/readiness.ex
-      - lib/siwa_server/readiness_keeper.ex
       - lib/mix/tasks/siwa_server.contract_check.ex
       - lib/siwa_server_web/metrics.ex
       - lib/siwa_server_web/telemetry.ex

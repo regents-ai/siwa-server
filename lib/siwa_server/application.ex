@@ -18,7 +18,7 @@ defmodule SiwaServer.Application do
         {Oban, Application.fetch_env!(:siwa_server, Oban)},
         {Finch, name: SiwaServer.Finch},
         {Task.Supervisor, name: SiwaServer.TaskSupervisor},
-        SiwaServer.ReadinessKeeper,
+        SiwaServer.Readiness,
         {DNSCluster, query: Application.get_env(:siwa_server, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: SiwaServer.PubSub},
         SiwaServerWeb.Endpoint,

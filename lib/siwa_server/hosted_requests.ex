@@ -72,11 +72,16 @@ defmodule SiwaServer.HostedRequests do
 
   def handle(_site, _params), do: {:error, :hosted_request_not_allowed}
 
-  @doc "Whether the key store password opens the stored keys, tried on one; `:ok` when none is stored."
+  @doc """
+  Whether the key store password opens the stored keys, tried on one; `:ok`
+  when none is stored. A database that cannot be read answers its error.
+  """
+  @spec keys_readable() :: :ok | {:error, :hosted_key_unreadable | Exception.t()}
   def keys_readable do
-    case Repo.one(from(h in @table, select: h.encrypted_wallet, limit: 1)) do
-      nil -> :ok
-      encrypted -> with {:ok, _signer} <- open(encrypted), do: :ok
+    case Repo.query("SELECT encrypted_wallet FROM siwa_hosted_identities LIMIT 1") do
+      {:ok, %{rows: []}} -> :ok
+      {:ok, %{rows: [[encrypted]]}} -> with {:ok, _signer} <- open(encrypted), do: :ok
+      {:error, error} -> {:error, error}
     end
   end
 
