@@ -1,54 +1,38 @@
 defmodule SiwaServerWeb.ErrorJSON do
   @moduledoc """
-  This module is invoked by your endpoint in case of errors on JSON requests.
-
-  See config/config.exs.
+  The body of every error answer. The endpoint renders its own errors here
+  (see config/config.exs); a refusal also carries the agent's next steps from
+  `SiwaServerWeb.Help`.
   """
 
-  def render("error.json", %{code: code, message: message}) do
-    error(code, message)
-  end
+  alias SiwaServerWeb.Help
 
-  def render(template, _assigns) do
-    error(
-      status_code_from_template(template),
-      Phoenix.Controller.status_message_from_template(template)
-    )
-  end
+  def render(<<status::binary-size(3), ".json">> = template, _assigns) do
+    code =
+      case status do
+        "400" -> "bad_request"
+        "401" -> "unauthorized"
+        "404" -> "not_found"
+        "413" -> "request_body_too_large"
+        "415" -> "unsupported_media_type"
+        "500" -> "internal_server_error"
+        _status -> "request_failed"
+      end
 
-  def error(code, message) when is_binary(code) and is_binary(message) do
     %{
       "error" => %{
         "code" => code,
-        "message" => message
+        "message" => Phoenix.Controller.status_message_from_template(template)
       }
     }
   end
 
-  def error(code, message, meta) when is_binary(code) and is_binary(message) and is_map(meta) do
+  @doc "A refusal's body: its code and message, the agent's next steps, and any `extra` fields."
+  @spec refusal(Plug.Conn.t(), String.t(), String.t(), map()) :: map()
+  def refusal(conn, code, message, extra \\ %{}) do
     %{
       "error" =>
-        Map.merge(
-          %{
-            "code" => code,
-            "message" => message
-          },
-          meta
-        )
+        Map.merge(%{"code" => code, "message" => message, "hint" => Help.hint(code, conn)}, extra)
     }
   end
-
-  defp status_code_from_template(<<code::binary-size(3), ".json">>) do
-    case code do
-      "400" -> "bad_request"
-      "401" -> "unauthorized"
-      "404" -> "not_found"
-      "413" -> "request_body_too_large"
-      "415" -> "unsupported_media_type"
-      "500" -> "internal_server_error"
-      _code -> "request_failed"
-    end
-  end
-
-  defp status_code_from_template(_template), do: "request_failed"
 end

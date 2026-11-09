@@ -17,16 +17,15 @@ defmodule SiwaServerWeb.Help do
   @smart_wallet_chain "A smart wallet's signature holds only on the chain it lives on: if yours lives on Ethereum, run `use-wallet` again with `--chain ethereum --force`."
   @client "curl -fsSO https://siwa.regents.sh/agent/siwa_agent.py"
 
-  @type context :: %{audience: String.t() | nil, signer: String.t() | nil}
+  @doc """
+  What the agent should do next about a refusal with this code, for the site
+  and signer `conn` names, as far as it names them.
+  """
+  @spec hint(String.t(), Plug.Conn.t()) :: String.t()
+  def hint(code, conn) do
+    context = %{audience: audience(conn), signer: signer(get_req_header(conn, "x-agent-signer"))}
 
-  @doc "What the agent should do next about a refusal with this code."
-  @spec hint(String.t(), context()) :: String.t()
-  def hint(code, context), do: code |> steps(context) |> IO.iodata_to_binary()
-
-  @doc "The site and signer named by a request, as far as it names them."
-  @spec context(Plug.Conn.t()) :: context()
-  def context(conn) do
-    %{audience: audience(conn), signer: signer(get_req_header(conn, "x-agent-signer"))}
+    code |> steps(context) |> IO.iodata_to_binary()
   end
 
   defp audience(conn) do

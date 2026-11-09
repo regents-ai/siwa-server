@@ -19,13 +19,14 @@ defmodule SiwaServerWeb.Telemetry do
     children = [
       {TelemetryMetricsPrometheus.Core,
        metrics: prometheus_metrics(), name: prometheus_reporter(), start_async: false},
-      {:telemetry_poller, measurements: periodic_measurements(), period: 10_000}
+      {:telemetry_poller,
+       measurements: [{__MODULE__, :observe_runtime_stats, []}], period: 10_000}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)
   end
 
-  def prometheus_metrics do
+  defp prometheus_metrics do
     [
       counter("siwa_server.phoenix.requests.total",
         event_name: [:phoenix, :router_dispatch, :stop],
@@ -157,10 +158,6 @@ defmodule SiwaServerWeb.Telemetry do
       },
       %{}
     )
-  end
-
-  defp periodic_measurements do
-    [{__MODULE__, :observe_runtime_stats, []}]
   end
 
   defp route_tag_values(metadata) do

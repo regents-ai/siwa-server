@@ -16,7 +16,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   @behaviour Plug
 
   alias SiwaServer.RateLimiter
-  alias SiwaServerWeb.{ErrorJSON, Help}
+  alias SiwaServerWeb.ErrorJSON
 
   @behind_fly_proxy Application.compile_env!(:siwa_server, :behind_fly_proxy)
 
@@ -40,9 +40,8 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
         |> put_status(:too_many_requests)
         |> put_resp_header("retry-after", Integer.to_string(ceil(retry_after_ms / 1_000)))
         |> json(
-          ErrorJSON.error("rate_limited", "Please wait a moment before trying again.", %{
-            "retry_after_ms" => retry_after_ms,
-            "hint" => Help.hint("rate_limited", Help.context(conn))
+          ErrorJSON.refusal(conn, "rate_limited", "Please wait a moment before trying again.", %{
+            "retry_after_ms" => retry_after_ms
           })
         )
         |> halt()
