@@ -13,6 +13,14 @@ defmodule SiwaServerWeb.AgentRegistrationController do
     with {:ok, payload} <- AgentRegistration.outcome(params), do: json(conn, payload)
   end
 
+  def link_challenge(conn, params) do
+    with {:ok, payload} <- AgentRegistration.link_challenge(params), do: json(conn, payload)
+  end
+
+  def link(conn, params) do
+    with {:ok, payload} <- AgentRegistration.link(params), do: json(conn, payload)
+  end
+
   # The registration file explorers and other sites read, so any page may fetch it.
   def profile(conn, %{"profile_id" => profile_id}) do
     case AgentRegistration.profile(profile_id) do

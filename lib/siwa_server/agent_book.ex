@@ -110,7 +110,7 @@ defmodule SiwaServer.AgentBook do
   def accept(params) do
     with {:ok, request} <- request(params, @accept_fields),
          {:ok, challenge} <- Challenge.fetch(scope(request), request.nonce),
-         :ok <- current(challenge, request.message),
+         :ok <- Challenge.current(challenge, request.message),
          :ok <- unaccepted(challenge.address),
          {:ok, human_id} <- named(challenge.address),
          :ok <- unchanged(challenge, human_id),
@@ -167,19 +167,6 @@ defmodule SiwaServer.AgentBook do
       {:error,
        {409, "agent_book_already_accepted",
         "this wallet has already accepted its World ID person, for good"}}
-
-  defp current(challenge, message) do
-    cond do
-      DateTime.compare(challenge.expiration_time, DateTime.utc_now()) != :gt ->
-        {:error, {401, "nonce_expired", "the challenge has expired"}}
-
-      message != challenge.canonical_message ->
-        {:error, {401, "message_invalid", "sign the exact current server-issued challenge"}}
-
-      true ->
-        :ok
-    end
-  end
 
   # The challenge named the person AgentBook named then; AgentBook must still name them.
   defp unchanged(challenge, human_id) do

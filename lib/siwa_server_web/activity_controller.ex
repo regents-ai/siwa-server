@@ -2,8 +2,8 @@ defmodule SiwaServerWeb.ActivityController do
   @moduledoc """
   Lets a Regents site read how much one wallet's agent was verified at each site
   on each of the last 30 days, so a person can see where their agent has been
-  active. The answer also names the wallet's newest agent
-  registry listing made through this server, so the site can link to it, and the
+  active. The answer also names the agent registry listing the wallet
+  registered through this server or linked last, so the site can link to it, and the
   World ID-verified person AgentBook last named behind it, if any.
   Each site reads with its own key. Every read is counted under the site whose
   key it presented, and every refused key under "refused", so an unexpected

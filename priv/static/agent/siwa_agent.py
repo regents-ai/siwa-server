@@ -1803,6 +1803,7 @@ Your key:
 Optional, once:
   register-agent --name NAME --description TEXT [--image URL] [--tx-hash HASH]
                                    list yourself in the agent registry on Base; your wallet pays
+  link-agent --agent-id ID         or link the listing you already have in that registry
   accept-world-id [--human-id NUMBER]
                                    accept the person who vouched for you with World ID
 
@@ -1918,6 +1919,18 @@ def command_register_agent(config: dict, args: argparse.Namespace) -> None:
     print_response(*wait_for_registration(config, profile, send_registration(config, key, step)))
 
 
+def command_link_agent(config: dict, args: argparse.Namespace) -> None:
+    key = require_key(config)
+    base = {"wallet_address": key["address"], "chain_id": chain_id(key), "token_id": args.agent_id}
+    status, body = http_json("POST", f"{config['broker']}/api/shared/siwa/agent/link-challenge", json_body(base))
+    if status != 200 or not isinstance(body, dict) or body.get("code") != "agent_link_challenge":
+        print_response(status, body)
+        return
+    challenge = body["data"]
+    proof = {**base, "nonce": challenge["nonce"], "message": challenge["message"], "signature": sign_text(key, challenge["message"])}
+    print_response(*http_json("POST", f"{config['broker']}/api/shared/siwa/agent/link", json_body(proof), {"x-agent-signer": signer_name(key)}))
+
+
 def command_accept_world_id(config: dict, args: argparse.Namespace) -> None:
     key = require_key(config)
     base = {"wallet_address": key["address"], "chain_id": chain_id(key)}
@@ -1994,6 +2007,10 @@ def main(argv: list[str]) -> None:
     register.add_argument("--image")
     register.add_argument("--tx-hash")
     register.set_defaults(run=command_register_agent)
+
+    link = commands.add_parser("link-agent")
+    link.add_argument("--agent-id", required=True)
+    link.set_defaults(run=command_link_agent)
 
     accept = commands.add_parser("accept-world-id")
     accept.add_argument("--human-id")

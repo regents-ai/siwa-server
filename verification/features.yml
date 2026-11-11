@@ -75,16 +75,20 @@ features:
         test: test/siwa_server_web/controllers/agent_siwa_controller_test.exs
 
   - id: agent-registry-listing
-    what: An agent lists itself in the agent registry on Base, and its profile is served.
+    what: An agent lists itself in the agent registry on Base, and its profile is served, or links a listing made with another tool that the registry names its own.
     who: agent
     level: protected
     paths:
       - lib/siwa_server_web/agent_registration_controller.ex
       - lib/siwa_server/agent_registration.ex
+      - lib/siwa_server/agent_registration/link.ex
       - lib/siwa_server/agent_registration/owner_check_worker.ex
+      - lib/siwa_server/siwa/challenge.ex
     entry:
       - route: POST /api/shared/siwa/agent/register-step
       - route: POST /api/shared/siwa/agent/registered
+      - route: POST /api/shared/siwa/agent/link-challenge
+      - route: POST /api/shared/siwa/agent/link
       - route: GET /agent-profiles/:profile_id
     proofs:
       - test/siwa_server_web/controllers/agent_registration_controller_test.exs
@@ -201,7 +205,7 @@ features:
       - WebKit not run on the Mac (Safari).
 
   - id: discovery-and-readiness
-    what: The service describes itself, says when it is ready and which checks failed, and serves its contract.
+    what: The service describes itself, says when it is ready and which checks failed, and serves its contract and the websites guide.
     who: operator
     level: ordinary
     paths:
@@ -211,13 +215,16 @@ features:
       - lib/siwa_server_web/metrics.ex
       - lib/siwa_server_web/telemetry.ex
       - priv/static/regent-services-contract.openapiv3.yaml
+      - priv/static/websites.md
     entry:
       - route: GET /
+      - route: GET /websites.md
       - route: GET /healthz
       - route: GET /readyz
       - route: GET /regent-services-contract.openapiv3.yaml
     proofs:
       - test/siwa_server/readiness_test.exs
+      - test/siwa_server_web/controllers/agent_siwa_controller_test.exs
 
   - id: cleanup
     what: Expired challenges and used requests are removed in batches.

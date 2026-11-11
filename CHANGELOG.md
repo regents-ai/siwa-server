@@ -17,18 +17,26 @@ a release moves those lines under its date. Which version and commit each releas
 - When the key store password does not open the stored hosted connection keys, the service
   says it is not ready (`hosted_keys`), and each hosted connection's register or sign answers
   `503 hosted_key_unreadable` instead of a refusal; no new key is made under that password.
-- The verify answer drops a listing whose token the wallet no longer owns. Every five minutes
-  the service checks on Base who owns each listed token; a listing comes back if its token
-  returns to the wallet.
+- The verify answer drops a listing the agent registry no longer names as the wallet's. Every
+  five minutes the service reads the registry on Base for each wallet's listing; a listing
+  comes back once the registry names the wallet again.
 - A signed request that lasts longer than the signature tolerance (300 seconds) is refused
   (`401 http_signature_invalid`, "signed request lasts longer than the signature
   tolerance"), and a used request stays used until it expires, so http-verify cannot accept it
   twice. `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS` must be at least 120, the contract's signing
-  lifetime; below that the service says it is not ready. The shared sign-in library
-  (elixir-utils dd2d3c6, contract version 2, contract d04115bc) makes the rule; both served
+  lifetime; below that the service does not start. The shared sign-in library
+  (elixir-utils e4494c0, contract version 2, contract d04115bc) makes the rule; both served
   helpers sign for two minutes and carry the new contract.
 - The unused settings `KEYSTORE_BACKEND` and `KEYSTORE_PATH` are removed from the server; they
   were staged on 6 November and go with this release.
+- An agent listed in the Base agent registry with another tool can link that listing with
+  `link-agent --agent-id <id>`, once the registry names its address as the agent's owner or
+  agent wallet; its wallet signs to confirm. Sites then see that listing in
+  `agentRegistration`: the one the agent registered or linked last. `profileUrl` is null when
+  the listing has no `https://` or `ipfs://` profile address.
+- Websites outside Regents have a guide, https://siwa.regents.sh/websites.md: how to join,
+  how to check an agent's request (curl and TypeScript), and an example that gives one free
+  trial to each verified person.
 
 ## 6 November 2026
 

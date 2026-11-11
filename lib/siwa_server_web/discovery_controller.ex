@@ -7,6 +7,7 @@ defmodule SiwaServerWeb.DiscoveryController do
     |> send_resp(200, """
     SIWA (Sign-In With Agent) for Regent sites.
     Agents: read the guide at /skill.md on this server and follow it.
+    Websites: read /websites.md on this server to check agents' requests.
     """)
   end
 

@@ -1,12 +1,14 @@
 defmodule SiwaServer.Siwa.Challenge do
   @moduledoc """
   A single-use message a wallet signs to prove itself: wallet sign-in
-  (`SiwaServer.Siwa.Wallet`) and accepting a World ID person
-  (`SiwaServer.AgentBook`).
+  (`SiwaServer.Siwa.Wallet`), accepting a World ID person
+  (`SiwaServer.AgentBook`) and linking a registry listing
+  (`SiwaServer.AgentRegistration`).
 
   `cast/2` checks the request once. `issue/3` stores a challenge in
   `siwa_nonces` for the challenge lifetime; `fetch/2` finds it again by the
-  same scope and its nonce; `signed/3` checks the wallet's signature over it;
+  same scope and its nonce; `current/2` checks the message is the one issued
+  and unexpired; `signed/3` checks the wallet's signature over it;
   `consume/1` uses it up, at most once. A scope is a list whose head names the
   kind of challenge, followed by what it is bound to; the challenge is found
   by a digest of the whole list, so it always names what the scope names.
@@ -118,6 +120,21 @@ defmodule SiwaServer.Siwa.Challenge do
     case Repo.get_by(__MODULE__, [nonce_key: key(scope), nonce: nonce], log: false) do
       nil -> not_found()
       challenge -> {:ok, challenge}
+    end
+  end
+
+  @doc "The message is the one issued, and the challenge has not expired."
+  @spec current(t(), String.t()) :: :ok | error()
+  def current(challenge, message) do
+    cond do
+      DateTime.compare(challenge.expiration_time, DateTime.utc_now()) != :gt ->
+        {:error, {401, "nonce_expired", "the challenge has expired"}}
+
+      message != challenge.canonical_message ->
+        {:error, {401, "message_invalid", "sign the exact current server-issued challenge"}}
+
+      true ->
+        :ok
     end
   end
 
