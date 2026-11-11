@@ -37,10 +37,10 @@ defmodule SiwaServer.ReplayWindowPropertyTest do
     %{signer: signer, receipt: receipt}
   end
 
-  # A signed request is accepted only while its created time is within the tolerance
-  # of now and it has not expired, and then only once. The server reads its own
-  # clock, so each run allows the outcome of any second between the run's two
-  # clock readings.
+  # A signed request is accepted only when it lasts no longer than the tolerance, while
+  # its created time is within the tolerance of now and it has not expired, and then
+  # only once. The server reads its own clock, so each run allows the outcome of any
+  # second between the run's two clock readings.
   property "a signed request is accepted once inside its window and refused outside it",
            %{signer: signer, receipt: receipt} do
     tolerance = RuntimeConfig.siwa_http_signature_tolerance_seconds()
@@ -103,9 +103,10 @@ defmodule SiwaServer.ReplayWindowPropertyTest do
   defp allowed(created, expires, seconds, tolerance) do
     seconds
     |> Enum.map(fn now ->
-      if created >= now - tolerance and created <= now + tolerance and expires > now,
-        do: :accepted,
-        else: :refused
+      if expires - created <= tolerance and created >= now - tolerance and
+           created <= now + tolerance and expires > now,
+         do: :accepted,
+         else: :refused
     end)
     |> Enum.uniq()
   end

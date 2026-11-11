@@ -101,6 +101,12 @@
       "message": "invalid x-siwa-signature-input header"
     },
     {
+      "reason": "request_lifetime_too_long",
+      "status": 401,
+      "code": "http_signature_invalid",
+      "message": "signed request lasts longer than the signature tolerance"
+    },
+    {
       "reason": "request_not_yet_valid",
       "status": 401,
       "code": "http_signature_invalid",

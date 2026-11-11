@@ -96,7 +96,10 @@ defmodule SiwaServer.Ethereum do
   defp telemetry_result({:error, _reason}), do: :bad_request
 
   defp map_ethereum_result({:ok, value}), do: {:ok, value}
-  defp map_ethereum_result({:error, {:rpc_error, message}}), do: {:error, message}
+
+  defp map_ethereum_result({:error, {:rpc_error, message}}) when is_binary(message),
+    do: {:error, message}
+
   defp map_ethereum_result({:error, :invalid_address}), do: {:error, "invalid address"}
   defp map_ethereum_result({:error, :rpc_url_required}), do: {:error, "rpc url is required"}
 

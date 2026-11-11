@@ -79,10 +79,18 @@ defmodule SiwaServer.RuntimeConfigTest do
     end
   end
 
-  test "http signature tolerance comes from env when positive" do
+  test "http signature tolerance comes from env when at least the signing lifetime" do
     System.put_env("SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS", "120")
 
     assert RuntimeConfig.siwa_http_signature_tolerance_seconds() == 120
+  end
+
+  test "http signature tolerance below the signing lifetime fails" do
+    System.put_env("SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS", "119")
+
+    assert_raise ArgumentError,
+                 "SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS must be at least 120, the contract's signing lifetime",
+                 fn -> RuntimeConfig.siwa_http_signature_tolerance_seconds() end
   end
 
   test "http signature tolerance fails when invalid" do

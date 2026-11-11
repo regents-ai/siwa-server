@@ -30,9 +30,12 @@ defmodule SiwaServer.HostedIdentities do
     end
   end
 
-  @doc "Whether the key store password opens the stored keys, tried on one; `:ok` when none is stored."
-  def readable do
-    case Repo.one(from(h in @table, select: h.encrypted_wallet, limit: 1)) do
+  @doc """
+  Whether the key store password opens the stored keys, tried on one; `:ok` when
+  none is stored. `repo_opts` go to the read, such as a readiness probe's timeout.
+  """
+  def readable(repo_opts \\ []) do
+    case Repo.one(from(h in @table, select: h.encrypted_wallet, limit: 1), repo_opts) do
       nil -> :ok
       encrypted -> with {:ok, _signer} <- open(encrypted), do: :ok
     end
@@ -48,11 +51,14 @@ defmodule SiwaServer.HostedIdentities do
   end
 
   # Two machines registering one identity at once both keep the first key stored.
+  # No key is made while the stored keys do not open, so every key stays under
+  # the one password.
   defp create_once(identity) do
     if Repo.exists?(from(h in @table, where: h.identity == ^identity)) do
       :ok
     else
-      with {:ok, encrypted} <- HostedIdentity.new(password()) do
+      with :ok <- readable(),
+           {:ok, encrypted} <- HostedIdentity.new(password()) do
         Repo.insert_all(@table, [%{identity: identity, encrypted_wallet: encrypted}],
           on_conflict: :nothing
         )

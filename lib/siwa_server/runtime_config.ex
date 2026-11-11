@@ -34,8 +34,20 @@ defmodule SiwaServer.RuntimeConfig do
   # server verified one (`SiwaServer.Siwa.HttpVerifier`).
   def siwa_lease_seconds, do: fetch_siwa_integer(:lease_seconds, 600)
 
-  def siwa_http_signature_tolerance_seconds,
-    do: fetch_integer("SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS", 300)
+  # A signed request may last no longer than the tolerance, so the tolerance is
+  # at least the contract's signing lifetime, the one every helper signs for.
+  def siwa_http_signature_tolerance_seconds do
+    lifetime = Siwa.Contract.lifetime_seconds()
+
+    case fetch_integer("SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS", 300) do
+      seconds when seconds >= lifetime ->
+        seconds
+
+      _seconds ->
+        raise ArgumentError,
+              "SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS must be at least #{lifetime}, the contract's signing lifetime"
+    end
+  end
 
   defp fetch_siwa(key) do
     Config.siwa()

@@ -40,7 +40,7 @@ HELPER_ANSWER_SECONDS = 10
 HELPER_START_SECONDS = 10
 USER_AGENT = "siwa-agent-client/2.11 (python)"
 # BEGIN SIWA CONTRACT
-# Contract eaefcab99cbdd8946764ba7c4ea61770cf6846d131adce7a6703c112b17aa0c3, written by `mix siwa_server.agent_clients` from the siwa library; do not edit.
+# Contract d04115bcf297030bf57a19293b3a9dc0cb5cae8aed8e9c62676bc06d16efebaf, written by `mix siwa_server.agent_clients` from the siwa library; do not edit.
 SIWA_CONTRACT = json.loads(
     r"""
 {
@@ -144,6 +144,12 @@ SIWA_CONTRACT = json.loads(
       "status": 401,
       "code": "http_signature_input_invalid",
       "message": "invalid x-siwa-signature-input header"
+    },
+    {
+      "reason": "request_lifetime_too_long",
+      "status": 401,
+      "code": "http_signature_invalid",
+      "message": "signed request lasts longer than the signature tolerance"
     },
     {
       "reason": "request_not_yet_valid",

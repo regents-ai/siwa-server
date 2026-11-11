@@ -51,7 +51,7 @@ defmodule SiwaServer.HttpVerifierTest do
     receipt = receipt()
     body = Jason.encode!(%{"summary" => "Stale request", "details" => "body binding"})
     created = System.os_time(:second) - RuntimeConfig.siwa_http_signature_tolerance_seconds() - 1
-    expires = System.os_time(:second) + 30
+    expires = created + 120
 
     assert {:error, {401, "http_signature_invalid", message}} =
              verify_http_request(%{
@@ -347,11 +347,35 @@ defmodule SiwaServer.HttpVerifierTest do
              })
   end
 
-  test "signed requests keep replay protection for the full signature window" do
+  test "a signed request that lasts longer than the signature tolerance is refused, unused" do
+    receipt = receipt()
+    body = Jason.encode!(%{"summary" => "Too long", "details" => "refused"})
+    created = System.os_time(:second)
+    expires = created + RuntimeConfig.siwa_http_signature_tolerance_seconds() + 1
+    headers = signed_headers(receipt, body, created, expires)
+
+    assert {:error,
+            {401, "http_signature_invalid",
+             "signed request lasts longer than the signature tolerance"}} =
+             verify_http_request(%{
+               "method" => "POST",
+               "path" => "/v1/agent/bug-report",
+               "headers" => headers,
+               "body_digest" => Siwa.content_digest_for_body(body)
+             })
+
+    assert {:ok, %{rows: [[0]]}} =
+             Repo.query(
+               "SELECT count(*) FROM siwa_request_replays WHERE strpos(replay_key, $1) > 0",
+               [request_nonce(headers)]
+             )
+  end
+
+  test "a signed request stays used until it expires" do
     receipt = receipt()
     body = Jason.encode!(%{"summary" => "Replay window", "details" => "accepted once"})
     created = System.os_time(:second)
-    expires = created + 600
+    expires = created + RuntimeConfig.siwa_http_signature_tolerance_seconds()
     headers = signed_headers(receipt, body, created, expires)
 
     assert {:ok, _payload} =
@@ -374,11 +398,13 @@ defmodule SiwaServer.HttpVerifierTest do
         Elixir.Siwa.content_digest_for_body(body)
       ])
 
-    assert {:ok, %{rows: [[^replay_key, _expires_at]]}} =
+    assert {:ok, %{rows: [[^replay_key, kept_until]]}} =
              Repo.query(
                "SELECT replay_key, expires_at FROM siwa_request_replays WHERE replay_key = $1",
                [replay_key]
              )
+
+    assert NaiveDateTime.diff(kept_until, DateTime.to_naive(DateTime.from_unix!(expires))) == 0
 
     assert {:error, {409, "request_replayed", _message}} =
              verify_http_request(%{
@@ -393,7 +419,7 @@ defmodule SiwaServer.HttpVerifierTest do
     receipt = receipt()
     body = Jason.encode!(%{"summary" => "Bad signature", "details" => "does not burn replay"})
     created = System.os_time(:second)
-    expires = created + 600
+    expires = created + 120
     headers = signed_headers(receipt, body, created, expires)
     bad_signature = "sig1=:#{Base.encode64(<<0::520>>)}:"
 
@@ -418,7 +444,7 @@ defmodule SiwaServer.HttpVerifierTest do
     receipt = receipt()
     body = Jason.encode!(%{"summary" => "Concurrent replay", "details" => "accepted once"})
     created = System.os_time(:second)
-    expires = created + 600
+    expires = created + 120
     headers = signed_headers(receipt, body, created, expires)
 
     request = %{

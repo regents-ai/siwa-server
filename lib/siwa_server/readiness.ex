@@ -80,7 +80,7 @@ defmodule SiwaServer.Readiness do
   end
 
   defp hosted_keys_check do
-    case HostedIdentities.readable() do
+    case HostedIdentities.readable(timeout: 1_000) do
       :ok ->
         :ok
 
@@ -90,6 +90,9 @@ defmodule SiwaServer.Readiness do
   rescue
     error in DBConnection.ConnectionError ->
       {:error, "database connection failed: #{Exception.message(error)}"}
+
+    error in Postgrex.Error ->
+      {:error, "database query failed: #{Exception.message(error)}"}
   end
 
   defp rpc_url_check(env_name, url) do

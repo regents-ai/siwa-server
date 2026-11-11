@@ -2,7 +2,7 @@ defmodule SiwaServer.MixProject do
   use Mix.Project
 
   @elixir_utils "https://github.com/regents-ai/elixir-utils.git"
-  @elixir_utils_ref "6f0f3deecaabee4ee67c46b5ec474017f2cfaa38"
+  @elixir_utils_ref "dd2d3c6e631df4c20f5055a45184dcb8e4d33139"
 
   def project do
     [
