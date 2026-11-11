@@ -81,6 +81,23 @@ defmodule SiwaServer.Config do
   def hosted_signers!(value), do: site_keys!(value, "SIWA_HOSTED_SIGNERS")
 
   @doc """
+  Checks `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS`. A signed request may last no
+  longer than the tolerance, so the tolerance is at least the contract's
+  signing lifetime, the one every helper signs for.
+  """
+  @spec http_signature_tolerance_seconds!(pos_integer()) :: pos_integer()
+  def http_signature_tolerance_seconds!(seconds) do
+    lifetime = Siwa.Contract.lifetime_seconds()
+
+    if seconds < lifetime do
+      raise ArgumentError,
+            "SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS must be at least #{lifetime}, the contract's signing lifetime"
+    end
+
+    seconds
+  end
+
+  @doc """
   Parses `SIWA_WALLET_ORIGINS`, the approved audience-to-origin table for
   wallet sign-in.
 

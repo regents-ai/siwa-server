@@ -120,10 +120,9 @@ config :siwa_server, :siwa,
   receipt_ttl_seconds:
     env_integer.("SIWA_RECEIPT_TTL_SECONDS", Keyword.fetch!(current_siwa, :receipt_ttl_seconds)),
   http_signature_tolerance_seconds:
-    env_integer.(
-      "SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS",
-      Keyword.fetch!(current_siwa, :http_signature_tolerance_seconds)
-    ),
+    "SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS"
+    |> env_integer.(Keyword.fetch!(current_siwa, :http_signature_tolerance_seconds))
+    |> SiwaServer.Config.http_signature_tolerance_seconds!(),
   receipt_secret: receipt_secret,
   activity_readers: activity_readers,
   hosted_signers: hosted_signers,

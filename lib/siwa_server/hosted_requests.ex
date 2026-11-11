@@ -75,10 +75,11 @@ defmodule SiwaServer.HostedRequests do
   @doc """
   Whether the key store password opens the stored keys, tried on one; `:ok`
   when none is stored. A database that cannot be read answers its error.
+  `repo_opts` go to the read, such as a readiness probe's timeout.
   """
-  @spec keys_readable() :: :ok | {:error, :hosted_key_unreadable | Exception.t()}
-  def keys_readable do
-    case Repo.query("SELECT encrypted_wallet FROM siwa_hosted_identities LIMIT 1") do
+  @spec keys_readable(keyword()) :: :ok | {:error, :hosted_key_unreadable | Exception.t()}
+  def keys_readable(repo_opts \\ []) do
+    case Repo.query("SELECT encrypted_wallet FROM siwa_hosted_identities LIMIT 1", [], repo_opts) do
       {:ok, %{rows: []}} -> :ok
       {:ok, %{rows: [[encrypted]]}} -> with {:ok, _signer} <- open(encrypted), do: :ok
       {:error, error} -> {:error, error}
@@ -102,11 +103,14 @@ defmodule SiwaServer.HostedRequests do
   end
 
   # Two machines registering one identity at once both keep the first key stored.
+  # No key is made while the stored keys do not open, so every key stays under
+  # the one password.
   defp create_once(identity) do
     if Repo.exists?(from(h in @table, where: h.identity == ^identity)) do
       :ok
     else
-      with {:ok, encrypted} <- HostedIdentity.new(Config.keystore_password()) do
+      with :ok <- keys_readable(),
+           {:ok, encrypted} <- HostedIdentity.new(Config.keystore_password()) do
         Repo.insert_all(@table, [%{identity: identity, encrypted_wallet: encrypted}],
           on_conflict: :nothing
         )

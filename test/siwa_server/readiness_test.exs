@@ -3,6 +3,7 @@ defmodule SiwaServer.ReadinessTest do
 
   alias SiwaServer.HostedRequests
   alias SiwaServer.Readiness
+  alias SiwaServer.Repo
   alias SiwaServer.TestRpcServer
 
   setup do
@@ -85,6 +86,14 @@ defmodule SiwaServer.ReadinessTest do
     assert checks.hosted_keys == false
     assert checks.keystore_password == true
     assert failures == %{hosted_keys: "KEYSTORE_PASSWORD does not open the stored hosted keys"}
+  end
+
+  test "a database error while reading the hosted keys is not ready, not a crash" do
+    System.put_env("BASE_RPC_URL", TestRpcServer.chain_id(8453))
+    Repo.query!("ALTER TABLE siwa_hosted_identities RENAME TO siwa_hosted_identities_moved")
+
+    assert %{ready: false, checks: %{hosted_keys: false}, failures: failures} = Readiness.check()
+    assert failures.hosted_keys =~ "database query failed"
   end
 
   test "GET /readyz reports per-check status and logs the failure reasons", %{conn: conn} do

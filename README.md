@@ -129,7 +129,7 @@ agent instead: its caller is a site's server, speaking for all of that site's ag
 | `DNS_CLUSTER_QUERY` | unset | DNS query used for clustering. |
 | `SIWA_NONCE_TTL_SECONDS` | `300` | How long an issued nonce stays valid. |
 | `SIWA_RECEIPT_TTL_SECONDS` | `3600` | How long a receipt stays valid. |
-| `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS` | `300` | Clock skew allowed on a signed HTTP request. |
+| `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS` | `300` | Clock skew allowed on a signed HTTP request, and the longest one may last. At least `120`, the contract's signing lifetime. |
 | `SIWA_HOSTED_SIGNERS` | unset | Each site's own key for hosted signing (Patchbay's ChatGPT app, Keyfleet's and the template's Claude connectors), as `site=key` pairs. Unset lets no site sign. |
 | `SIWA_WALLET_ORIGINS` | unset | Approved `audience=origin` pairs for wallet sign-in, comma separated; an audience may repeat with more origins. Unset disables it. |
 | `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Expired nonce, replay and activity rows removed per batch. A sweep runs once a minute and repeats batches until one comes back short, at most 20 for each kind. |
@@ -228,7 +228,8 @@ signer. Whether a copy of the password is kept anywhere else is unconfirmed.
 cluster from a backup or a point in time; the service then points at it through
 `DATABASE_URL`. `KEYSTORE_PASSWORD` must be the password in use when the backup was taken:
 when it does not open the stored keys, `/readyz` answers not ready with `hosted_keys` false,
-and every `register` or `sign` for a stored connection answers `503 hosted_key_unreadable`.
+and every `register` or `sign` answers `503 hosted_key_unreadable`, so no new signer is made
+under the wrong password.
 `/readyz` opens one key only, so check also with a real signature: from Patchbay, ask this
 server to `sign` `GET /api/agents/v1/whoami` for a connection that paired before the backup,
 send the signed request to Patchbay, and check that Patchbay answers with the agent and wallet
@@ -343,10 +344,12 @@ a lease. The activity read counts, for each site and day, the verified requests 
 how many of them began a lease. Both nonce consumption and request replay use database-clock
 expiration checks; invalid proof cannot consume a valid challenge.
 
-A signed HTTP request's single use is on the database's disk before http-verify
-answers, so a database crash never lets the same request through twice. A restore
-from a backup still can: the restored database has none of the uses recorded after
-its backup was taken. A request is accepted only while the time it was signed for
+A signed HTTP request may last no longer than the signature tolerance (longer is
+refused as `401 http_signature_invalid`), and its use is kept until it expires, so
+http-verify never accepts it again while it lasts. The use is on the database's disk before
+http-verify answers, so a database crash never lets the same request through twice. A
+restore from a backup still can: the restored database has none of the uses recorded
+after its backup was taken. A request is accepted only while the time it was signed for
 is within the 300 second signature tolerance of the server's clock, and that time
 can be up to 300 seconds after the request was used, so 600 seconds after the old
 database last answered, no request it accepted can be accepted again. Serve from a
@@ -375,8 +378,8 @@ server never sends or funds a transaction.
 Every five minutes the server reads each listing's token owner (`ownerOf`) at the latest
 Base block, on its own `chain` queue. A listing whose token the wallet no longer owns, or
 whose token no longer exists, is ended and http-verify stops naming it; it is listed again
-when the token comes back to the wallet. A failed read leaves the listings as they were
-until the next run. A listing is never deleted, and its registration file is still served.
+when the token comes back to the wallet. A failed read, or an answer that is not an address,
+leaves that listing as it was until the next run. A listing is never deleted, and its registration file is still served.
 
 ### World AgentBook
 

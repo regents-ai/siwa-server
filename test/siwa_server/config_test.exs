@@ -81,6 +81,14 @@ defmodule SiwaServer.ConfigTest do
     end
   end
 
+  test "the server does not start with a tolerance below the contract's signing lifetime" do
+    System.put_env("SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS", "119")
+
+    assert_raise ArgumentError,
+                 "SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS must be at least 120, the contract's signing lifetime",
+                 fn -> started_siwa() end
+  end
+
   test "activity readers: each site's own key" do
     assert Config.activity_readers!(" regents=#{@regents} , patchbay=#{@patchbay}") ==
              %{"regents" => @regents, "patchbay" => @patchbay}

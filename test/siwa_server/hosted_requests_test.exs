@@ -61,7 +61,7 @@ defmodule SiwaServer.HostedRequestsTest do
              Jason.decode!(post.("Bearer siwa-test-keyfleet-hosted-signing-key-1").resp_body)
   end
 
-  test "a stored key the key store password does not open answers 503 to register and sign", %{
+  test "a password that does not open the stored keys answers 503 and makes no new key", %{
     identity: identity
   } do
     register = %{"operation" => "register", "identity_key" => identity}
@@ -73,12 +73,14 @@ defmodule SiwaServer.HostedRequestsTest do
     }
 
     sign = %{"operation" => "sign", "identity_key" => identity, "request" => whoami}
+    new_key = :crypto.hash(:sha256, Ecto.UUID.generate()) |> Base.encode16(case: :lower)
+    new_connection = %{"operation" => "register", "identity_key" => new_key}
     {:ok, _address} = HostedRequests.handle("patchbay", register)
 
     siwa = Application.get_env(:siwa_server, :siwa)
     Application.put_env(:siwa_server, :siwa, Keyword.put(siwa, :keystore_password, "another"))
 
-    for params <- [register, sign] do
+    for params <- [register, sign, new_connection] do
       {conn, log} =
         ExUnit.CaptureLog.with_log([level: :error], fn ->
           Plug.Test.conn(:post, "/api/shared/siwa/hosted", Jason.encode!(params))
@@ -94,6 +96,8 @@ defmodule SiwaServer.HostedRequestsTest do
       assert %{"error" => %{"code" => "hosted_key_unreadable"}} = Jason.decode!(conn.resp_body)
       assert log =~ "hosted key unreadable site=patchbay"
     end
+
+    assert SiwaServer.Repo.aggregate("siwa_hosted_identities", :count) == 1
   end
 
   test "an account connection reuses its key, never exports it, and belongs to one site", %{

@@ -117,7 +117,7 @@ defmodule SiwaServer.Readiness do
   end
 
   defp hosted_keys_check do
-    case HostedRequests.keys_readable() do
+    case HostedRequests.keys_readable(timeout: 1_000) do
       :ok ->
         :ok
 
@@ -126,6 +126,9 @@ defmodule SiwaServer.Readiness do
 
       {:error, %DBConnection.ConnectionError{} = error} ->
         {:error, "database connection failed: #{Exception.message(error)}"}
+
+      {:error, %Postgrex.Error{} = error} ->
+        {:error, "database query failed: #{Exception.message(error)}"}
     end
   end
 

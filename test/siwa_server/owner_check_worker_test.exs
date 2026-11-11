@@ -48,15 +48,37 @@ defmodule SiwaServer.AgentRegistration.OwnerCheckWorkerTest do
     assert AgentRegistration.latest(@wallet) == nil
   end
 
-  test "a failed read leaves each listing as it was and ends the run with a warning" do
+  test "a failed read leaves that listing as it was, with a warning, and the others are checked" do
     insert!("9", :ended)
+    insert!("10")
+    insert!("11")
 
-    base_answers(%{"9" => :fails})
+    base_answers(%{"9" => :fails, "10" => :fails_unnamed, "11" => {:owner, @buyer}})
 
     log = capture_log(fn -> assert :ok = perform_job(OwnerCheckWorker, %{}) end)
 
-    assert log =~ "[warning] registry owner check stopped token_id=9 reason=header not found"
+    assert log =~ "[warning] registry owner check failed token_id=9 reason=header not found"
+    assert log =~ "[warning] registry owner check failed token_id=10 reason=rpc request failed"
     assert status("9") == :ended
+    assert status("10") == :listed
+    assert status("11") == :ended
+  end
+
+  test "an answer that is not an address leaves the listing as it was" do
+    insert!("9")
+    insert!("10")
+
+    base_answers(%{
+      "9" => {:answer, "0x" <> String.duplicate("z", 64)},
+      "10" => {:answer, "0x" <> String.duplicate("f", 64)}
+    })
+
+    log = capture_log(fn -> assert :ok = perform_job(OwnerCheckWorker, %{}) end)
+
+    assert log =~ "registry owner check failed token_id=9 reason=the registry answered"
+    assert log =~ "registry owner check failed token_id=10 reason=the registry answered"
+    assert status("9") == :listed
+    assert status("10") == :listed
   end
 
   # Both are listed in the same second, so the larger token, as a number, is the newer.
@@ -76,8 +98,9 @@ defmodule SiwaServer.AgentRegistration.OwnerCheckWorkerTest do
 
   defp status(token_id), do: Repo.get_by!(AgentRegistration, token_id: token_id).status
 
-  # Base answering the registry's ownerOf for each token: its owner, a revert as
-  # for a token that does not exist, or a provider failure.
+  # Base answering the registry's ownerOf for each token: its owner, a raw
+  # answer, a revert as for a token that does not exist, or a provider failure
+  # with or without a message.
   defp base_answers(answers) do
     url =
       TestRpcServer.start(fn request ->
@@ -96,11 +119,17 @@ defmodule SiwaServer.AgentRegistration.OwnerCheckWorkerTest do
               "result" => "0x" <> String.pad_leading(address, 64, "0")
             }
 
+          {:answer, result} ->
+            %{"id" => 1, "jsonrpc" => "2.0", "result" => result}
+
           :reverts ->
             error(3, "execution reverted", "0x7e273289" <> word)
 
           :fails ->
             error(-32_000, "header not found", nil)
+
+          :fails_unnamed ->
+            %{"id" => 1, "jsonrpc" => "2.0", "error" => %{"code" => -32_603}}
         end
       end)
 

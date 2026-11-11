@@ -11,15 +11,22 @@ a release moves those lines under its date. Which version and commit each releas
 - A signed request's single use is on the database's disk before http-verify answers, so a
   database crash can no longer let one request through twice. A verification now waits
   while the database's disk pauses.
-- A wallet's accepted World ID person can no longer be changed or removed, even directly in
-  the database. A wallet that has accepted already is told so at once, without a World Chain
-  read.
+- A wallet's accepted World ID person can no longer be changed or removed: the database refuses
+  to change, delete or empty an accepted row. A wallet that has accepted already is told so at
+  once, without a World Chain read.
 - When the key store password does not open the stored hosted connection keys, the service
   says it is not ready (`hosted_keys`), and each hosted connection's register or sign answers
-  `503 hosted_key_unreadable` instead of a refusal.
+  `503 hosted_key_unreadable` instead of a refusal; no new key is made under that password.
 - The verify answer drops a listing whose token the wallet no longer owns. Every five minutes
   the service checks on Base who owns each listed token; a listing comes back if its token
   returns to the wallet.
+- A signed request that lasts longer than the signature tolerance (300 seconds) is refused
+  (`401 http_signature_invalid`, "signed request lasts longer than the signature
+  tolerance"), and a used request stays used until it expires, so http-verify cannot accept it
+  twice. `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS` must be at least 120, the contract's signing
+  lifetime; below that the service says it is not ready. The shared sign-in library
+  (elixir-utils dd2d3c6, contract version 2, contract d04115bc) makes the rule; both served
+  helpers sign for two minutes and carry the new contract.
 - The unused settings `KEYSTORE_BACKEND` and `KEYSTORE_PATH` are removed from the server; they
   were staged on 6 November and go with this release.
 
