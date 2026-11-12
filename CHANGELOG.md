@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 12 November 2026
+
 - A challenge or sign-in lifetime, or the signed-request window, that is not a positive whole
   number now stops the service from starting, instead of letting it start and say it is not
   ready (`siwa_ttls`). An RPC address with no host now also fails its readiness address check.
