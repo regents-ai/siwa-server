@@ -183,6 +183,8 @@ scripts/deploy.sh
 It refuses a changed working tree, a commit that is not on `origin/main`, and a commit that
 does not contain every live one (the `revision` label on each running image, read with
 `fly image show`).
+It holds `/tmp/regent-release-siwa-server.lock` for its whole run, so a second run waits for the
+first; never wrap it in `lockf` yourself.
 It builds from `git archive` of the commit in a fresh release folder,
 `tmp/releases/<time>-<commit>/`, and deploys it with `--remote-only` and `--ha=false`, labelling
 the image with the commit (`revision`) and the elixir-utils commit `mix.exs` pins

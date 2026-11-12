@@ -5,6 +5,9 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- For whoever releases: `scripts/deploy.sh` holds `/tmp/regent-release-siwa-server.lock` for its
+  whole run, so two releases of siwa-server take turns and never wait on another app's release.
+
 ## 12 November 2026
 
 - A challenge or sign-in lifetime, or the signed-request window, that is not a positive whole

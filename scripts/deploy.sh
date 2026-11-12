@@ -30,6 +30,14 @@ if [[ $# -ne 0 ]]; then
   exit 2
 fi
 
+# One siwa-server deploy at a time: the whole run holds the app's release lock,
+# so a second run waits for the first. Other apps' deploys never wait on it.
+lock="/tmp/regent-release-$app.lock"
+if [[ "${REGENT_RELEASE_LOCK:-}" != "$lock" ]]; then
+  echo "==> Waiting for any other $app deploy holding $lock"
+  exec env REGENT_RELEASE_LOCK="$lock" lockf -k "$lock" "$0"
+fi
+
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
