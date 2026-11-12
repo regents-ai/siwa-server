@@ -109,7 +109,7 @@ defmodule SiwaServer.HostedRequests do
     if Repo.exists?(from(h in @table, where: h.identity == ^identity)) do
       :ok
     else
-      with :ok <- keys_readable(),
+      with :ok <- stored_keys_open(),
            {:ok, encrypted} <- HostedIdentity.new(Config.keystore_password()) do
         Repo.insert_all(@table, [%{identity: identity, encrypted_wallet: encrypted}],
           on_conflict: :nothing
@@ -117,6 +117,15 @@ defmodule SiwaServer.HostedRequests do
 
         :ok
       end
+    end
+  end
+
+  # A database that cannot be read fails the request like every other read here,
+  # rather than answering as a refused request.
+  defp stored_keys_open do
+    case keys_readable() do
+      {:error, exception} when is_exception(exception) -> raise exception
+      result -> result
     end
   end
 
