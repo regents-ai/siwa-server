@@ -19,7 +19,11 @@ defmodule SiwaServer.RateLimiter do
     siwa_register: [limit: 60, window_ms: 60_000],
     agent_book: [limit: 60, window_ms: 60_000],
     agent_profile: [limit: 600, window_ms: 60_000],
-    siwa_computer: [limit: 300, window_ms: 60_000]
+    siwa_computer: [limit: 300, window_ms: 60_000],
+    # One site's server checks every signed request its agents send. The whole
+    # service has peaked at 30 checks a minute, so this leaves a site room to grow
+    # a hundredfold and still bounds a caller that names a new wallet each time.
+    siwa_site: [limit: 3_000, window_ms: 60_000]
   }
 
   @doc "Counts one request under `name` and `key`; the wait in ms once the window is full."

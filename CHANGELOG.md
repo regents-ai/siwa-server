@@ -5,6 +5,11 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- Security update: Ecto 3.14.3 closes EEF-CVE-2026-118391 (HIGH, a query cache that could grow
+  without limit).
+- One computer may ask for at most 3,000 signed-request checks a minute, whichever wallets it
+  names. Each wallet's own limit of 600 a minute is unchanged. A site's server is far below
+  this; it bounds a caller that names a new wallet every time.
 - For whoever releases: `scripts/deploy.sh` holds `/tmp/regent-release-siwa-server.lock` for its
   whole run, so two releases of siwa-server take turns and never wait on another app's release.
 

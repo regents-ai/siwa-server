@@ -106,7 +106,8 @@ must fail closed. The SIWA library and the service tests cover these cases.
 Wallet sign-in, agent registration and AgentBook steps are limited per wallet address
 the caller names, and every computer also has one ceiling across all of them (300 a
 minute), so naming new addresses buys no more requests. `http-verify` is limited per
-agent instead: its caller is a site's server, speaking for all of that site's agents.
+agent (600 a minute): its caller is a site's server, speaking for all of that site's agents,
+so one computer's ceiling there is 3,000 a minute.
 
 ## Required configuration
 

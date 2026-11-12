@@ -11,7 +11,8 @@ defmodule SiwaServerWeb.Plugs.RateLimitTest do
 
     Application.put_env(:siwa_server, :rate_limits,
       siwa_nonce: [limit: 2, window_ms: 60_000],
-      siwa_computer: [limit: 3, window_ms: 60_000]
+      siwa_computer: [limit: 3, window_ms: 60_000],
+      siwa_site: [limit: 3, window_ms: 60_000]
     )
 
     on_exit(fn ->
@@ -119,5 +120,28 @@ defmodule SiwaServerWeb.Plugs.RateLimitTest do
     sizes = Repo.all(from(r in "siwa_rate_limits", select: fragment("octet_length(?)", r.key)))
 
     assert sizes == [32, 32]
+  end
+
+  test "one computer checking a new wallet's request each time still reaches the site ceiling" do
+    verify_conn = fn ip, n ->
+      wallet = "0x" <> String.pad_leading(Integer.to_string(n), 40, "0")
+
+      conn =
+        conn(:post, "/api/shared/siwa/http-verify", %{
+          "headers" => %{"x-agent-wallet-address" => wallet, "x-agent-chain-id" => "8453"}
+        })
+
+      %{conn | remote_ip: ip}
+    end
+
+    for n <- 1..3 do
+      assert %Plug.Conn{halted: false} = call(verify_conn.({1, 2, 3, 4}, n), :siwa_http_verify)
+    end
+
+    assert %Plug.Conn{halted: true, status: 429} =
+             call(verify_conn.({1, 2, 3, 4}, 4), :siwa_http_verify)
+
+    # Another site's server has its own ceiling.
+    assert %Plug.Conn{halted: false} = call(verify_conn.({5, 6, 7, 8}, 4), :siwa_http_verify)
   end
 end

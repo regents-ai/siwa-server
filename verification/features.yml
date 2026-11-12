@@ -155,7 +155,7 @@ features:
       - test/siwa_server_web/controllers/agent_siwa_controller_test.exs
 
   - id: rate-limits
-    what: Requests are limited per wallet, chain, audience and address, and each computer has one ceiling across the wallets it names, with a wait in Retry-After.
+    what: Requests are limited per wallet, chain, audience and address, and each computer has one ceiling across the wallets it names (its own, higher one for http-verify), with a wait in Retry-After.
     who: agent
     level: protected
     paths:

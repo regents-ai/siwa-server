@@ -22,8 +22,9 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
 
   # These steps come from an agent's own computer and are counted per wallet
   # address the caller names, so they also share one ceiling per computer: naming
-  # new addresses does not buy a computer more requests. http-verify is left out
-  # because its caller is a site's server, which speaks for all of that site's agents.
+  # new addresses does not buy a computer more requests. http-verify's caller is a
+  # site's server, which speaks for all of that site's agents, so it has a far
+  # higher ceiling of its own.
   @address_keyed [:siwa_nonce, :siwa_verify, :siwa_register, :agent_book]
 
   def init(opts), do: opts
@@ -51,6 +52,12 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   defp check(conn, name) when name in @address_keyed do
     with :ok <- RateLimiter.check(name, client_key(conn, name)) do
       RateLimiter.check(:siwa_computer, client_ip(conn))
+    end
+  end
+
+  defp check(conn, :siwa_http_verify) do
+    with :ok <- RateLimiter.check(:siwa_http_verify, client_key(conn, :siwa_http_verify)) do
+      RateLimiter.check(:siwa_site, client_ip(conn))
     end
   end
 
