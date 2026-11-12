@@ -99,28 +99,5 @@ defmodule SiwaServer.Siwa.ActivityStore do
     end
   end
 
-  # The one-line-per-request record this module kept before the daily lines.
-  # Nothing writes or reads it any more; its rows still leave after 30 days,
-  # until the table itself is dropped.
-  def cleanup_expired_requests(now \\ DateTime.utc_now(), limit \\ @default_cleanup_limit) do
-    case Repo.query(
-           """
-           DELETE FROM siwa_request_activity
-           WHERE id IN (
-             SELECT id
-             FROM siwa_request_activity
-             WHERE occurred_at <= $1
-             ORDER BY occurred_at
-             LIMIT $2
-           )
-           """,
-           [DateTime.add(now, -@kept_days, :day), limit],
-           log: false
-         ) do
-      {:ok, %{num_rows: count}} -> {:ok, count}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
   defp kept_since(now), do: now |> DateTime.add(-@kept_days, :day) |> DateTime.to_date()
 end

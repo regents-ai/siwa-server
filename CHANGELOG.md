@@ -5,6 +5,9 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The old one-line-per-request activity record, unused since 14 October, is removed from the
+  database along with its cleanup. Sites read the same daily totals as before.
+
 ## 12 November 2026
 
 - Security update: Ecto 3.14.3 closes EEF-CVE-2026-118391 (HIGH, a query cache that could grow
