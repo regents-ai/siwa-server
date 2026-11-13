@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 13 November 2026
+
 - The old one-line-per-request activity record, unused since 14 October, is removed from the
   database along with its cleanup. Sites read the same daily totals as before.
 
