@@ -14,6 +14,10 @@ kill_timeout = "5s"
   PHX_HOST = "siwa.regents.sh"
   PHX_SERVER = "true"
   PORT = "8080"
+  # Public values of the one Privy app every Regent site signs people in with (the
+  # app id is in each site's page; the key is its public verification key).
+  PRIVY_APP_ID = "cmky518c003ngl40cc3wlyc99"
+  PRIVY_VERIFICATION_KEY = "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEIUR2EQRL9xzLYpvbM+MTytts9OUO\n9rNWxKoJD0O3I5o7r+oIikQafRKybOG5gmoMGDsmmCryO/H77yn2RTEAjA==\n-----END PUBLIC KEY-----\n"
   SIWA_CLEANUP_BATCH_SIZE = "10000"
   SIWA_WALLET_ORIGINS = "patchbay=https://patchbay.help,regents=https://regents.sh,keyfleet=https://keyfleet.ai,keyfleet=https://regents-club.notebooks.keyfleet.ai,keyfleet=https://fleet-tech-classic.notebooks.keyfleet.ai,keyfleet=https://code.keyfleet.ai,techtree=https://techtree.sh,ash-template=https://template.regents.sh,regents-mobile=https://regents-mobile-server.fly.dev,autolaunch=https://autolaunch.sh,chainagent=https://chainagent.ai"
 

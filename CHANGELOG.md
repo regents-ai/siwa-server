@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The control API is on at siwa.regents.sh for people signed in with the Regent sites' Privy app
+  (`PRIVY_APP_ID` and `PRIVY_VERIFICATION_KEY` in `fly.toml`, both public values).
 - New control API at `/api/control/v1`, for the paid sign-in product. A Regent site trades its
   signed-in person's Privy sign-in for a 15-minute control token, then manages that person's
   customer, sites and site server keys. A site's audience is taken for good and never one
