@@ -5,6 +5,27 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- A company proves its production site's addresses are its own. Each site has a public
+  token; the company puts it in a file at `/.well-known/siwa-site.txt` on each of the
+  site's addresses and asks for a check with `POST /api/control/v1/sites/{id}/proof`. When
+  every address shows the token, the site is verified and starts taking agents. When one
+  does not, the site says which address failed and why, and stays unverified. The check
+  reads only public https addresses, follows no redirect, and gives up after 5 seconds or
+  1 KB. A site can be checked 10 times a minute.
+- The site's `originProof` is now an object, not a word: its `state`, `token`, the
+  `fileUrls` to publish at, `checkedAt`, `verifiedAt`, and the last `failureReason` and
+  `failedOrigin`. A sandbox site's is still null.
+- Agents find the audience for a site with `GET /api/shared/siwa/audience?origin=`, one
+  exact address at a time. It answers for the Regent sites and for customers' verified
+  production sites, and the same 404 for every other address. Both agent clients now ask
+  here; their `sites` command still prints the Regent sites.
+- A customer's site may have 6,000 of its agents' requests checked a minute, however many
+  of its servers ask. Past that it answers `429 site_rate_limited`, before the request is
+  checked, used up or its agent counted for billing.
+- For whoever releases: migration `20261114200000` only adds columns to `sites`. Postgres
+  writes each existing site its own token as the column is added, which rewrites the small
+  `sites` table once inside the migration.
+
 ## 14 November 2026, counting
 
 - The Regent sites' activity read names only the Regent sites; a customer's site never appears in it.

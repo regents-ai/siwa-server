@@ -83,6 +83,8 @@ mix phx.server
 | Route | Method | Purpose |
 | --- | --- | --- |
 | `/` | GET | Service root. |
+| `/api/shared/siwa/audiences` | GET | The Regent sites agents can sign in to, one row per origin. The agent clients' `sites` command prints it. |
+| `/api/shared/siwa/audience?origin=` | GET | The audience an agent signs in for at one exact origin. See [Audience lookup](#audience-lookup). |
 | `/api/shared/siwa/wallet/nonce` | POST | Issue a wallet sign-in challenge. |
 | `/api/shared/siwa/wallet/verify` | POST | Verify a wallet sign-in. |
 | `/api/shared/siwa/http-verify` | POST | Verify a signed HTTP request: a customer's site with its server key, a Regent site with its audience. |
@@ -121,7 +123,7 @@ content-type: application/json
 
 The key names the site, so `x-siwa-audience` may be left out; when it is sent it must be
 the site's audience. A sandbox site always takes agents. A production site takes them only
-once its `originProof` is `verified`. An archived site, or a revoked key, takes none. A
+once its `originProof.state` is `verified`. An archived site, or a revoked key, takes none. A
 key that does not name a usable site is refused before the agent's request is looked at,
 so the request is not used up and works afterwards with the right key. A customer's
 site's audience sent without its key is refused.
@@ -150,12 +152,40 @@ its production sites answer `402 billing_required`.
 | 402 | `billing_required` | The production site's customer has no billing period running now. The request is not used up. |
 | 402 | `agent_cap_reached` | The period's cap has no room for another new agent. The request is not used up. |
 | 403 | `site_not_verified` | The production site's origins are not proven yet. |
+| 429 | `site_rate_limited` | The key's site has had 6,000 requests checked this minute. Refused before the request is checked, used up or its agent counted; `retry-after` says when to try again. |
 
 Wallet sign-in, agent registration and AgentBook steps are limited per wallet address
 the caller names, and every computer also has one ceiling across all of them (300 a
 minute), so naming new addresses buys no more requests. `http-verify` is limited per
 agent (600 a minute): its caller is a site's server, speaking for all of that site's agents,
-so one computer's ceiling there is 3,000 a minute.
+so one computer's ceiling there is 3,000 a minute. A customer's site also has its own
+ceiling of 6,000 a minute, however many of its servers ask with its keys.
+
+### Audience lookup
+
+An agent that is about to sign in for a site asks which audience the site's origin signs
+in for. It sends one exact origin, the scheme and host as sites list them, with no path,
+no trailing slash and the default port left out; it is compared in lower case. The answer
+is a Regent site's audience from `SIWA_WALLET_ORIGINS`, or a customer's production site's
+once its origins are proven and while it is not archived. Nothing is listed or searched:
+an origin no site lists, a sandbox site's, and one whose site is unproven or archived all
+answer the same 404. A sandbox site lists `http://localhost` origins that every developer's
+own computer shares, so none of them names one site. Lookups are limited to 600 a minute
+per calling computer.
+
+```http
+GET /api/shared/siwa/audience?origin=https%3A%2F%2Facme.example
+200 {"code":"audience","data":{"audience":"acme","origin":"https://acme.example"}}
+
+GET /api/shared/siwa/audience?origin=https%3A%2F%2Funknown.example
+404 {"error":{"code":"audience_not_found","message":"no site accepts agent sign-in at this origin","hint":"..."}}
+
+GET /api/shared/siwa/audience?origin=https%3A%2F%2Facme.example&audience=acme
+400 {"error":{"code":"invalid_request","message":"the query must hold one origin and nothing else","hint":"..."}}
+```
+
+Both agent clients ask here to find a site's audience; their `sites` command still prints
+the Regent sites from `/api/shared/siwa/audiences`.
 
 ## Control API
 
@@ -191,7 +221,8 @@ in for: 1 to 64 lowercase letters, digits, `-` or `_`, starting with a letter or
 never one used by any other site (archived ones too) or listed in `SIWA_WALLET_ORIGINS`. A
 `sandbox` site lists only `http://localhost:<port>` origins and needs no proof it owns them;
 a `production` site lists only `https://` origins with a lowercase host and nothing after
-it, and its `originProof` is `unverified` when made and again whenever its origins change.
+it, and its `originProof.state` is `unverified` when made and again whenever its origins
+change (see Origin proof below); a sandbox site's `originProof` is null.
 A site lists 1 to 10 origins, none twice. Names are 1 to 100 characters. A site's audience
 and environment never change. Archiving a site keeps it, hides it, keeps its audience taken,
 and stops its keys. A server key (`siwa_sk_test_...` for sandbox, `siwa_sk_live_...` for
@@ -206,6 +237,35 @@ pays in one period, or null for no cap; it is at least `9900` and is set on the 
 its current period together, and never below the fee that period has already reached.
 `maxAgents` is the most agents the cap pays for (`1000 + (capCents × 10 − 99000) ÷ 99`,
 rounded down). A new period takes the customer's cap when it opens.
+
+**Origin proof.** A production site takes agents only once its company has proven every
+one of its origins is its own. Each site has a token, made when the site is made, that
+never changes and is not a secret. The company publishes it as the whole of a file at
+`https://<origin>/.well-known/siwa-site.txt` for each origin (`originProof.fileUrls`), then
+asks for a check with `POST /sites/{id}/proof`. The check reads every origin's file at
+once and compares it with the token, surrounding whitespace ignored. When every origin
+serves it, the site becomes `verified`, with `verifiedAt`, and stays verified until its
+origins change. Otherwise `checkedAt` is set, `failedOrigin` and `failureReason` name the
+first of the site's origins that failed and why, and the site stays `unverified`. A
+verified site is answered as it is, with nothing read; a sandbox site answers
+`409 site_proof_not_needed`. A site may be checked 10 times a minute.
+
+Each read is made safe wherever the origin points: https on the default port only; every
+address the host resolves to, IPv4 and IPv6, must be public (loopback, private,
+link-local, unique-local, shared CGNAT, multicast, unspecified and IPv4-mapped addresses
+are refused); the connection goes to the address that was checked, so the name is never
+resolved twice; a redirect is never followed; nothing is retried; and the read stops after
+5 seconds or 1 KB.
+
+| `failureReason` | When |
+| --- | --- |
+| `not_https` | The origin is not https on the default port. |
+| `address_not_allowed` | The host resolves to an address that is not public. |
+| `unreachable` | The host has no address, or could not be reached or read within 5 seconds. |
+| `redirected` | The file answered with a redirect. |
+| `not_found` | The file answered with a status other than 200. |
+| `too_large` | The file is over 1 KB. |
+| `wrong_token` | The file does not hold the site's token. |
 
 | Agents | Fee (cents) | Cap (cents) | Most agents |
 | --- | --- | --- | --- |
@@ -227,6 +287,7 @@ rounded down). A new period takes the customer's cap when it opens.
 | `POST /sites` | `name`, `audience`, `environment`, `origins` | `201 site_created` |
 | `PATCH /sites/{id}` | `name` and/or `origins` | `200 site_updated` |
 | `DELETE /sites/{id}` | none | `200 site_archived` |
+| `POST /sites/{id}/proof` | none | `200 site_proof_checked`, the site after the check |
 | `GET /sites/{id}/keys` | none | `200 site_keys`, newest first, revoked ones too |
 | `POST /sites/{id}/keys` | none | `201 site_key_created`, the only answer holding `key` |
 | `DELETE /sites/{id}/keys/{key_id}` | none | `200 site_key_revoked`; again changes nothing |
@@ -250,7 +311,7 @@ GET /api/control/v1/agents?limit=2
 200 {"code":"agents","data":{"agents":[{"subject":"eip155:8453:0x5f...","firstVerifiedAt":"2026-11-14T06:58:02.114071Z","firstSiteId":"204cdfd8-..."},{"subject":"eip155:8453:0x1c...","firstVerifiedAt":"2026-11-14T06:57:40.552310Z","firstSiteId":"204cdfd8-..."}],"next":"MTc2MzEwMzQ2MDU1MjMxMC4..."}}
 
 POST /api/control/v1/sites   {"name":"Acme","audience":"acme","environment":"production","origins":["https://acme.example"]}
-201 {"code":"site_created","data":{"id":"204cdfd8-3ba2-44f5-b235-268addb0e013","name":"Acme","audience":"acme","environment":"production","origins":["https://acme.example"],"originProof":"unverified","archivedAt":null,"createdAt":"2026-11-14T06:56:57Z","updatedAt":"2026-11-14T06:56:57Z"}}
+201 {"code":"site_created","data":{"id":"204cdfd8-3ba2-44f5-b235-268addb0e013","name":"Acme","audience":"acme","environment":"production","origins":["https://acme.example"],"originProof":{"state":"unverified","token":"siwa_site_3f6c1d0e9a8b4c2d8e7f6a5b4c3d2e1f","fileUrls":["https://acme.example/.well-known/siwa-site.txt"],"checkedAt":null,"verifiedAt":null,"failureReason":null,"failedOrigin":null},"archivedAt":null,"createdAt":"2026-11-14T06:56:57Z","updatedAt":"2026-11-14T06:56:57Z"}}
 
 GET /api/control/v1/sites
 200 {"code":"sites","data":{"sites":[{"id":"204cdfd8-...","name":"Acme","audience":"acme", ...}]}}
@@ -259,7 +320,13 @@ GET /api/control/v1/sites/204cdfd8-3ba2-44f5-b235-268addb0e013
 200 {"code":"site","data":{"id":"204cdfd8-...", ...}}
 
 PATCH /api/control/v1/sites/204cdfd8-...   {"name":"Acme Web","origins":["https://www.acme.example"]}
-200 {"code":"site_updated","data":{"id":"204cdfd8-...","name":"Acme Web","origins":["https://www.acme.example"],"originProof":"unverified", ...}}
+200 {"code":"site_updated","data":{"id":"204cdfd8-...","name":"Acme Web","origins":["https://www.acme.example"],"originProof":{"state":"unverified","token":"siwa_site_3f6c...","fileUrls":["https://www.acme.example/.well-known/siwa-site.txt"],"checkedAt":null,"verifiedAt":null,"failureReason":null,"failedOrigin":null}, ...}}
+
+POST /api/control/v1/sites/204cdfd8-.../proof
+200 {"code":"site_proof_checked","data":{"id":"204cdfd8-...","originProof":{"state":"unverified","token":"siwa_site_3f6c...","fileUrls":["https://www.acme.example/.well-known/siwa-site.txt"],"checkedAt":"2026-11-14T07:02:10Z","verifiedAt":null,"failureReason":"wrong_token","failedOrigin":"https://www.acme.example"}, ...}}
+
+POST /api/control/v1/sites/204cdfd8-.../proof
+200 {"code":"site_proof_checked","data":{"id":"204cdfd8-...","originProof":{"state":"verified","token":"siwa_site_3f6c...","fileUrls":["https://www.acme.example/.well-known/siwa-site.txt"],"checkedAt":"2026-11-14T07:04:31Z","verifiedAt":"2026-11-14T07:04:31Z","failureReason":null,"failedOrigin":null}, ...}}
 
 DELETE /api/control/v1/sites/204cdfd8-...
 200 {"code":"site_archived","data":{"id":"204cdfd8-...","archivedAt":"2026-11-14T06:56:57Z", ...}}
@@ -291,8 +358,9 @@ field's reasons:
 | 404 | `site_key_not_found` | No key with that id on that site. |
 | 409 | `customer_exists` | `POST /customer` when the person already has one. |
 | 409 | `site_key_limit` | The site already has 5 keys that are not revoked. |
+| 409 | `site_proof_not_needed` | `POST /sites/{id}/proof` on a sandbox site, which needs no proof. |
 | 422 | `control_fields_invalid` | A field broke its rule; `fields` says which and why. On `PUT /cap`, a cap below 9900 or below the fee this period has already reached; on `GET /agents`, a `limit` outside 1 to 200 or an `after` this list did not give. |
-| 429 | `rate_limited` | `POST /session` more than 600 times a minute from one computer; `retry-after` says when to try again. |
+| 429 | `rate_limited` | `POST /session` more than 600 times a minute from one computer, or `POST /sites/{id}/proof` more than 10 times a minute for one site; `retry-after` says when to try again. |
 | 503 | `control_not_configured` | The Privy settings are not set on this server. |
 
 ## Required configuration
@@ -475,8 +543,8 @@ signs in from several origins repeats, one entry per origin; its first origin is
 the challenge names, and no origin may belong to two audiences. Leaving it empty
 disables this flow for every Regent audience. A customer's site is a sign-in audience
 too, from the origins it lists through the [control API](#control-api): a sandbox site
-always, a production site once its `originProof` is `verified`, an archived site never.
-The public audience list names only the audiences in this table. Callers never choose an
+always, a production site once its `originProof.state` is `verified`, an archived site
+never. The public audience list names only the audiences in this table. Callers never choose an
 origin; only this table and the customer's site do. The server binds the origin, audience, address, chain and expiry in the
 challenge. An origin change invalidates outstanding challenges. Rate limits use the
 existing nonce/verification buckets. This option does not grant product permissions.

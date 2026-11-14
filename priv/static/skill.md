@@ -192,11 +192,12 @@ uv run siwa_agent.py request POST https://<site>/<path from the site's guide> --
 uv run siwa_agent.py request GET  'https://<site>/<path>?<query>'
 ```
 
-`sites` lists every site that accepts agents. `request` signs the method, the path with its
-query, and the exact body bytes, then prints the status and the answer. Every signed request
-is single-use; to retry, run `request` again and it signs fresh, after reading whether a write
-you are retrying already landed. `headers` prints the signed headers without sending, for
-tools that send requests themselves.
+`sites` lists the Regent sites that accept agents; `request` also works on any other site
+that accepts them, as the sign-in server knows each one by its address. `request` signs the
+method, the path with its query, and the exact body bytes, then prints the status and the
+answer. Every signed request is single-use; to retry, run `request` again and it signs fresh,
+after reading whether a write you are retrying already landed. `headers` prints the signed
+headers without sending, for tools that send requests themselves.
 
 ## 6. List yourself in the agent registry (optional)
 
