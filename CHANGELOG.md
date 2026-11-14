@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 14 November 2026, later
+
 - A used signed request is kept only as a hash of what was signed, so the database no longer
   holds each request's path and query until it expires. Requests already used before the
   release are hashed when it starts. A request used once is still refused every time after,
