@@ -1,0 +1,53 @@
+{
+  "note": "Tempo zero-amount proofs signed by mppx 0.18.1 (tempo.charge createCredential, which calls viem signTypedData over Proof.typedData) with the public Anvil/Hardhat default key 0. digest is mppx Proof.hash, checked equal to viem hashTypedData. access_key_envelope is an ox keychain V2 envelope over the first vector signed by Anvil key 1 as an access key.",
+  "mppx": "0.18.1",
+  "viem": "2.57.19",
+  "ox": "0.14.65",
+  "vectors": [
+    {
+      "name": "mainnet",
+      "chain_id": 4217,
+      "account": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "challenge_id": "BMTl9Ux-yoN6UZ6UbbxI8IVe02u-vVUmbz0_Pj4WZBE",
+      "realm": "api.example.com",
+      "source": "did:pkh:eip155:4217:0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "digest": "0x9cf7d20e0648e9372bc73f63a9cbdc8236722ff77eb78b0f1d5f6bd4cf667f86",
+      "signature": "0xa3313cabfe964c6abdffaf0ddb7731975afac319e984d9792bf1d62cb3cf33886f0549231f8df4cd746e6f9bd0b18cf3a2e799a333b97736265764f2984a8fc11b"
+    },
+    {
+      "name": "moderato",
+      "chain_id": 42431,
+      "account": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "challenge_id": "tiFobCpQFrCNxwCyQyUSLIemFS40X3pMWx3lSzg3RmM",
+      "realm": "api.example.com",
+      "source": "did:pkh:eip155:42431:0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "digest": "0xd1c1d11786425fb72dd0765d457a61fd4dbcdb67533256864cd21663a62ca71a",
+      "signature": "0x917692e8c6de9b5b4489026f3123543693a3830db7e3a0ca13021710f42b2e0d04bf23dab4af01fdee16600b64a089faa27c0c5b9b61f27171403b4660c36d361c"
+    },
+    {
+      "name": "mainnet non-ASCII realm",
+      "chain_id": 4217,
+      "account": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "challenge_id": "gCiBkwVX89ZvV2qBkCLNHCX4CgFzD-U0ShLXib_LtEI",
+      "realm": "café.example ✓ 東京 🚀",
+      "source": "did:pkh:eip155:4217:0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "digest": "0x377707419ec67bd1e149de6b207a162676d2c3fabc4212515c15c361a72ca973",
+      "signature": "0x757254cc79b5a8d6e6ac78d0e3378f9e54f492fbe19fc0e10bf6caed532b06a9528b07376907389983dfe296e648d5045ebce2819482e71e0a0b8e536ce31c671b"
+    },
+    {
+      "name": "moderato non-ASCII realm",
+      "chain_id": 42431,
+      "account": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "challenge_id": "GoE6D6l8fgtZQckKeOj5Dzg1ighdleUTa3C5dqI5QEk",
+      "realm": "Zürich — ünïcödé.example",
+      "source": "did:pkh:eip155:42431:0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "digest": "0x4f7b9180f2b08c345774c6ecfd918d17a154f3a4e0cda121afdbb23c7061ea56",
+      "signature": "0x644b48a0329ec78fe784a2eb32f6df3140616593335e65a3999bc1cf17c4621266b1e4fb16f7961aca9255120ff8e1a7ab67707cc2f75ba6039d3020501bfb481b"
+    }
+  ],
+  "access_key_envelope": {
+    "vector": "mainnet",
+    "access_key": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "signature": "0x04f39Fd6e51aad88F6F4ce6aB8827279cffFb92266b0c23a9aa2abfba4b88b68a0d50d5b8598f91e79b91b3960b7f13e61ca86959f3b7b427f8a735d0cabd0f774fdd0b49edd139493c0eaaeba0277e1b7d4918f0c1b"
+  }
+}
