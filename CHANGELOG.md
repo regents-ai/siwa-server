@@ -5,6 +5,18 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- New control API at `/api/control/v1`, for the paid sign-in product. A Regent site trades its
+  signed-in person's Privy sign-in for a 15-minute control token, then manages that person's
+  customer, sites and site server keys. A site's audience is taken for good and never one
+  already served; a sandbox site lists local origins, a production one `https://` origins
+  that start unverified. A server key is shown once and kept only as a hash, at most five
+  per site. Nothing uses a server key yet. Agent sign-in, `http-verify`, the audience list
+  and hosted signing are unchanged.
+- For whoever releases: the control API stays off, answering `503 control_not_configured`,
+  until `PRIVY_APP_ID` and `PRIVY_VERIFICATION_KEY` are set; the server starts without them.
+  Migration `20261114120000` only adds the `customers`, `sites` and `site_credentials`
+  tables and one check function.
+
 ## 14 November 2026, later
 
 - A used signed request is kept only as a hash of what was signed, so the database no longer

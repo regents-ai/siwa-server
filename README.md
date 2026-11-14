@@ -45,8 +45,9 @@ mix phx.server
 
 > [!NOTE]
 > Sign-in state lives in this service's own PostgreSQL database: nonces, receipts, and replay
-> records (a hash of each used request, never its path), nothing else. It holds no product
-> data. What leaves the machine in production: the configured Base RPC endpoint, for on-chain
+> records (a hash of each used request, never its path). The [control API](#control-api)
+> adds its customers, their sites, and a hash of each site key, never the key. It holds no
+> other product data. What leaves the machine in production: the configured Base RPC endpoint, for on-chain
 > checks.
 
 ## Where this sits
@@ -94,6 +95,7 @@ mix phx.server
 | `/healthz` | GET | Liveness. |
 | `/readyz` | GET | Readiness, checked at most once every 30 seconds; requests in between get the last answer. It says which checks failed; the reasons go to the log. `hosted_keys` opens one stored hosted connection key with `KEYSTORE_PASSWORD`, and fails when it does not open. |
 | `/regent-services-contract.openapiv3.yaml` | GET | The served shared services contract. |
+| `/api/control/v1/...` | GET, POST, PATCH, DELETE | The control API, for Regent sites acting for a signed-in person. See [Control API](#control-api). |
 
 Sign-in has one path: the agent's wallet. A signed request binds the wallet, chain,
 audience and the request body when it has one. A site checking a request sends
@@ -109,6 +111,120 @@ the caller names, and every computer also has one ceiling across all of them (30
 minute), so naming new addresses buys no more requests. `http-verify` is limited per
 agent (600 a minute): its caller is a site's server, speaking for all of that site's agents,
 so one computer's ceiling there is 3,000 a minute.
+
+## Control API
+
+The paid sign-in product's customers manage their account here: a customer, its sites, and
+each site's server keys. Regent sites (the template first, then regents.sh, Patchbay and
+Chainagent) call it from their own server for the person signed in to them with Privy. It
+changes nothing about agent sign-in, `http-verify`, `SIWA_WALLET_ORIGINS` or hosted
+signing, and nothing calls a server key yet.
+
+It is off until `PRIVY_APP_ID` and `PRIVY_VERIFICATION_KEY` are both set: every route then
+answers `503 control_not_configured`, and the rest of the service runs as before.
+
+**Signing in.** The site trades the person's Privy sign-in for a control token, which lasts
+15 minutes and names only the person's Privy DID. Every other route takes that token as the
+bearer, and reaches only that person's customer. A site, key or customer that is not theirs
+answers exactly as one that does not exist. Exchanges are limited to 30 a minute per
+calling computer, which is the site's server for all its people: about 450 people signed in
+to one site at once.
+
+```http
+POST /api/control/v1/session
+Authorization: Bearer <Privy access token>
+privy-id-token: <Privy identity token>
+
+200 {"code":"control_session","data":{"token":"SFMyNTY...","expiresAt":"2026-11-14T07:11:57Z","did":"did:privy:cmabc123"}}
+```
+
+Both Privy tokens must be current, for this server's Privy app, from the same sign-in.
+
+**Rules.** A person has at most one customer. A site's `audience` is what its agents sign
+in for: 1 to 64 lowercase letters, digits, `-` or `_`, starting with a letter or digit,
+never one used by any other site (archived ones too) or listed in `SIWA_WALLET_ORIGINS`. A
+`sandbox` site lists only `http://localhost:<port>` origins and needs no proof it owns them;
+a `production` site lists only `https://` origins with a lowercase host and nothing after
+it, and its `originProof` is `unverified` when made and again whenever its origins change.
+A site lists 1 to 10 origins, none twice. Names are 1 to 100 characters. A site's audience
+and environment never change. Archiving a site keeps it, hides it, keeps its audience taken,
+and stops its keys. A server key (`siwa_sk_test_...` for sandbox, `siwa_sk_live_...` for
+production) is shown once, when made; the server keeps only its SHA-256 hash and its first
+19 characters. A site has at most 5 keys that are not revoked. A body may hold only the
+fields its route names.
+
+| Route | Body | Success |
+| --- | --- | --- |
+| `POST /session` | none (headers above) | `200 control_session` |
+| `GET /account` | none | `200 account` |
+| `POST /customer` | `name` | `201 customer_created` |
+| `PATCH /customer` | `name` | `200 customer_updated` |
+| `GET /sites` | none | `200 sites`, oldest first |
+| `GET /sites/{id}` | none | `200 site` |
+| `POST /sites` | `name`, `audience`, `environment`, `origins` | `201 site_created` |
+| `PATCH /sites/{id}` | `name` and/or `origins` | `200 site_updated` |
+| `DELETE /sites/{id}` | none | `200 site_archived` |
+| `GET /sites/{id}/keys` | none | `200 site_keys`, newest first, revoked ones too |
+| `POST /sites/{id}/keys` | none | `201 site_key_created`, the only answer holding `key` |
+| `DELETE /sites/{id}/keys/{key_id}` | none | `200 site_key_revoked`; again changes nothing |
+
+Every path is under `/api/control/v1`. Examples, each with `Authorization: Bearer <control token>`:
+
+```http
+GET /api/control/v1/account
+200 {"code":"account","data":{"did":"did:privy:cmabc123","customer":null}}
+
+POST /api/control/v1/customer   {"name":"Acme"}
+201 {"code":"customer_created","data":{"id":"551352af-783e-4b8e-b409-24b8555683d7","name":"Acme","kind":"paid","createdAt":"2026-11-14T06:56:57Z","updatedAt":"2026-11-14T06:56:57Z"}}
+
+PATCH /api/control/v1/customer   {"name":"Acme Labs"}
+200 {"code":"customer_updated","data":{"id":"551352af-...","name":"Acme Labs","kind":"paid","createdAt":"...","updatedAt":"..."}}
+
+POST /api/control/v1/sites   {"name":"Acme","audience":"acme","environment":"production","origins":["https://acme.example"]}
+201 {"code":"site_created","data":{"id":"204cdfd8-3ba2-44f5-b235-268addb0e013","name":"Acme","audience":"acme","environment":"production","origins":["https://acme.example"],"originProof":"unverified","archivedAt":null,"createdAt":"2026-11-14T06:56:57Z","updatedAt":"2026-11-14T06:56:57Z"}}
+
+GET /api/control/v1/sites
+200 {"code":"sites","data":{"sites":[{"id":"204cdfd8-...","name":"Acme","audience":"acme", ...}]}}
+
+GET /api/control/v1/sites/204cdfd8-3ba2-44f5-b235-268addb0e013
+200 {"code":"site","data":{"id":"204cdfd8-...", ...}}
+
+PATCH /api/control/v1/sites/204cdfd8-...   {"name":"Acme Web","origins":["https://www.acme.example"]}
+200 {"code":"site_updated","data":{"id":"204cdfd8-...","name":"Acme Web","origins":["https://www.acme.example"],"originProof":"unverified", ...}}
+
+DELETE /api/control/v1/sites/204cdfd8-...
+200 {"code":"site_archived","data":{"id":"204cdfd8-...","archivedAt":"2026-11-14T06:56:57Z", ...}}
+
+POST /api/control/v1/sites/204cdfd8-.../keys
+201 {"code":"site_key_created","data":{"id":"f5abb4c6-284c-4708-86e4-2476f6d1e890","prefix":"siwa_sk_live_QssKxd","key":"siwa_sk_live_QssKxd...","createdAt":"2026-11-14T06:56:57Z","revokedAt":null}}
+
+GET /api/control/v1/sites/204cdfd8-.../keys
+200 {"code":"site_keys","data":{"keys":[{"id":"f5abb4c6-...","prefix":"siwa_sk_live_QssKxd","createdAt":"2026-11-14T06:56:57Z","revokedAt":null}]}}
+
+DELETE /api/control/v1/sites/204cdfd8-.../keys/f5abb4c6-...
+200 {"code":"site_key_revoked","data":{"id":"f5abb4c6-...","prefix":"siwa_sk_live_QssKxd","createdAt":"2026-11-14T06:56:57Z","revokedAt":"2026-11-14T06:56:57Z"}}
+```
+
+A refusal is `{"error":{"code","message","hint"}}`; a field refusal adds `fields`, each
+field's reasons:
+
+```http
+422 {"error":{"code":"control_fields_invalid","message":"some fields are not valid","hint":"...","fields":{"audience":["has already been taken"]}}}
+```
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `control_request_invalid` | The body holds a field the route does not take, such as `audience` on `PATCH /sites/{id}`. |
+| 401 | `privy_proof_invalid` | `POST /session`: the Privy tokens are missing, expired, for another app, from two sign-ins, or not signed by Privy. |
+| 401 | `control_token_invalid` | The control token is missing, not valid or older than 15 minutes. |
+| 404 | `customer_not_found` | The person has no customer yet (`PATCH /customer` and every site route). |
+| 404 | `site_not_found` | No site with that id among the person's sites that are not archived. |
+| 404 | `site_key_not_found` | No key with that id on that site. |
+| 409 | `customer_exists` | `POST /customer` when the person already has one. |
+| 409 | `site_key_limit` | The site already has 5 keys that are not revoked. |
+| 422 | `control_fields_invalid` | A field broke its rule; `fields` says which and why. |
+| 429 | `rate_limited` | `POST /session` more than 30 times a minute from one computer; `retry-after` says when to try again. |
+| 503 | `control_not_configured` | The Privy settings are not set on this server. |
 
 ## Required configuration
 
@@ -137,6 +253,8 @@ so one computer's ceiling there is 3,000 a minute.
 | `SIWA_HOSTED_SIGNERS` | unset | Each site's own key for hosted signing (Patchbay's ChatGPT app, Keyfleet's, the template's and Chainagent's Claude connectors), as `site=key` pairs. Unset lets no site sign. |
 | `SIWA_WALLET_ORIGINS` | unset | Approved `audience=origin` pairs for wallet sign-in, comma separated; an audience may repeat with more origins. Unset disables it. |
 | `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Expired nonce, replay and activity rows removed per batch. A sweep runs once a minute and repeats batches until one comes back short, at most 20 for each kind. |
+| `PRIVY_APP_ID` | unset | The Privy app whose signed-in people may use the [control API](#control-api). Unset turns the control API off. |
+| `PRIVY_VERIFICATION_KEY` | unset | That Privy app's ES256 verification **public** key, not its app secret: the PEM with real line breaks, for example `fly secrets set PRIVY_VERIFICATION_KEY="$(cat privy-verification-key.pem)"`. Unset turns the control API off. |
 
 > [!WARNING]
 > `SIWA_RECEIPT_SECRET` and `KEYSTORE_PASSWORD` are the two values that keep this service

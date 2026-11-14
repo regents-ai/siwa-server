@@ -166,6 +166,7 @@ features:
       - lib/siwa_server_web/router.ex
     proofs:
       - test/siwa_server_web/plugs/rate_limit_test.exs
+      - test/siwa_server_web/controllers/control_session_controller_test.exs
 
   - id: agent-helpers
     what: The Python and Node helpers sign in, sign each request fresh and show one help screen; help anywhere runs nothing.
@@ -205,6 +206,55 @@ features:
       - scripts/build_agent_page.py --check needs the design-system checkout, so it is run by hand, not in precommit.
       - The real-helper run needs a Mac.
       - WebKit not run on the Mac (Safari).
+
+  - id: control-sign-in
+    what: A Regent site trades its signed-in person's Privy sign-in for a 15-minute control token naming only that person; without the Privy settings the control API refuses and the rest of the service runs.
+    who: person
+    level: protected
+    paths:
+      - lib/siwa_server_web/control_session_controller.ex
+      - lib/siwa_server_web/control_token.ex
+      - lib/siwa_server_web/plugs/control_configured.ex
+      - lib/siwa_server_web/plugs/control_person.ex
+      - lib/siwa_server/config.ex
+      - config/runtime.exs
+    entry:
+      - route: POST /api/control/v1/session
+    proofs:
+      - test/siwa_server_web/controllers/control_session_controller_test.exs
+      - test/siwa_server/config_test.exs
+    gaps:
+      - No browser e2e: no site calls it yet. The Privy tokens in the tests are made the way Privy makes them, with a test key, not by Privy.
+
+  - id: customer-sites-and-keys
+    what: A person makes their customer, adds sites with an audience no one else has and origins their environment allows, and makes, lists and revokes each site's server keys, shown once and kept only as a hash; nobody reaches another person's records.
+    who: person
+    level: protected
+    paths:
+      - lib/siwa_server/customers.ex
+      - lib/siwa_server/customers/**
+      - lib/siwa_server_web/control_controller.ex
+      - lib/siwa_server_web/fallback_controller.ex
+      - priv/repo/migrations/20261114120000_create_customers_sites_and_site_credentials.exs
+    entry:
+      - route: GET /api/control/v1/account
+      - route: POST /api/control/v1/customer
+      - route: PATCH /api/control/v1/customer
+      - route: GET /api/control/v1/sites
+      - route: POST /api/control/v1/sites
+      - route: GET /api/control/v1/sites/{id}
+      - route: PATCH /api/control/v1/sites/{id}
+      - route: DELETE /api/control/v1/sites/{id}
+      - route: GET /api/control/v1/sites/{id}/keys
+      - route: POST /api/control/v1/sites/{id}/keys
+      - route: DELETE /api/control/v1/sites/{id}/keys/{key_id}
+    proofs:
+      - test/siwa_server_web/controllers/control_controller_test.exs
+      - test/siwa_server/customers_concurrency_test.exs
+    gaps:
+      - Nothing calls a server key yet (SiwaServer.Customers.site_for_key/1 is tested, not used), and nothing proves a production site's origins, so originProof stays unverified.
+      - The database's own rules (one customer per person, one site per audience, 1 to 10 distinct origins, proof only for production, key hash and prefix shape) were walked by hand in psql on 14 Nov 2026; no test breaks them directly.
+      - No property test over audience and origin spellings of its own; the https:// origin rule is the one SIWA_WALLET_ORIGINS uses, whose property test covers lookalikes.
 
   - id: discovery-and-readiness
     what: The service describes itself, says when it is ready and which checks failed, and serves its contract and the websites guide.
