@@ -2,7 +2,7 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
   use SiwaServer.DataCase, async: false
   use Oban.Testing, repo: SiwaServer.Repo
 
-  alias SiwaServer.Siwa.{Challenge, CleanupWorker}
+  alias SiwaServer.Siwa.{Challenge, CleanupWorker, ReplayStore}
 
   test "the cron job removes expired nonce and replay rows and keeps active ones" do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -104,7 +104,12 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
       INSERT INTO siwa_request_replays (id, replay_key, expires_at, inserted_at, updated_at)
       VALUES ($1, $2, $3, $4, $4)
       """,
-      [Ecto.UUID.generate() |> Ecto.UUID.dump!(), replay_key, expires_at, now]
+      [
+        Ecto.UUID.generate() |> Ecto.UUID.dump!(),
+        ReplayStore.stored_key(replay_key),
+        expires_at,
+        now
+      ]
     )
   end
 
@@ -114,7 +119,9 @@ defmodule SiwaServer.Siwa.CleanupWorkerTest do
 
   defp replay_count(replay_key) do
     %Postgrex.Result{rows: [[count]]} =
-      Repo.query!("SELECT COUNT(*) FROM siwa_request_replays WHERE replay_key = $1", [replay_key])
+      Repo.query!("SELECT COUNT(*) FROM siwa_request_replays WHERE replay_key = $1", [
+        ReplayStore.stored_key(replay_key)
+      ])
 
     count
   end

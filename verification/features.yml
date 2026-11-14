@@ -45,6 +45,7 @@ features:
       - lib/siwa_server_web/agent_siwa_controller.ex
       - lib/siwa_server/siwa/http_verifier.ex
       - lib/siwa_server/siwa/replay_store.ex
+      - priv/repo/migrations/20261113150000_hash_request_replay_keys.exs
     entry:
       - route: POST /api/shared/siwa/http-verify
     proofs:
@@ -54,6 +55,7 @@ features:
       - test/siwa_server/replay_store_test.exs
       - test/siwa_server/replay_store_commit_test.exs
       - test/siwa_server/replay_window_property_test.exs
+      - test/siwa_server/replay_key_hash_test.exs
     gaps:
       - No browser e2e: API only.
       - The window property reads the real clock around each check; the verifier takes no clock of its own.

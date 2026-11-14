@@ -31,7 +31,7 @@ defmodule SiwaServer.WalletConcurrencyTest do
         )
 
         Repo.query!("DELETE FROM siwa_request_replays WHERE replay_key = ANY($1)", [
-          [replay_key, replay_key <> ":expired"]
+          Enum.map([replay_key, replay_key <> ":expired"], &ReplayStore.stored_key/1)
         ])
       end)
     end)

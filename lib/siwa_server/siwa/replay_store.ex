@@ -18,6 +18,9 @@ defmodule SiwaServer.Siwa.ReplayStore do
   # The accepting write is on the database's disk before the answer, so a database
   # crash never forgets a key it accepted. A restore from a backup can (README.md,
   # the signed request's single use).
+  #
+  # The table keeps `stored_key/1` of each key, never the key itself, which names the
+  # request's path and query; the insert and the lookup both use it.
   @impl Siwa.RequestAuth.ReplayStore
   def consume(replay_key, expires_at_unix) do
     expires_at = DateTime.from_unix!(expires_at_unix)
@@ -53,7 +56,7 @@ defmodule SiwaServer.Siwa.ReplayStore do
            """,
            [
              Ecto.UUID.generate() |> Ecto.UUID.dump!(),
-             replay_key,
+             stored_key(replay_key),
              expires_at,
              now
            ]
@@ -71,6 +74,9 @@ defmodule SiwaServer.Siwa.ReplayStore do
         {:error, reason}
     end
   end
+
+  def stored_key(replay_key),
+    do: "h1:" <> Base.encode16(:crypto.hash(:sha256, replay_key), case: :lower)
 
   # Ended rows are judged by the database clock, the one `consume/2` guards with.
   # By the app's clock, a database clock running behind would let a row go while

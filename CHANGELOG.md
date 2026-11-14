@@ -5,6 +5,17 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- A used signed request is kept only as a hash of what was signed, so the database no longer
+  holds each request's path and query until it expires. Requests already used before the
+  release are hashed when it starts. A request used once is still refused every time after,
+  including on a machine still running the previous release during the switch, or after a
+  rollback to its image. There, a repeat that has also expired can read `401
+  http_signature_invalid` ("signed request has expired") rather than `409 request_replayed`.
+- For whoever releases: a database trigger (`siwa_request_replays_hashed_key`, migration
+  `20261113150000`) hashes the plain keys the previous release writes. Roll back by image only,
+  with the trigger left in place; never by undoing the migration. A later release removes the
+  trigger with its own migration, once rolling back past this release is no longer needed.
+
 ## 14 November 2026
 
 - Chainagent is a site agents can sign in to: the audience `chainagent` signs for

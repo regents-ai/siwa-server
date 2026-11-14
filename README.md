@@ -45,8 +45,9 @@ mix phx.server
 
 > [!NOTE]
 > Sign-in state lives in this service's own PostgreSQL database: nonces, receipts, and replay
-> records, nothing else. It holds no product data. What leaves the machine in production: the
-> configured Base RPC endpoint, for on-chain checks.
+> records (a hash of each used request, never its path), nothing else. It holds no product
+> data. What leaves the machine in production: the configured Base RPC endpoint, for on-chain
+> checks.
 
 ## Where this sits
 
@@ -354,7 +355,9 @@ expiration checks; invalid proof cannot consume a valid challenge.
 
 A signed HTTP request may last no longer than the signature tolerance (longer is
 refused as `401 http_signature_invalid`), and its use is kept until it expires, so
-http-verify never accepts it again while it lasts. The use is on the database's disk before
+http-verify never accepts it again while it lasts. The use is kept as `h1:` and the SHA-256 of
+what was signed (wallet, chain, audience, nonce, method, path with its query, body digest),
+never as the request's path or query. The use is on the database's disk before
 http-verify answers, so a database crash never lets the same request through twice. A
 restore from a backup still can: the restored database has none of the uses recorded
 after its backup was taken. A request is accepted only while the time it was signed for

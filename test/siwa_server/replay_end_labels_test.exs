@@ -87,7 +87,7 @@ defmodule SiwaServer.ReplayEndLabelsTest do
       """,
       [
         Ecto.UUID.generate() |> Ecto.UUID.dump!(),
-        key,
+        ReplayStore.stored_key(key),
         DateTime.from_unix!(ends),
         DateTime.utc_now() |> DateTime.truncate(:second)
       ]
@@ -109,11 +109,16 @@ defmodule SiwaServer.ReplayEndLabelsTest do
 
   defp rows(key) do
     %{rows: [[count]]} =
-      Repo.query!("SELECT count(*) FROM siwa_request_replays WHERE replay_key = $1", [key])
+      Repo.query!("SELECT count(*) FROM siwa_request_replays WHERE replay_key = $1", [
+        ReplayStore.stored_key(key)
+      ])
 
     count
   end
 
   defp delete!(key),
-    do: Repo.query!("DELETE FROM siwa_request_replays WHERE replay_key = $1", [key])
+    do:
+      Repo.query!("DELETE FROM siwa_request_replays WHERE replay_key = $1", [
+        ReplayStore.stored_key(key)
+      ])
 end

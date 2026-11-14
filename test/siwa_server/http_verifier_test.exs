@@ -2,7 +2,7 @@ defmodule SiwaServer.HttpVerifierTest do
   use SiwaServer.DataCase, async: false
 
   alias SiwaServer.{Config, Ethereum, Repo, TestRpcServer, TestWallet}
-  alias SiwaServer.Siwa.HttpVerifier
+  alias SiwaServer.Siwa.{HttpVerifier, ReplayStore}
 
   @wallet_address TestWallet.address()
   @chain_id 8453
@@ -377,10 +377,9 @@ defmodule SiwaServer.HttpVerifierTest do
              })
 
     assert {:ok, %{rows: [[0]]}} =
-             Repo.query(
-               "SELECT count(*) FROM siwa_request_replays WHERE strpos(replay_key, $1) > 0",
-               [request_nonce(headers)]
-             )
+             Repo.query("SELECT count(*) FROM siwa_request_replays WHERE replay_key = $1", [
+               stored_replay_key(headers, body)
+             ])
   end
 
   test "a signed request stays used until it expires" do
@@ -398,23 +397,10 @@ defmodule SiwaServer.HttpVerifierTest do
                "body_digest" => Siwa.content_digest_for_body(body)
              })
 
-    replay_key =
-      Jason.encode!([
-        "wallet",
-        @wallet_address,
-        @chain_id,
-        "patchbay",
-        request_nonce(headers),
-        "POST",
-        "/v1/agent/bug-report",
-        Elixir.Siwa.content_digest_for_body(body)
-      ])
-
-    assert {:ok, %{rows: [[^replay_key, kept_until]]}} =
-             Repo.query(
-               "SELECT replay_key, expires_at FROM siwa_request_replays WHERE replay_key = $1",
-               [replay_key]
-             )
+    assert {:ok, %{rows: [[kept_until]]}} =
+             Repo.query("SELECT expires_at FROM siwa_request_replays WHERE replay_key = $1", [
+               stored_replay_key(headers, body)
+             ])
 
     assert NaiveDateTime.diff(kept_until, DateTime.to_naive(DateTime.from_unix!(expires))) == 0
 
@@ -827,6 +813,22 @@ defmodule SiwaServer.HttpVerifierTest do
   defp request_nonce(headers) do
     [_, nonce] = Regex.run(~r/;nonce="([^"]+)"/, Map.fetch!(headers, "x-siwa-signature-input"))
     nonce
+  end
+
+  # The row kept for a use of a POST to /v1/agent/bug-report signed with these headers.
+  defp stored_replay_key(headers, body) do
+    ReplayStore.stored_key(
+      Jason.encode!([
+        "wallet",
+        @wallet_address,
+        @chain_id,
+        "patchbay",
+        request_nonce(headers),
+        "POST",
+        "/v1/agent/bug-report",
+        Elixir.Siwa.content_digest_for_body(body)
+      ])
+    )
   end
 
   defp verify_http_request(params, audience \\ "patchbay") do
