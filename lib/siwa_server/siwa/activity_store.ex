@@ -13,7 +13,7 @@ defmodule SiwaServer.Siwa.ActivityStore do
 
   import Ecto.Query
 
-  alias SiwaServer.Repo
+  alias SiwaServer.{Config, Repo}
 
   @kept_days 30
   @default_cleanup_limit 1_000
@@ -55,8 +55,10 @@ defmodule SiwaServer.Siwa.ActivityStore do
   end
 
   @doc """
-  The wallet's lines whose last verified request was at or after `since`, newest
-  day first. At most 30 days for each site, so they are read in one answer.
+  The wallet's lines at the configured Regent sites whose last verified request
+  was at or after `since`, newest day first. At most 30 days for each site, so
+  they are read in one answer. A customer's site is never in it: which agents
+  use a customer's site is that customer's to see.
   """
   @spec days(String.t(), DateTime.t()) :: [map()]
   def days(wallet_address, since) do
@@ -64,6 +66,7 @@ defmodule SiwaServer.Siwa.ActivityStore do
       from(line in "siwa_agent_daily_activity",
         where:
           line.wallet_address == ^String.downcase(wallet_address) and
+            line.audience in ^Map.keys(Config.wallet_origins()) and
             line.last_seen_at >= ^since and
             line.day > ^kept_since(DateTime.utc_now()),
         order_by: [desc: line.day, asc: line.audience],

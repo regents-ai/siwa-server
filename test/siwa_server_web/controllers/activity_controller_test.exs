@@ -10,11 +10,28 @@ defmodule SiwaServerWeb.ActivityControllerTest do
   @token "siwa-test-regents-activity-read-key-01"
   @patchbay_token "siwa-test-patchbay-activity-read-key-1"
 
+  setup do
+    siwa = Application.fetch_env!(:siwa_server, :siwa)
+    on_exit(fn -> Application.put_env(:siwa_server, :siwa, siwa) end)
+
+    Application.put_env(
+      :siwa_server,
+      :siwa,
+      Keyword.put(siwa, :wallet_origins, %{
+        "regents" => ["https://regents.sh"],
+        "autolaunch" => ["https://autolaunch.sh"],
+        "techtree" => ["https://techtree.sh"]
+      })
+    )
+  end
+
   test "a Regents site reads one wallet's verified requests as one line per site and day" do
     :ok = ActivityStore.record(@wallet, "regents", true)
     :ok = ActivityStore.record(@wallet, "regents", false)
     :ok = ActivityStore.record(@wallet, "autolaunch", false)
     :ok = ActivityStore.record(@other, "techtree", false)
+    # A customer's site: counted, and never read back by a Regent site.
+    :ok = ActivityStore.record(@wallet, "acme", false)
 
     assert %{"days" => days, "agentRegistration" => nil, "agentBook" => nil} =
              read(%{
