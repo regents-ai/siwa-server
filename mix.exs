@@ -82,6 +82,7 @@ defmodule SiwaServer.MixProject do
       {:siwa_keyring,
        git: @elixir_utils, ref: @elixir_utils_ref, sparse: "siwa/siwa-elixir/apps/siwa_keyring"},
       {:regent_chain, git: @elixir_utils, ref: @elixir_utils_ref, sparse: "chain"},
+      {:regent_privy, git: @elixir_utils, ref: @elixir_utils_ref, sparse: "privy"},
       # The signing contract's shared fixtures, read by the agent client conformance test.
       {:siwa_contract,
        git: @elixir_utils,

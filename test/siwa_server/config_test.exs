@@ -6,15 +6,20 @@ defmodule SiwaServer.ConfigTest do
 
   @regents String.duplicate("r", 32)
   @patchbay String.duplicate("p", 32)
-  @env ~w(BASE_RPC_URL SIWA_RECEIPT_SECRET SIWA_NONCE_TTL_SECONDS SIWA_RECEIPT_TTL_SECONDS SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS)
+  @env ~w(BASE_RPC_URL SIWA_RECEIPT_SECRET SIWA_NONCE_TTL_SECONDS SIWA_RECEIPT_TTL_SECONDS SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS
+          ETHEREUM_RPC_URL WORLD_RPC_URL KEYSTORE_PASSWORD SIWA_ACTIVITY_READERS SIWA_WALLET_ORIGINS SIWA_RELEASE_COMMAND
+          DATABASE_URL SECRET_KEY_BASE PHX_HOST PRIVY_APP_ID PRIVY_VERIFICATION_KEY)
+  @pem "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----"
 
   setup do
     original_env = Map.new(@env, &{&1, System.get_env(&1)})
     original_siwa = Application.fetch_env!(:siwa_server, :siwa)
+    original_privy = Application.fetch_env!(:siwa_server, :privy)
 
     on_exit(fn ->
       for {name, value} <- original_env, do: restore_env(name, value)
       Application.put_env(:siwa_server, :siwa, original_siwa)
+      Application.put_env(:siwa_server, :privy, original_privy)
     end)
 
     :ok
@@ -114,11 +119,48 @@ defmodule SiwaServer.ConfigTest do
     assert Config.activity_reader(key) == :error
   end
 
-  defp started_siwa do
+  test "the control API's Privy settings come from the environment, trimmed" do
+    System.put_env("PRIVY_APP_ID", " privy-app ")
+    System.put_env("PRIVY_VERIFICATION_KEY", @pem <> "\n")
+    Application.put_env(:siwa_server, :privy, started(:test)[:privy])
+
+    assert Config.privy() == {:ok, [app_id: "privy-app", verification_key: @pem]}
+  end
+
+  test "production starts without the Privy settings, and the control API is then off" do
+    for name <- ~w(PRIVY_APP_ID PRIVY_VERIFICATION_KEY SIWA_WALLET_ORIGINS SIWA_RELEASE_COMMAND),
+        do: System.delete_env(name)
+
+    for {name, value} <- [
+          {"SIWA_RECEIPT_SECRET", "receipt-secret"},
+          {"KEYSTORE_PASSWORD", "keystore-password"},
+          {"SIWA_ACTIVITY_READERS", "regents=#{@regents}"},
+          {"BASE_RPC_URL", "https://base.example/rpc"},
+          {"ETHEREUM_RPC_URL", "https://ethereum.example/rpc"},
+          {"WORLD_RPC_URL", "https://world.example/rpc"},
+          {"DATABASE_URL",
+           "postgres://siwa_server:secret@pgbouncer.cluster.flympg.net/siwa_server"},
+          {"SECRET_KEY_BASE", String.duplicate("s", 64)},
+          {"PHX_HOST", "siwa.example"}
+        ],
+        do: System.put_env(name, value)
+
+    Application.put_env(:siwa_server, :privy, started(:prod)[:privy])
+
+    assert Config.privy() == :error
+
+    System.put_env("PRIVY_APP_ID", "privy-app")
+    Application.put_env(:siwa_server, :privy, started(:prod)[:privy])
+
+    assert Config.privy() == :error
+  end
+
+  defp started_siwa, do: Keyword.fetch!(started(:test), :siwa)
+
+  defp started(env) do
     "config/runtime.exs"
-    |> Reader.read!(env: :test)
+    |> Reader.read!(env: env)
     |> Keyword.fetch!(:siwa_server)
-    |> Keyword.fetch!(:siwa)
   end
 
   defp restore_env(name, nil), do: System.delete_env(name)

@@ -11,7 +11,7 @@ defmodule SiwaServer.Config do
   every call, trimmed, and are `nil` when unset or blank.
   """
 
-  @site_regex ~r/^[a-z0-9][a-z0-9_-]{0,63}$/
+  @site_regex ~r/\A[a-z0-9][a-z0-9_-]{0,63}\z/
   @key_regex ~r/^[A-Za-z0-9_-]{32,}$/
   # Labels of at most 63 characters; the last starts with a letter, so no host is a number.
   @origin_regex ~r/\Ahttps:\/\/(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?\z/
@@ -46,6 +46,36 @@ defmodule SiwaServer.Config do
   def wallet_origins, do: Keyword.fetch!(siwa(), :wallet_origins)
 
   def keystore_password, do: Keyword.fetch!(siwa(), :keystore_password)
+
+  @doc """
+  The Privy app id and public verification key a person's sign-in is checked
+  with, as `RegentPrivy.Session.verify/2` options, or `:error` while either is
+  unset: the control API is then off.
+  """
+  @spec privy() :: {:ok, keyword()} | :error
+  def privy do
+    privy = Application.fetch_env!(:siwa_server, :privy)
+
+    case {Keyword.fetch!(privy, :app_id), Keyword.fetch!(privy, :verification_key)} do
+      {app_id, key} when is_binary(app_id) and is_binary(key) ->
+        {:ok, [app_id: app_id, verification_key: key]}
+
+      _unset ->
+        :error
+    end
+  end
+
+  @doc "Whether `name` is a site's name, the audience its agents sign in for."
+  @spec site_name?(String.t()) :: boolean()
+  def site_name?(name), do: Regex.match?(@site_regex, name)
+
+  @doc "Whether `origin` is a public site's origin, in its one spelling (`wallet_origins!/2`)."
+  @spec https_origin?(String.t()) :: boolean()
+  def https_origin?(origin), do: Regex.match?(@origin_regex, origin)
+
+  @doc "Whether `origin` is a site run on a computer for local work: `http://localhost:<port>`."
+  @spec local_origin?(String.t()) :: boolean()
+  def local_origin?(origin), do: Regex.match?(@local_origin_regex, origin)
 
   @doc "The site whose activity read key the Authorization header presents."
   @spec activity_reader(String.t()) :: {:ok, String.t()} | :error
@@ -179,7 +209,7 @@ defmodule SiwaServer.Config do
     with [site, key] <- String.split(entry, "=", parts: 2),
          site = String.trim(site),
          key = String.trim(key),
-         true <- Regex.match?(@site_regex, site),
+         true <- site_name?(site),
          true <- Regex.match?(@key_regex, key) do
       {site, key}
     else
@@ -195,13 +225,12 @@ defmodule SiwaServer.Config do
         audience = String.trim(audience)
         origin = origin |> String.trim() |> String.replace_suffix("/", "")
 
-        unless Regex.match?(@site_regex, audience) do
+        unless site_name?(audience) do
           raise ArgumentError,
                 "SIWA_WALLET_ORIGINS audience #{inspect(audience)} is not a valid name"
         end
 
-        unless Regex.match?(@origin_regex, origin) or
-                 (local and Regex.match?(@local_origin_regex, origin)) do
+        unless https_origin?(origin) or (local and local_origin?(origin)) do
           raise ArgumentError,
                 "SIWA_WALLET_ORIGINS origin #{inspect(origin)} must be https:// and a lowercase host, with nothing else"
         end

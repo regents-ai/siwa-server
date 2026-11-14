@@ -230,7 +230,14 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/api/shared/siwa/agent-book/challenge",
                "/api/shared/siwa/agent-book/accept",
                "/agent-profiles/{profile_id}",
-               "/api/shared/siwa/hosted"
+               "/api/shared/siwa/hosted",
+               "/api/control/v1/session",
+               "/api/control/v1/account",
+               "/api/control/v1/customer",
+               "/api/control/v1/sites",
+               "/api/control/v1/sites/{id}",
+               "/api/control/v1/sites/{id}/keys",
+               "/api/control/v1/sites/{id}/keys/{key_id}"
              ])
 
     assert operation_response_codes(contract, "/api/shared/siwa/http-verify", "post") ==

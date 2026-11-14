@@ -196,6 +196,44 @@ defmodule SiwaServerWeb.Help do
     "This request is for Regent sites, not agents."
   end
 
+  # The control API's refusals go to the Regent site calling it for its person.
+  defp steps("control_not_configured", _context) do
+    "This server's control API is off until its Privy settings are set. Tell the people who run it."
+  end
+
+  defp steps("privy_proof_invalid", _context) do
+    [
+      "Send the person's Privy access token as the bearer and their identity token in ",
+      "privy-id-token, both from the same current sign-in. Ask Privy for fresh ones once they expire."
+    ]
+  end
+
+  defp steps("control_token_invalid", _context) do
+    [
+      "Exchange the person's Privy sign-in at POST /api/control/v1/session for a new control ",
+      "token. Each one lasts 15 minutes."
+    ]
+  end
+
+  defp steps("control_request_invalid", _context),
+    do: "Send a JSON object holding only the fields this route takes."
+
+  defp steps("control_fields_invalid", _context),
+    do: "Correct each field named under fields, then send the request again."
+
+  defp steps("customer_not_found", _context),
+    do: "Make the person's customer first, with POST /api/control/v1/customer."
+
+  defp steps("customer_exists", _context),
+    do: "The person already has a customer. Read it with GET /api/control/v1/account."
+
+  defp steps(code, _context) when code in ~w(site_not_found site_key_not_found) do
+    "The person's customer has nothing with that id. List its sites with GET /api/control/v1/sites."
+  end
+
+  defp steps("site_key_limit", _context),
+    do: "A site keeps at most five keys that are not revoked. Revoke one it no longer uses first."
+
   defp steps(_code, _context) do
     [
       "The sign-in service had a problem on its side. Wait a minute and try again. ",

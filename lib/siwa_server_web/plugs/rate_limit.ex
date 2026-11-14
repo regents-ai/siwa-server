@@ -76,6 +76,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   defp client_key(conn, :siwa_activity), do: "activity:#{client_ip(conn)}"
   defp client_key(conn, :siwa_hosted), do: "hosted:#{client_ip(conn)}"
   defp client_key(conn, :agent_profile), do: "agent-profile:#{client_ip(conn)}"
+  defp client_key(conn, :siwa_control_session), do: "control-session:#{client_ip(conn)}"
 
   defp client_key(conn, _name) do
     body = fetched_body_params(conn)

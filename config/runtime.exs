@@ -22,6 +22,7 @@ end
 
 current_siwa = Application.get_env(:siwa_server, :siwa, [])
 current_siwa_cleanup = Application.get_env(:siwa_server, :siwa_cleanup, [])
+current_privy = Application.get_env(:siwa_server, :privy, [])
 
 env_integer = fn name, default ->
   case System.get_env(name) do
@@ -131,6 +132,13 @@ config :siwa_server, :siwa,
 config :siwa_server, :siwa_cleanup,
   batch_size:
     env_integer.("SIWA_CLEANUP_BATCH_SIZE", Keyword.fetch!(current_siwa_cleanup, :batch_size))
+
+# Both are public values: the Privy app id and its ES256 verification key, one PEM block.
+# Production starts without them; the control API then refuses every request.
+config :siwa_server, :privy,
+  app_id: env_value.("PRIVY_APP_ID", Keyword.fetch!(current_privy, :app_id)),
+  verification_key:
+    env_value.("PRIVY_VERIFICATION_KEY", Keyword.fetch!(current_privy, :verification_key))
 
 if prod? do
   database_url =

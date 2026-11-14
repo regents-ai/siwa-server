@@ -21,6 +21,9 @@ config :siwa_server, :siwa,
   hosted_signers: %{},
   keystore_password: nil
 
+# The control API checks a person's Privy sign-in with these; unset turns it off.
+config :siwa_server, :privy, app_id: nil, verification_key: nil
+
 config :siwa_server, Oban,
   repo: SiwaServer.Repo,
   notifier: Oban.Notifiers.PG,
@@ -61,6 +64,10 @@ config :logger, :default_formatter,
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
+
+# Any parameter whose name holds one of these is logged as [FILTERED]: keys, their
+# hashes, tokens and secrets never reach a log.
+config :phoenix, :filter_parameters, ["password", "secret", "token", "key", "hash"]
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

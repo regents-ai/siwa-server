@@ -23,6 +23,20 @@ defmodule SiwaServerWeb.Router do
     end
   end
 
+  # The control API, for Regent sites acting for their signed-in person. Without
+  # its Privy settings every route answers 503 and the rest of the server is unchanged.
+  pipeline :control_session do
+    plug :accepts, ["json"]
+    plug SiwaServerWeb.Plugs.ControlConfigured
+    plug SiwaServerWeb.Plugs.RateLimit, name: :siwa_control_session
+  end
+
+  pipeline :control do
+    plug :accepts, ["json"]
+    plug SiwaServerWeb.Plugs.ControlConfigured
+    plug SiwaServerWeb.Plugs.ControlPerson
+  end
+
   scope "/", SiwaServerWeb do
     get "/", DiscoveryController, :root
     get "/healthz", DiscoveryController, :healthz
@@ -73,5 +87,25 @@ defmodule SiwaServerWeb.Router do
   scope "/", SiwaServerWeb do
     pipe_through :agent_profile
     get "/agent-profiles/:profile_id", AgentRegistrationController, :profile
+  end
+
+  scope "/api/control/v1", SiwaServerWeb do
+    pipe_through :control_session
+    post "/session", ControlSessionController, :create
+  end
+
+  scope "/api/control/v1", SiwaServerWeb do
+    pipe_through :control
+    get "/account", ControlController, :account
+    post "/customer", ControlController, :create_customer
+    patch "/customer", ControlController, :update_customer
+    get "/sites", ControlController, :sites
+    post "/sites", ControlController, :create_site
+    get "/sites/:id", ControlController, :site
+    patch "/sites/:id", ControlController, :update_site
+    delete "/sites/:id", ControlController, :archive_site
+    get "/sites/:id/keys", ControlController, :keys
+    post "/sites/:id/keys", ControlController, :create_key
+    delete "/sites/:id/keys/:key_id", ControlController, :revoke_key
   end
 end

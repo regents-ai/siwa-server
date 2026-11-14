@@ -23,7 +23,11 @@ defmodule SiwaServer.RateLimiter do
     # One site's server checks every signed request its agents send. The whole
     # service has peaked at 30 checks a minute, so this leaves a site room to grow
     # a hundredfold and still bounds a caller that names a new wallet each time.
-    siwa_site: [limit: 3_000, window_ms: 60_000]
+    siwa_site: [limit: 3_000, window_ms: 60_000],
+    # Counted per calling address, which is a Regent site's server for all of its
+    # people. Each needs a new control token every 15 minutes, so 30 a minute
+    # serves about 450 people signed in to one site at once.
+    siwa_control_session: [limit: 30, window_ms: 60_000]
   }
 
   @doc "Counts one request under `name` and `key`; the wait in ms once the window is full."

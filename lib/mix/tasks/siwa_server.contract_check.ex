@@ -30,7 +30,19 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
       MapSet.new(~w(200 400 401 403 404 413 415 429 500)),
     {"POST", "/api/shared/siwa/wallet/verify"} =>
       MapSet.new(~w(200 400 401 403 404 413 415 429 500 502)),
-    {"POST", "/api/shared/siwa/hosted"} => MapSet.new(~w(200 400 401 413 415 422 429 503))
+    {"POST", "/api/shared/siwa/hosted"} => MapSet.new(~w(200 400 401 413 415 422 429 503)),
+    {"POST", "/api/control/v1/session"} => MapSet.new(~w(200 401 429 503)),
+    {"GET", "/api/control/v1/account"} => MapSet.new(~w(200 401 503)),
+    {"POST", "/api/control/v1/customer"} => MapSet.new(~w(201 400 401 409 413 415 422 503)),
+    {"PATCH", "/api/control/v1/customer"} => MapSet.new(~w(200 400 401 404 413 415 422 503)),
+    {"GET", "/api/control/v1/sites"} => MapSet.new(~w(200 401 404 503)),
+    {"POST", "/api/control/v1/sites"} => MapSet.new(~w(201 400 401 404 413 415 422 503)),
+    {"GET", "/api/control/v1/sites/{id}"} => MapSet.new(~w(200 401 404 503)),
+    {"PATCH", "/api/control/v1/sites/{id}"} => MapSet.new(~w(200 400 401 404 413 415 422 503)),
+    {"DELETE", "/api/control/v1/sites/{id}"} => MapSet.new(~w(200 401 404 503)),
+    {"GET", "/api/control/v1/sites/{id}/keys"} => MapSet.new(~w(200 401 404 503)),
+    {"POST", "/api/control/v1/sites/{id}/keys"} => MapSet.new(~w(201 401 404 409 503)),
+    {"DELETE", "/api/control/v1/sites/{id}/keys/{key_id}"} => MapSet.new(~w(200 401 404 503))
   }
 
   @impl Mix.Task

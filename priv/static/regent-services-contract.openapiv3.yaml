@@ -21,6 +21,8 @@ x-regent-rate-limits:
 tags:
   - name: auth
   - name: internal
+  - name: control
+    description: The control API, which Regent sites call from their server for their signed-in person, to manage that person's customer, sites and site keys.
 paths:
   /:
     get:
@@ -828,6 +830,346 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "429":
           $ref: "#/components/responses/RateLimitError"
+  /api/control/v1/session:
+    post:
+      operationId: createControlSession
+      summary: Trade a person's Privy sign-in for a control token
+      description: >-
+        A Regent site's server sends its signed-in person's Privy access token
+        as the bearer and their identity token in privy-id-token. Both must be
+        current, for this server's Privy app, and from the same sign-in. The
+        answer is a control token naming only the person's Privy DID, good for
+        15 minutes. Limited to 30 a minute per calling computer.
+      tags: [control]
+      security:
+        - PrivyAccessToken: []
+          PrivyIdentityToken: []
+      responses:
+        "200":
+          description: The control token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ControlSessionResponse"
+        "401":
+          description: The Privy tokens are missing, expired, for another app, from two sign-ins, or not signed by Privy (privy_proof_invalid)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
+        "503":
+          $ref: "#/components/responses/ControlNotConfigured"
+  /api/control/v1/account:
+    get:
+      operationId: readControlAccount
+      summary: The person's DID and their customer, or null
+      tags: [control]
+      security:
+        - ControlToken: []
+      responses:
+        "200":
+          description: The person's account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ControlAccountResponse"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "503":
+          $ref: "#/components/responses/ControlNotConfigured"
+  /api/control/v1/customer:
+    post:
+      operationId: createControlCustomer
+      summary: Make the person's customer
+      description: A person has at most one customer. It is made paid.
+      tags: [control]
+      security:
+        - ControlToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerRequest"
+      responses:
+        "201":
+          description: The customer made (customer_created)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerResponse"
+        "400":
+          $ref: "#/components/responses/ControlRequestInvalid"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "409":
+          description: The person already has a customer (customer_exists)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          $ref: "#/components/responses/ControlBodyTooLarge"
+        "415":
+          $ref: "#/components/responses/ControlUnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ControlFieldsInvalid"
+        "503":
+          $ref: "#/components/responses/ControlNotConfigured"
+    patch:
+      operationId: updateControlCustomer
+      summary: Rename the person's customer
+      tags: [control]
+      security:
+        - ControlToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerRequest"
+      responses:
+        "200":
+          description: The renamed customer (customer_updated)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerResponse"
+        "400":
+          $ref: "#/components/responses/ControlRequestInvalid"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "404":
+          $ref: "#/components/responses/ControlNotFound"
+        "413":
+          $ref: "#/components/responses/ControlBodyTooLarge"
+        "415":
+          $ref: "#/components/responses/ControlUnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ControlFieldsInvalid"
+        "503":
+          $ref: "#/components/responses/ControlNotConfigured"
+  /api/control/v1/sites:
+    get:
+      operationId: listControlSites
+      summary: The customer's sites that are not archived, oldest first
+      tags: [control]
+      security:
+        - ControlToken: []
+      responses:
+        "200":
+          description: The sites (sites)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SitesResponse"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "404":
+          $ref: "#/components/responses/ControlNotFound"
+        "503":
+          $ref: "#/components/responses/ControlNotConfigured"
+    post:
+      operationId: createControlSite
+      summary: Add a site to the customer
+      description: >-
+        The audience is taken for good: no other site, archived ones included,
+        may use it, and none named in SIWA_WALLET_ORIGINS may be taken. A
+        sandbox site lists only http://localhost:<port> origins and needs no
+        proof. A production site lists only https:// origins with a lowercase
+        host and nothing after it, and starts with originProof unverified.
+      tags: [control]
+      security:
+        - ControlToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SiteCreateRequest"
+      responses:
+        "201":
+          description: The site made (site_created)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteResponse"
+        "400":
+          $ref: "#/components/responses/ControlRequestInvalid"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "404":
+          $ref: "#/components/responses/ControlNotFound"
+        "413":
+          $ref: "#/components/responses/ControlBodyTooLarge"
+        "415":
+          $ref: "#/components/responses/ControlUnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ControlFieldsInvalid"
+        "503":
+          $ref: "#/components/responses/ControlNotConfigured"
+  /api/control/v1/sites/{id}:
+    parameters:
+      - $ref: "#/components/parameters/SiteId"
+    get:
+      operationId: readControlSite
+      summary: One of the customer's sites that is not archived
+      tags: [control]
+      security:
+        - ControlToken: []
+      responses:
+        "200":
+          description: The site (site)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteResponse"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "404":
+          $ref: "#/components/responses/ControlNotFound"
+        "503":
+          $ref: "#/components/responses/ControlNotConfigured"
+    patch:
+      operationId: updateControlSite
+      summary: Rename a site or change its origins
+      description: >-
+        The audience and environment never change. Changing a production site's
+        origins makes its originProof unverified again.
+      tags: [control]
+      security:
+        - ControlToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SiteUpdateRequest"
+      responses:
+        "200":
+          description: The changed site (site_updated)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteResponse"
+        "400":
+          $ref: "#/components/responses/ControlRequestInvalid"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "404":
+          $ref: "#/components/responses/ControlNotFound"
+        "413":
+          $ref: "#/components/responses/ControlBodyTooLarge"
+        "415":
+          $ref: "#/components/responses/ControlUnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ControlFieldsInvalid"
+        "503":
+          $ref: "#/components/responses/ControlNotConfigured"
+    delete:
+      operationId: archiveControlSite
+      summary: Archive a site
+      description: >-
+        The site is kept with its audience, which stays taken, and is no longer
+        listed or found; its keys stop working.
+      tags: [control]
+      security:
+        - ControlToken: []
+      responses:
+        "200":
+          description: The archived site (site_archived)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteResponse"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "404":
+          $ref: "#/components/responses/ControlNotFound"
+        "503":
+          $ref: "#/components/responses/ControlNotConfigured"
+  /api/control/v1/sites/{id}/keys:
+    parameters:
+      - $ref: "#/components/parameters/SiteId"
+    get:
+      operationId: listControlSiteKeys
+      summary: A site's server keys, revoked ones included, newest first
+      description: Never the key itself.
+      tags: [control]
+      security:
+        - ControlToken: []
+      responses:
+        "200":
+          description: The site's keys (site_keys)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteKeysResponse"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "404":
+          $ref: "#/components/responses/ControlNotFound"
+        "503":
+          $ref: "#/components/responses/ControlNotConfigured"
+    post:
+      operationId: createControlSiteKey
+      summary: Make a server key for a site
+      description: >-
+        The only answer that ever holds the key: it is not kept and cannot be
+        shown again. A site has at most 5 keys that are not revoked.
+      tags: [control]
+      security:
+        - ControlToken: []
+      responses:
+        "201":
+          description: The key made, with the key itself (site_key_created)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteKeyCreatedResponse"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "404":
+          $ref: "#/components/responses/ControlNotFound"
+        "409":
+          description: The site already has 5 keys that are not revoked (site_key_limit)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          $ref: "#/components/responses/ControlNotConfigured"
+  /api/control/v1/sites/{id}/keys/{key_id}:
+    parameters:
+      - $ref: "#/components/parameters/SiteId"
+      - in: path
+        name: key_id
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      operationId: revokeControlSiteKey
+      summary: Revoke a site's server key
+      description: The key is kept, revoked. Revoking it again changes nothing.
+      tags: [control]
+      security:
+        - ControlToken: []
+      responses:
+        "200":
+          description: The revoked key (site_key_revoked)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteKeyResponse"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "404":
+          $ref: "#/components/responses/ControlNotFound"
+        "503":
+          $ref: "#/components/responses/ControlNotConfigured"
 components:
   securitySchemes:
     ActivityReadToken:
@@ -838,6 +1180,27 @@ components:
       type: http
       scheme: bearer
       description: A site's own key for hosted signing, one per site (SIWA_HOSTED_SIGNERS); it opens no other route.
+    PrivyAccessToken:
+      type: http
+      scheme: bearer
+      description: The signed-in person's Privy access token, for this server's Privy app (PRIVY_APP_ID).
+    PrivyIdentityToken:
+      type: apiKey
+      in: header
+      name: privy-id-token
+      description: The same person's Privy identity token, from the same sign-in as the access token.
+    ControlToken:
+      type: http
+      scheme: bearer
+      description: A control token from POST /api/control/v1/session. It names one person and lasts 15 minutes.
+  parameters:
+    SiteId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+        format: uuid
   responses:
     RateLimitError:
       description: Too many requests
@@ -847,6 +1210,52 @@ components:
           schema:
             type: integer
             minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ControlNotConfigured:
+      description: The control API is off on this server until its Privy settings are set (control_not_configured)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ControlTokenInvalid:
+      description: The control token is missing, not valid or older than 15 minutes (control_token_invalid)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ControlRequestInvalid:
+      description: The body is not JSON (bad_request), or holds a field this route does not take (control_request_invalid)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ControlNotFound:
+      description: >-
+        The person has no customer yet (customer_not_found), or their customer
+        has no site that is not archived with that id (site_not_found), or that
+        site has no key with that id (site_key_not_found). Another person's
+        records answer the same.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ControlFieldsInvalid:
+      description: Some fields broke their rules (control_fields_invalid); fields names each one and why
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ControlFieldsErrorEnvelope"
+    ControlBodyTooLarge:
+      description: The body is larger than 64 KiB (request_body_too_large)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ControlUnsupportedMediaType:
+      description: The body is not application/json (unsupported_media_type)
       content:
         application/json:
           schema:
@@ -1564,3 +1973,286 @@ components:
         error:
           $ref: "#/components/schemas/ServiceError"
       additionalProperties: true
+    ControlFieldsErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          allOf:
+            - $ref: "#/components/schemas/ServiceError"
+            - type: object
+              required: [fields]
+              properties:
+                fields:
+                  type: object
+                  description: Each field that broke its rule, with its reasons.
+                  additionalProperties:
+                    type: array
+                    items:
+                      type: string
+      additionalProperties: true
+    PrivyDid:
+      type: string
+      description: The person's Privy user id (DID), such as did:privy:cmabc123.
+    ControlSessionResponse:
+      type: object
+      additionalProperties: false
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [control_session]
+        data:
+          type: object
+          additionalProperties: false
+          required: [token, expiresAt, did]
+          properties:
+            token:
+              type: string
+              description: The control token. Send it as the bearer on every other control route until expiresAt.
+            expiresAt:
+              type: string
+              format: date-time
+            did:
+              $ref: "#/components/schemas/PrivyDid"
+    Customer:
+      type: object
+      additionalProperties: false
+      required: [id, name, kind, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        kind:
+          type: string
+          enum: [paid, internal]
+          description: Every customer made here is paid.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CustomerRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+    ControlAccountResponse:
+      type: object
+      additionalProperties: false
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [account]
+        data:
+          type: object
+          additionalProperties: false
+          required: [did, customer]
+          properties:
+            did:
+              $ref: "#/components/schemas/PrivyDid"
+            customer:
+              description: The person's customer, or null before they make one.
+              oneOf:
+                - $ref: "#/components/schemas/Customer"
+                - type: "null"
+    CustomerResponse:
+      type: object
+      additionalProperties: false
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [customer_created, customer_updated]
+        data:
+          $ref: "#/components/schemas/Customer"
+    SiteAudience:
+      type: string
+      pattern: "^[a-z0-9][a-z0-9_-]{0,63}$"
+      description: What the site's agents sign in for. Taken for good by one site, and never one named in SIWA_WALLET_ORIGINS.
+    SiteOrigins:
+      type: array
+      minItems: 1
+      maxItems: 10
+      uniqueItems: true
+      description: >-
+        For a sandbox site, each http://localhost:<port>; for a production
+        site, each https:// with a lowercase host and nothing after it.
+      items:
+        type: string
+    Site:
+      type: object
+      additionalProperties: false
+      required:
+        [id, name, audience, environment, origins, originProof, archivedAt, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        audience:
+          $ref: "#/components/schemas/SiteAudience"
+        environment:
+          type: string
+          enum: [sandbox, production]
+        origins:
+          $ref: "#/components/schemas/SiteOrigins"
+        originProof:
+          description: Whether the customer has proven a production site's origins are theirs; null for a sandbox site.
+          oneOf:
+            - type: string
+              enum: [unverified, verified]
+            - type: "null"
+        archivedAt:
+          description: Null; set only on the answer to archiving the site.
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    SiteCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [name, audience, environment, origins]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        audience:
+          $ref: "#/components/schemas/SiteAudience"
+        environment:
+          type: string
+          enum: [sandbox, production]
+        origins:
+          $ref: "#/components/schemas/SiteOrigins"
+    SiteUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        origins:
+          $ref: "#/components/schemas/SiteOrigins"
+    SiteResponse:
+      type: object
+      additionalProperties: false
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [site, site_created, site_updated, site_archived]
+        data:
+          $ref: "#/components/schemas/Site"
+    SitesResponse:
+      type: object
+      additionalProperties: false
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [sites]
+        data:
+          type: object
+          additionalProperties: false
+          required: [sites]
+          properties:
+            sites:
+              type: array
+              items:
+                $ref: "#/components/schemas/Site"
+    SiteKey:
+      type: object
+      additionalProperties: false
+      required: [id, prefix, createdAt, revokedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        prefix:
+          type: string
+          pattern: "^siwa_sk_(test|live)_[A-Za-z0-9_-]{6}$"
+          description: The key's first 19 characters, to tell keys apart.
+        createdAt:
+          type: string
+          format: date-time
+        revokedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+    SiteKeyResponse:
+      type: object
+      additionalProperties: false
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [site_key_revoked]
+        data:
+          $ref: "#/components/schemas/SiteKey"
+    SiteKeysResponse:
+      type: object
+      additionalProperties: false
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [site_keys]
+        data:
+          type: object
+          additionalProperties: false
+          required: [keys]
+          properties:
+            keys:
+              type: array
+              items:
+                $ref: "#/components/schemas/SiteKey"
+    SiteKeyCreatedResponse:
+      type: object
+      additionalProperties: false
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [site_key_created]
+        data:
+          type: object
+          additionalProperties: false
+          required: [id, prefix, key, createdAt, revokedAt]
+          properties:
+            id:
+              type: string
+              format: uuid
+            prefix:
+              type: string
+              pattern: "^siwa_sk_(test|live)_[A-Za-z0-9_-]{6}$"
+            key:
+              type: string
+              pattern: "^siwa_sk_(test|live)_[A-Za-z0-9_-]{43}$"
+              description: The server key, shown only here. siwa_sk_test_ for a sandbox site, siwa_sk_live_ for a production one.
+            createdAt:
+              type: string
+              format: date-time
+            revokedAt:
+              type: "null"
