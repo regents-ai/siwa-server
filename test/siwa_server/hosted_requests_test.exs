@@ -8,7 +8,8 @@ defmodule SiwaServer.HostedRequestsTest do
   @hosts %{
     "patchbay" => "patchbay.help",
     "keyfleet" => "keyfleet.ai",
-    "ash-template" => "template.regents.sh"
+    "ash-template" => "template.regents.sh",
+    "chainagent" => "chainagent.ai"
   }
 
   setup do
@@ -20,7 +21,8 @@ defmodule SiwaServer.HostedRequestsTest do
       Keyword.put(previous_siwa, :wallet_origins, %{
         "patchbay" => ["https://patchbay.help"],
         "keyfleet" => ["https://keyfleet.ai"],
-        "ash-template" => ["https://template.regents.sh"]
+        "ash-template" => ["https://template.regents.sh"],
+        "chainagent" => ["https://chainagent.ai"]
       })
     )
 
@@ -50,7 +52,7 @@ defmodule SiwaServer.HostedRequestsTest do
     assert post.(nil).status == 401
     assert post.("Bearer siwa-test-patchbay-activity-read-key-1").status == 401
 
-    for site <- ["patchbay", "keyfleet", "ash-template"] do
+    for site <- ["patchbay", "keyfleet", "ash-template", "chainagent"] do
       signed = post.("Bearer siwa-test-#{site}-hosted-signing-key-1")
       assert signed.status == 200
       {:ok, expected} = HostedRequests.handle(site, Jason.decode!(body))
@@ -238,6 +240,9 @@ defmodule SiwaServer.HostedRequestsTest do
           {"ash-template", whoami},
           {"ash-template", me},
           {"ash-template", pair.("claude")},
+          {"chainagent", whoami},
+          {"chainagent", me},
+          {"chainagent", pair.("claude")},
           {"patchbay", whoami},
           {"patchbay", pair.("chatgpt")}
         ] do
@@ -266,6 +271,7 @@ defmodule SiwaServer.HostedRequestsTest do
           {"patchbay", pair.("claude")},
           {"patchbay", me},
           {"ash-template", pair.("chatgpt")},
+          {"chainagent", pair.("chatgpt")},
           {"keyfleet", Map.put(whoami, "body", "")},
           {"keyfleet", %{whoami | "path" => "/api/agents/v1/whoami/"}},
           {"keyfleet", %{me | "method" => "POST"}},
