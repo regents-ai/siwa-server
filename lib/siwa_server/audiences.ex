@@ -6,9 +6,10 @@ defmodule SiwaServer.Audiences do
   archived and is usable (`usable?/1`). A configured audience is answered from
   the configuration alone, so the Regent sites never wait on the database.
 
-  Wallet sign-in and hosted signing ask here. The public audience list and the
-  help text name only the configured sites: customers' sites are no public
-  directory.
+  Wallet sign-in and hosted signing ask here, and so does an agent that has an
+  origin and needs its audience (`for_origin/1`). The public audience list and
+  the help text name only the configured sites: customers' sites are no public
+  directory, so one is only ever found by an exact origin of its own.
   """
 
   import Ecto.Query
@@ -25,6 +26,27 @@ defmodule SiwaServer.Audiences do
     case Config.wallet_origins() do
       %{^audience => origins} -> origins
       _not_configured -> site_origins(audience)
+    end
+  end
+
+  @doc """
+  The audience agents sign in for at exactly `origin`, or nil: the configured
+  audience that lists it, or else the customer's production site that is
+  usable and lists it, the one proven last if two are. A sandbox site is never
+  found here: its local origins are on every developer's own computer, so
+  they name no one site.
+  """
+  @spec for_origin(String.t()) :: String.t() | nil
+  def for_origin(origin) do
+    configured =
+      Enum.find_value(Config.wallet_origins(), fn {audience, origins} ->
+        if origin in origins, do: audience
+      end)
+
+    cond do
+      configured -> configured
+      Config.https_origin?(origin) -> site_audience(origin)
+      true -> nil
     end
   end
 
@@ -53,5 +75,18 @@ defmodule SiwaServer.Audiences do
             (s.environment == :sandbox or s.origin_proof == :verified),
         select: s.origins
     ) || []
+  end
+
+  # `usable?/1` for a production site, asked of the database.
+  defp site_audience(origin) do
+    Repo.one(
+      from s in Site,
+        where:
+          ^origin in s.origins and is_nil(s.archived_at) and s.environment == :production and
+            s.origin_proof == :verified,
+        order_by: [desc_nulls_last: s.origin_proof_verified_at, asc: s.id],
+        limit: 1,
+        select: s.audience
+    )
   end
 end

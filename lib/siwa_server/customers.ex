@@ -12,8 +12,9 @@ defmodule SiwaServer.Customers do
 
   Request bodies are taken as sent and checked once: only the fields a step
   names, each within its rules (`SiwaServer.Customers.Customer`,
-  `SiwaServer.Customers.Site`). A refusal is `{status, code, message}`, or the
-  changeset naming the fields that failed.
+  `SiwaServer.Customers.Site`). A refusal is `{status, code, message}`, with the
+  wait in milliseconds after them when it is 429, or the changeset naming the
+  fields that failed.
 
   The customer's cap, its current billing period and the agents counted in it
   are `SiwaServer.Billing`'s; the steps here find the customer for the person.
@@ -25,14 +26,21 @@ defmodule SiwaServer.Customers do
 
   import Ecto.Query
 
-  alias SiwaServer.{Billing, Repo}
+  alias SiwaServer.{Billing, RateLimiter, Repo}
   alias SiwaServer.Billing.{ActiveAgent, Period}
-  alias SiwaServer.Customers.{Customer, Site, SiteCredential}
+  alias SiwaServer.Customers.{Customer, Site, SiteCredential, SiteFile}
 
   @max_keys 5
 
+  # Tests read their own answers for each origin.
+  @site_file Application.compile_env(:siwa_server, :site_file, SiteFile)
+
   @type did :: String.t()
-  @type refusal :: {:error, {pos_integer(), String.t(), String.t()} | Ecto.Changeset.t()}
+  @type refusal ::
+          {:error,
+           {pos_integer(), String.t(), String.t()}
+           | {429, String.t(), String.t(), pos_integer()}
+           | Ecto.Changeset.t()}
 
   @doc "The person's customer, or nil."
   @spec customer(did()) :: Customer.t() | nil
@@ -127,6 +135,96 @@ defmodule SiwaServer.Customers do
          {:ok, customer} <- fetch_customer(did),
          {:ok, site} <- fetch_site(customer, id) do
       site |> Site.update_changeset(params) |> Repo.update()
+    end
+  end
+
+  @doc """
+  Checks a production site's origins now: reads each origin's site file
+  (`SiwaServer.Customers.SiteFile`), all at once, and compares it, surrounding
+  whitespace ignored, with the site's token. When every origin serves it, the
+  site is verified, with the time. Otherwise the check keeps its time and the
+  first of the site's origins that failed, with why, and the site stays
+  unverified. At most 10 checks a minute for each site.
+
+  A verified site is answered as it is, with nothing read. The result is kept
+  only for the origins that were read: a site whose origins changed meanwhile,
+  or that another check verified, is answered as it now is.
+  """
+  @spec check_site_proof(did(), String.t()) :: {:ok, Site.t()} | refusal()
+  def check_site_proof(did, id) do
+    with {:ok, customer} <- fetch_customer(did),
+         {:ok, site} <- fetch_site(customer, id),
+         do: check_proof(customer, site)
+  end
+
+  defp check_proof(_customer, %Site{environment: :sandbox}),
+    do: {:error, {409, "site_proof_not_needed", "a sandbox site needs no proof of its origins"}}
+
+  defp check_proof(_customer, %Site{origin_proof: :verified} = site), do: {:ok, site}
+
+  defp check_proof(customer, %Site{origin_proof: :unverified} = site) do
+    with :ok <- proof_allowance(site), do: record_proof(customer, site, first_failure(site))
+  end
+
+  defp proof_allowance(site) do
+    case RateLimiter.check(:siwa_site_proof, site.id) do
+      :ok ->
+        :ok
+
+      {:error, retry_after_ms} ->
+        {:error,
+         {429, "rate_limited", "Please wait a moment before trying again.", retry_after_ms}}
+    end
+  end
+
+  # Each read ends within the site file's own time limit, so none is cut short here.
+  defp first_failure(site) do
+    site.origins
+    |> Task.async_stream(&proof_at(&1, site.origin_proof_token),
+      max_concurrency: length(site.origins),
+      timeout: :infinity
+    )
+    |> Enum.zip(site.origins)
+    |> Enum.find_value(fn
+      {{:ok, :proven}, _origin} -> nil
+      {{:ok, reason}, origin} -> {origin, reason}
+    end)
+  end
+
+  defp proof_at(origin, token) do
+    case @site_file.fetch(origin) do
+      {:ok, body} -> if String.trim(body) == token, do: :proven, else: :wrong_token
+      {:error, reason} -> reason
+    end
+  end
+
+  defp record_proof(customer, site, failure) do
+    now = DateTime.utc_now(:second)
+
+    outcome =
+      case failure do
+        nil ->
+          [
+            origin_proof: :verified,
+            origin_proof_verified_at: now,
+            origin_proof_failure: nil,
+            origin_proof_failed_origin: nil
+          ]
+
+        {origin, reason} ->
+          [origin_proof_failure: reason, origin_proof_failed_origin: origin]
+      end
+
+    checked =
+      from s in Site,
+        where:
+          s.id == ^site.id and s.origins == ^site.origins and s.origin_proof == :unverified and
+            is_nil(s.archived_at),
+        select: s
+
+    case Repo.update_all(checked, set: [origin_proof_checked_at: now, updated_at: now] ++ outcome) do
+      {1, [recorded]} -> {:ok, recorded}
+      {0, []} -> fetch_site(customer, site.id)
     end
   end
 

@@ -8,8 +8,11 @@ defmodule SiwaServer.Siwa.HttpVerifier do
     * `verify_for_key/3`: with its server key (`siwa_sk_…`), which names the
       site, its customer and its audience (`SiwaServer.Customers.site_for_key/1`).
       A key that is unknown, revoked or whose site is archived is refused before
-      anything else is looked at, and so is an audience header naming another
-      audience, or a production site whose origins are not proven
+      anything else is looked at. Then each site has its own allowance, 6,000
+      requests a minute however many of its servers ask (`SiwaServer.RateLimiter`),
+      and a request past it is refused with 429 before anything else is checked,
+      used up or counted. After that an audience header naming another audience is
+      refused, and so is a production site whose origins are not proven
       (`SiwaServer.Audiences.usable?/1`).
     * `verify/2`: with only its audience, for the Regent sites
       `SIWA_WALLET_ORIGINS` names, exactly as before server keys. This is the one
@@ -67,6 +70,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
     Config,
     Customers,
     Ethereum,
+    RateLimiter,
     Repo
   }
 
@@ -84,7 +88,9 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   @fields Map.keys(@types)
   @keys Enum.map(@fields, &Atom.to_string/1)
 
-  @type refusal :: {:error, {integer(), String.t(), String.t()}}
+  @type refusal ::
+          {:error,
+           {integer(), String.t(), String.t()} | {429, String.t(), String.t(), pos_integer()}}
 
   @doc "Verifies a request for a site `SIWA_WALLET_ORIGINS` names, asked for by its audience alone."
   @spec verify(map(), String.t()) :: {:ok, map()} | refusal()
@@ -112,6 +118,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   @spec verify_for_key(map(), String.t(), String.t() | nil) :: {:ok, map()} | refusal()
   def verify_for_key(params, key, audience) do
     with {:ok, %{site: site, customer: customer}} <- site(key),
+         :ok <- site_allowance(site),
          :ok <- same_audience(site, audience),
          :ok <- usable(site),
          {:ok, request} <- cast(params),
@@ -138,6 +145,20 @@ defmodule SiwaServer.Siwa.HttpVerifier do
       :error ->
         {:error,
          {401, "site_key_invalid", "the server key is not valid, revoked, or its site archived"}}
+    end
+  end
+
+  # Counted per site, however many of its servers ask, before anything is checked
+  # or used up and before its agent can be counted.
+  defp site_allowance(site) do
+    case RateLimiter.check(:siwa_keyed_site, site.id) do
+      :ok ->
+        :ok
+
+      {:error, retry_after_ms} ->
+        {:error,
+         {429, "site_rate_limited", "this site has sent too many requests to check this minute",
+          retry_after_ms}}
     end
   end
 
@@ -332,6 +353,7 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   end
 
   defp refusal({:error, {_status, _code, _message}} = error), do: error
+  defp refusal({:error, {429, _code, _message, _retry_after_ms}} = error), do: error
   defp refusal({:error, reason}), do: {:error, map_shared_error(reason)}
 
   defp map_shared_error(reason) do

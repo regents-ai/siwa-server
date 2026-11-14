@@ -83,6 +83,10 @@ defmodule SiwaServer.MixProject do
        git: @elixir_utils, ref: @elixir_utils_ref, sparse: "siwa/siwa-elixir/apps/siwa_keyring"},
       {:regent_chain, git: @elixir_utils, ref: @elixir_utils_ref, sparse: "chain"},
       {:regent_privy, git: @elixir_utils, ref: @elixir_utils_ref, sparse: "privy"},
+      # The address rule for fetching from an address a customer names, and Mint to
+      # connect to the address that rule checked (`SiwaServer.Customers.SiteFile`).
+      {:regent_mcp_events, git: @elixir_utils, ref: @elixir_utils_ref, sparse: "mcp_events"},
+      {:mint, "~> 1.11"},
       # The signing contract's shared fixtures, read by the agent client conformance test.
       {:siwa_contract,
        git: @elixir_utils,

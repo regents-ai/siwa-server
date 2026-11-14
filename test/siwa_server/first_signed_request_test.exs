@@ -4,11 +4,12 @@ defmodule SiwaServer.FirstSignedRequestTest do
 
   This server runs on a real local port. Each served client (Python through `uv`,
   Node beside its one library) starts from an empty home holding only a new key in the
-  shape `keygen` writes off a Mac, and signs its first requests with `headers`: it lists
-  the sites, signs in on its own and signs the request. A site then checks those exact
-  headers the way every Regent site does, through the shared `Siwa.AgentAuthPlug` and
-  its broker client over HTTP. For each of two sites, the request is accepted once for
-  the right agent and site, a repeat is refused, and the other site refuses it.
+  shape `keygen` writes off a Mac, and signs its first requests with `headers`: it looks
+  up the site's audience, signs in on its own and signs the request. A site then checks
+  those exact headers the way every Regent site does, through the shared
+  `Siwa.AgentAuthPlug` and its broker client over HTTP. For each of two sites, the
+  request is accepted once for the right agent and site, a repeat is refused, and the
+  other site refuses it.
   """
 
   use SiwaServer.DataCase, async: false

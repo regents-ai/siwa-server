@@ -15,7 +15,8 @@ defmodule SiwaServerWeb.Router do
         :siwa_hosted,
         :siwa_register,
         :agent_book,
-        :agent_profile
+        :agent_profile,
+        :siwa_audience
       ] do
     pipeline name do
       plug :accepts, ["json"]
@@ -43,6 +44,11 @@ defmodule SiwaServerWeb.Router do
     get "/readyz", DiscoveryController, :readyz
     get "/regent-services-contract.openapiv3.yaml", DiscoveryController, :services_contract
     get "/api/shared/siwa/audiences", DiscoveryController, :audiences
+  end
+
+  scope "/api/shared/siwa", SiwaServerWeb do
+    pipe_through :siwa_audience
+    get "/audience", DiscoveryController, :audience
   end
 
   scope "/api/shared/siwa", SiwaServerWeb do
@@ -106,6 +112,7 @@ defmodule SiwaServerWeb.Router do
     get "/sites/:id", ControlController, :site
     patch "/sites/:id", ControlController, :update_site
     delete "/sites/:id", ControlController, :archive_site
+    post "/sites/:id/proof", ControlController, :check_site_proof
     get "/sites/:id/keys", ControlController, :keys
     post "/sites/:id/keys", ControlController, :create_key
     delete "/sites/:id/keys/:key_id", ControlController, :revoke_key

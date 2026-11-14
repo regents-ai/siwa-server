@@ -4,7 +4,7 @@ defmodule SiwaServerWeb.KeyedHttpVerifyTest do
   import Ecto.Changeset, only: [change: 2]
   import Ecto.Query
 
-  alias SiwaServer.{Billing, Config, Repo, SignedRequest, TestRpcServer}
+  alias SiwaServer.{Billing, Config, Customers, Repo, SignedRequest, TestRpcServer}
   alias SiwaServer.Billing.{ActiveAgent, Period}
   alias SiwaServer.Customers.{Customer, Site, SiteCredential}
   alias SiwaServer.Siwa.Wallet
@@ -20,9 +20,12 @@ defmodule SiwaServerWeb.KeyedHttpVerifyTest do
     )
 
     System.put_env("BASE_RPC_URL", TestRpcServer.wallet_answers({true, <<>>}))
+    rate_limits = Application.get_env(:siwa_server, :rate_limits, [])
 
     on_exit(fn ->
       Application.put_env(:siwa_server, :siwa, siwa)
+      Application.put_env(:siwa_server, :rate_limits, rate_limits)
+      Application.delete_env(:siwa_server, :site_files)
 
       if base_rpc_url,
         do: System.put_env("BASE_RPC_URL", base_rpc_url),
@@ -133,6 +136,57 @@ defmodule SiwaServerWeb.KeyedHttpVerifyTest do
              verify(request, bearer(key(unproven)))
 
     assert used?(request, unproven) == false
+  end
+
+  test "a production site takes agents only once a check proves its origins" do
+    customer = customer()
+    period = open(customer)
+    site = production(customer, :unverified)
+    key = key(site)
+    request = signed_by(site)
+
+    assert {403, %{"error" => %{"code" => "site_not_verified"}}} = verify(request, bearer(key))
+    assert used?(request, site) == false
+
+    Application.put_env(:siwa_server, :site_files, %{
+      hd(site.origins) => {:ok, site.origin_proof_token <> "\n"}
+    })
+
+    assert {:ok, %Site{origin_proof: :verified}} =
+             Customers.check_site_proof(customer.owner_did, site.id)
+
+    assert {200, %{"data" => %{"usage" => %{"newThisPeriod" => true}}}} =
+             verify(request, bearer(key))
+
+    assert counted(period) == {1, 1}
+  end
+
+  test "past its allowance a site is refused before its request is checked, used up or counted" do
+    Application.put_env(:siwa_server, :rate_limits, siwa_keyed_site: [limit: 1])
+    customer = customer()
+    period = open(customer)
+    site = production(customer)
+    key = key(site)
+
+    assert {200, _verified} = verify(signed_by(site), bearer(key))
+    request = signed_by(site)
+
+    for refused <- [request, %{"not" => "a request"}] do
+      assert {429, %{"error" => %{"code" => "site_rate_limited", "retry_after_ms" => wait}}} =
+               verify(refused, bearer(key))
+
+      assert wait in 1..60_000
+    end
+
+    assert used?(request, site) == false
+    assert counted(period) == {1, 1}
+
+    other = production(customer)
+
+    assert {200, %{"data" => %{"usage" => %{"newThisPeriod" => true}}}} =
+             verify(signed_by(other), bearer(key(other)))
+
+    assert counted(period) == {2, 2}
   end
 
   test "x-siwa-audience sent with a key must be the key's site's audience" do

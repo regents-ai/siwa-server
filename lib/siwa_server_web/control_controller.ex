@@ -12,6 +12,7 @@ defmodule SiwaServerWeb.ControlController do
 
   alias SiwaServer.Billing.Price
   alias SiwaServer.Customers
+  alias SiwaServer.Customers.SiteFile
 
   action_fallback SiwaServerWeb.FallbackController
 
@@ -73,6 +74,11 @@ defmodule SiwaServerWeb.ControlController do
   def archive_site(conn, %{"id" => id}) do
     with {:ok, archived} <- Customers.archive_site(conn.assigns.did, id),
          do: answer(conn, :ok, "site_archived", site(archived))
+  end
+
+  def check_site_proof(conn, %{"id" => id}) do
+    with {:ok, checked} <- Customers.check_site_proof(conn.assigns.did, id),
+         do: answer(conn, :ok, "site_proof_checked", site(checked))
   end
 
   def keys(conn, %{"id" => id}) do
@@ -140,10 +146,26 @@ defmodule SiwaServerWeb.ControlController do
       "audience" => site.audience,
       "environment" => site.environment,
       "origins" => site.origins,
-      "originProof" => site.origin_proof,
+      "originProof" => origin_proof(site),
       "archivedAt" => time(site.archived_at),
       "createdAt" => time(site.inserted_at),
       "updatedAt" => time(site.updated_at)
+    }
+  end
+
+  # A sandbox site needs no proof, so it shows none. A production site shows its
+  # token, the address at each origin to publish it at, and its last check.
+  defp origin_proof(%{environment: :sandbox}), do: nil
+
+  defp origin_proof(site) do
+    %{
+      "state" => site.origin_proof,
+      "token" => site.origin_proof_token,
+      "fileUrls" => Enum.map(site.origins, &SiteFile.url/1),
+      "checkedAt" => time(site.origin_proof_checked_at),
+      "verifiedAt" => time(site.origin_proof_verified_at),
+      "failureReason" => site.origin_proof_failure,
+      "failedOrigin" => site.origin_proof_failed_origin
     }
   end
 

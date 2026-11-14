@@ -1,6 +1,10 @@
 defmodule SiwaServerWeb.DiscoveryController do
   use SiwaServerWeb, :controller
 
+  alias SiwaServer.Audiences
+
+  action_fallback SiwaServerWeb.FallbackController
+
   def root(conn, _params) do
     conn
     |> put_resp_content_type("text/plain")
@@ -48,4 +52,28 @@ defmodule SiwaServerWeb.DiscoveryController do
 
     json(conn, %{"code" => "audiences", "data" => %{"audiences" => audiences}})
   end
+
+  # One exact origin, compared in lower case, and its audience: nothing is listed
+  # or searched, and an origin no site accepts agents at is one this service does
+  # not know.
+  def audience(conn, _params) do
+    with {:ok, origin} <- origin(conn.query_params) do
+      case Audiences.for_origin(origin) do
+        nil ->
+          {:error, {404, "audience_not_found", "no site accepts agent sign-in at this origin"}}
+
+        audience ->
+          json(conn, %{
+            "code" => "audience",
+            "data" => %{"audience" => audience, "origin" => origin}
+          })
+      end
+    end
+  end
+
+  defp origin(%{"origin" => origin} = query) when is_binary(origin) and map_size(query) == 1,
+    do: {:ok, String.downcase(origin)}
+
+  defp origin(_query),
+    do: {:error, {400, "invalid_request", "the query must hold one origin and nothing else"}}
 end

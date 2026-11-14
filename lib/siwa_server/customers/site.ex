@@ -12,6 +12,14 @@ defmodule SiwaServer.Customers.Site do
   (`SiwaServer.Config.https_origin?/1`), and its origin proof is `unverified`
   when it is made and again whenever its origins change. The audience and the
   environment never change. An archived site is kept and hidden.
+
+  A production site proves its origins with its token, which the database makes
+  when the site is made, and which every one of its origins serves as its site
+  file (`SiwaServer.Customers.check_site_proof/2`). The token is public: it only
+  ties an origin to this site. Each check keeps its time; a failed one, the
+  first origin it failed on and why; a passing one, when the origins were
+  proven. Changing the origins clears all three, and the token stays. A sandbox
+  site has a token too, and never uses it.
   """
 
   use Ecto.Schema
@@ -30,6 +38,16 @@ defmodule SiwaServer.Customers.Site do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
+  @proof_failures [
+    :not_https,
+    :address_not_allowed,
+    :unreachable,
+    :redirected,
+    :not_found,
+    :too_large,
+    :wrong_token
+  ]
+
   schema "sites" do
     belongs_to :customer, Customer
     field :name, :string
@@ -37,6 +55,11 @@ defmodule SiwaServer.Customers.Site do
     field :environment, Ecto.Enum, values: [:sandbox, :production]
     field :origins, {:array, :string}
     field :origin_proof, Ecto.Enum, values: [:unverified, :verified]
+    field :origin_proof_token, :string, read_after_writes: true
+    field :origin_proof_checked_at, :utc_datetime
+    field :origin_proof_verified_at, :utc_datetime
+    field :origin_proof_failure, Ecto.Enum, values: @proof_failures
+    field :origin_proof_failed_origin, :string
     field :archived_at, :utc_datetime
 
     timestamps(type: :utc_datetime)
@@ -118,7 +141,14 @@ defmodule SiwaServer.Customers.Site do
 
   defp unverified_when_origins_change(changeset) do
     if get_field(changeset, :environment) == :production and changed?(changeset, :origins),
-      do: put_change(changeset, :origin_proof, :unverified),
+      do:
+        change(changeset,
+          origin_proof: :unverified,
+          origin_proof_checked_at: nil,
+          origin_proof_verified_at: nil,
+          origin_proof_failure: nil,
+          origin_proof_failed_origin: nil
+        ),
       else: changeset
   end
 end

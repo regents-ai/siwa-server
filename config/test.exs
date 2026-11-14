@@ -47,6 +47,9 @@ config :siwa_server, Oban, testing: :manual
 # Tests change the chain addresses between /readyz requests, so each one checks afresh.
 config :siwa_server, :readiness_keep_ms, 0
 
+# Each origin's site file is what a test sets under :site_files.
+config :siwa_server, :site_file, SiwaServer.TestSiteFiles
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

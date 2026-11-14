@@ -24,6 +24,13 @@ defmodule SiwaServer.RateLimiter do
     # service has peaked at 30 checks a minute, so this leaves a site room to grow
     # a hundredfold and still bounds a caller that names a new wallet each time.
     siwa_site: [limit: 3_000, window_ms: 60_000],
+    # Counted per customer's site, by its id, however many computers ask with its
+    # key: one site's share of the requests this service checks.
+    siwa_keyed_site: [limit: 6_000, window_ms: 60_000],
+    # Counted per customer's site: each check reads a file from every origin.
+    siwa_site_proof: [limit: 10, window_ms: 60_000],
+    # Counted per calling address. An agent looks a site up before each request it signs.
+    siwa_audience: [limit: 600, window_ms: 60_000],
     # Counted per calling address, which is a Regent site's server for all of its
     # people. Each needs a new control token every 15 minutes, so 30 a minute
     # serves about 450 people signed in to one site at once.

@@ -18,21 +18,31 @@ defmodule SiwaServer.AgentClientsConformanceTest do
   @node Path.expand("priv/static/agent/siwa-agent.mjs")
   @origin "https://fixture.example"
 
-  defmodule Audiences do
+  # The audience lookup the clients ask before they sign in: each of `origins`
+  # names `audience`, and nothing else is found.
+  defmodule Audience do
     @moduledoc false
     @behaviour Plug
 
     @impl Plug
-    def init(audiences), do: audiences
+    def init(names), do: names
 
     @impl Plug
-    def call(conn, audiences) do
+    def call(conn, {audience, origins}) do
+      conn = Plug.Conn.fetch_query_params(conn)
+
+      {status, body} =
+        with "/api/shared/siwa/audience" <- conn.request_path,
+             %{"origin" => origin} <- conn.query_params,
+             true <- origin in origins do
+          {200, %{code: "audience", data: %{audience: audience, origin: origin}}}
+        else
+          _not_found -> {404, %{error: %{code: "audience_not_found"}}}
+        end
+
       conn
       |> Plug.Conn.put_resp_content_type("application/json")
-      |> Plug.Conn.send_resp(
-        200,
-        Jason.encode!(%{code: "audiences", data: %{audiences: audiences}})
-      )
+      |> Plug.Conn.send_resp(status, Jason.encode!(body))
     end
   end
 
@@ -49,12 +59,7 @@ defmodule SiwaServer.AgentClientsConformanceTest do
     broker =
       start_supervised!(
         {Bandit,
-         plug:
-           {Audiences,
-            [
-              %{audience: audience, origin: @origin},
-              %{audience: audience, origin: @origin <> ":8443"}
-            ]},
+         plug: {Audience, {audience, [@origin, @origin <> ":8443"]}},
          ip: :loopback,
          port: 0,
          startup_log: false}

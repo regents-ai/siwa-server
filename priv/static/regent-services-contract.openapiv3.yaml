@@ -78,7 +78,7 @@ paths:
     get:
       operationId: listSharedWalletSiwaAudiences
       tags: [auth]
-      description: List the sites an agent can sign in to with its own key, one row for each origin that signs in for an audience. An audience can have several origins. An agent matches the site it is calling to an origin here to learn which audience to sign in for.
+      description: List the Regent sites an agent can sign in to with its own key, one row for each origin that signs in for an audience. An audience can have several origins. Customers' sites are never listed. To learn the audience for the site it is calling, an agent asks GET /api/shared/siwa/audience.
       responses:
         "200":
           description: Audiences open to wallet sign-in
@@ -86,6 +86,47 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WalletSiwaAudiencesResponse"
+  /api/shared/siwa/audience:
+    get:
+      operationId: readSharedSiwaAudienceForOrigin
+      tags: [auth]
+      description: >-
+        The audience an agent signs in for at one exact origin: a Regent site
+        SIWA_WALLET_ORIGINS names, or a customer's production site whose
+        origins are proven and that is not archived. The origin is the scheme
+        and host as sites list them (https://host, with no path, no trailing
+        slash and the default port left out), compared in lower case. Nothing
+        is listed or searched: an origin no site lists, a sandbox site's, and
+        one whose site is unproven or archived all answer 404 alike. At most
+        600 lookups a minute for each caller address.
+      parameters:
+        - in: query
+          name: origin
+          required: true
+          schema:
+            type: string
+          example: https://acme.example
+      responses:
+        "200":
+          description: The origin's audience (audience)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiwaAudienceResponse"
+        "400":
+          description: The query is not one origin and nothing else (invalid_request)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: No site accepts agent sign-in at this origin (audience_not_found)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
   /api/shared/siwa/wallet/nonce:
     post:
       operationId: createSharedWalletSiwaNonce
@@ -231,7 +272,9 @@ paths:
         A customer's site asks with its server key as the bearer. The key names
         the site, and the site's audience is the one the receipt must match. An
         unknown, revoked or archived key is refused before the agent's request
-        is looked at. A production site's request is used up and its agent
+        is looked at, and so is a request past the site's own allowance of
+        6,000 a minute, however many of its servers ask. A production site's
+        request is used up and its agent
         counted once in the customer's current billing period in one step; a
         request refused for billing or the cap is not used up, so the agent may
         send it again. A Regent site named in SIWA_WALLET_ORIGINS may still ask
@@ -324,7 +367,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "429":
-          $ref: "#/components/responses/RateLimitError"
+          description: >-
+            Too many requests from this caller (rate_limited), or the key's site
+            has had 6,000 requests checked this minute (site_rate_limited). A
+            site's refusal comes before the request is checked, used up or its
+            agent counted.
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying.
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/shared/siwa/activity:
     post:
       operationId: readSharedSiwaActivity
@@ -1158,7 +1215,8 @@ paths:
       summary: Rename a site or change its origins
       description: >-
         The audience and environment never change. Changing a production site's
-        origins makes its originProof unverified again.
+        origins makes its originProof unverified again and clears its last
+        check; its token stays the same.
       tags: [control]
       security:
         - ControlToken: []
@@ -1209,6 +1267,47 @@ paths:
           $ref: "#/components/responses/ControlTokenInvalid"
         "404":
           $ref: "#/components/responses/ControlNotFound"
+        "503":
+          $ref: "#/components/responses/ControlNotConfigured"
+  /api/control/v1/sites/{id}/proof:
+    parameters:
+      - $ref: "#/components/parameters/SiteId"
+    post:
+      operationId: checkControlSiteProof
+      summary: Check a production site's origins now
+      description: >-
+        Reads each of the site's origins' file at
+        https://<origin>/.well-known/siwa-site.txt, which must hold the site's
+        originProof.token and nothing else (surrounding whitespace is ignored).
+        When every origin serves it, the site is verified, with verifiedAt.
+        Otherwise checkedAt is set, failureReason and failedOrigin name the
+        first of the site's origins that failed and why, and the site stays
+        unverified. Each read is https on the default port to a public address
+        only, follows no redirect, is not retried, and stops after 5 seconds or
+        1 KB. A verified site is answered as it is, with nothing read. At most
+        10 checks a minute for each site. No body.
+      tags: [control]
+      security:
+        - ControlToken: []
+      responses:
+        "200":
+          description: The site after the check (site_proof_checked)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteResponse"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "404":
+          $ref: "#/components/responses/ControlNotFound"
+        "409":
+          description: The site is a sandbox site, which needs no proof (site_proof_not_needed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
         "503":
           $ref: "#/components/responses/ControlNotConfigured"
   /api/control/v1/sites/{id}/keys:
@@ -1466,6 +1565,26 @@ components:
                 additionalProperties: false
           additionalProperties: false
       additionalProperties: false
+    SiwaAudienceResponse:
+      type: object
+      additionalProperties: false
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [audience]
+        data:
+          type: object
+          additionalProperties: false
+          required: [audience, origin]
+          properties:
+            audience:
+              type: string
+              description: What an agent signs in for at this origin.
+            origin:
+              type: string
+              format: uri
+              description: The origin asked for, in lower case.
     WalletSiwaNonceResponse:
       type: object
       required: [code, data]
@@ -2362,10 +2481,9 @@ components:
         origins:
           $ref: "#/components/schemas/SiteOrigins"
         originProof:
-          description: Whether the customer has proven a production site's origins are theirs; null for a sandbox site.
+          description: How a production site proves its origins are its company's; null for a sandbox site, which needs no proof.
           oneOf:
-            - type: string
-              enum: [unverified, verified]
+            - $ref: "#/components/schemas/OriginProof"
             - type: "null"
         archivedAt:
           description: Null; set only on the answer to archiving the site.
@@ -2379,6 +2497,69 @@ components:
         updatedAt:
           type: string
           format: date-time
+    OriginProof:
+      type: object
+      additionalProperties: false
+      required: [state, token, fileUrls, checkedAt, verifiedAt, failureReason, failedOrigin]
+      properties:
+        state:
+          type: string
+          enum: [unverified, verified]
+          description: >-
+            unverified when the site is made and again whenever its origins
+            change; verified once a check found the token at every origin.
+            Agents may sign in for the site only once it is verified.
+        token:
+          type: string
+          pattern: "^siwa_site_[a-f0-9]{32}$"
+          description: >-
+            What each file in fileUrls must hold. It is public, not a secret,
+            and never changes.
+        fileUrls:
+          type: array
+          description: For each origin, in the site's order, the address to publish the token at.
+          items:
+            type: string
+            format: uri
+          example: ["https://acme.example/.well-known/siwa-site.txt"]
+        checkedAt:
+          description: The last check; null until the first, and again once the origins change.
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        verifiedAt:
+          description: When a check found the token at every origin; null while unverified.
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        failureReason:
+          description: >-
+            Why the last check failed at failedOrigin; null when it passed or
+            before any check. not_https, the origin is not https on the default
+            port; address_not_allowed, its host resolves to an address that is
+            not public; unreachable, it could not be reached or read within 5
+            seconds; redirected, it answered with a redirect, which is not
+            followed; not_found, it answered with a status other than 200;
+            too_large, the file is over 1 KB; wrong_token, the file does not
+            hold the token.
+          oneOf:
+            - type: string
+              enum:
+                - not_https
+                - address_not_allowed
+                - unreachable
+                - redirected
+                - not_found
+                - too_large
+                - wrong_token
+            - type: "null"
+        failedOrigin:
+          description: The first of the site's origins the last check failed at; null otherwise.
+          oneOf:
+            - type: string
+            - type: "null"
     SiteCreateRequest:
       type: object
       additionalProperties: false
@@ -2412,7 +2593,7 @@ components:
       properties:
         code:
           type: string
-          enum: [site, site_created, site_updated, site_archived]
+          enum: [site, site_created, site_updated, site_archived, site_proof_checked]
         data:
           $ref: "#/components/schemas/Site"
     SitesResponse:

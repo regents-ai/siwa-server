@@ -1265,12 +1265,13 @@ def audiences(config: dict) -> list[dict]:
 
 def audience_for(config: dict, url: str) -> str:
     origin = origin_of(url)
-    listed = audiences(config)
-    for entry in listed:
-        if entry["origin"] == origin:
-            return entry["audience"]
-    known = ", ".join(entry["origin"] for entry in listed)
-    raise SiwaError(f"{origin} does not accept agent sign-in; sites that do: {known}")
+    query = urllib.parse.urlencode({"origin": origin})
+    status, body = http_json("GET", f"{config['broker']}/api/shared/siwa/audience?{query}")
+    if status == 404:
+        raise SiwaError(f"{origin} does not accept agent sign-in; `sites` lists the Regent sites that do")
+    if status != 200 or not isinstance(body, dict) or body.get("code") != "audience":
+        raise SiwaError(f"could not look up {origin} ({status}): {json.dumps(body)}")
+    return body["data"]["audience"]
 
 
 def eth_account():

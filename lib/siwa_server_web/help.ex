@@ -185,6 +185,22 @@ defmodule SiwaServerWeb.Help do
     "Too many requests from you in a short time. Wait the seconds in Retry-After, then run the command again."
   end
 
+  defp steps("site_rate_limited", _context) do
+    [
+      "This site is having more agents' requests checked than its allowance just now. Wait the ",
+      "seconds in Retry-After, then send the request again with `request`, which signs it fresh."
+    ]
+  end
+
+  defp steps("audience_not_found", _context) do
+    [
+      "No site accepts agent sign-in at that address. Check the address with your person. ",
+      "The Regent sites that do: ",
+      open_sites(),
+      "."
+    ]
+  end
+
   defp steps("invalid_request", _context) do
     [
       "Your client sent a request this service does not accept. Get the current client ",
@@ -262,6 +278,9 @@ defmodule SiwaServerWeb.Help do
 
   defp steps("site_key_limit", _context),
     do: "A site keeps at most five keys that are not revoked. Revoke one it no longer uses first."
+
+  defp steps("site_proof_not_needed", _context),
+    do: "A sandbox site's local origins need no proof: agents can sign in for it as it is."
 
   defp steps(_code, _context) do
     [

@@ -12,6 +12,7 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     {"GET", "/readyz"} => MapSet.new(~w(200 503)),
     {"GET", "/regent-services-contract.openapiv3.yaml"} => MapSet.new(~w(200)),
     {"GET", "/api/shared/siwa/audiences"} => MapSet.new(~w(200)),
+    {"GET", "/api/shared/siwa/audience"} => MapSet.new(~w(200 400 404 429)),
     {"POST", "/api/shared/siwa/http-verify"} =>
       MapSet.new(~w(200 400 401 402 403 409 413 415 429 500 502)),
     {"POST", "/api/shared/siwa/activity"} => MapSet.new(~w(200 400 401 413 415 429)),
@@ -42,6 +43,7 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     {"GET", "/api/control/v1/sites/{id}"} => MapSet.new(~w(200 401 404 503)),
     {"PATCH", "/api/control/v1/sites/{id}"} => MapSet.new(~w(200 400 401 404 413 415 422 503)),
     {"DELETE", "/api/control/v1/sites/{id}"} => MapSet.new(~w(200 401 404 503)),
+    {"POST", "/api/control/v1/sites/{id}/proof"} => MapSet.new(~w(200 401 404 409 429 503)),
     {"GET", "/api/control/v1/sites/{id}/keys"} => MapSet.new(~w(200 401 404 503)),
     {"POST", "/api/control/v1/sites/{id}/keys"} => MapSet.new(~w(201 401 404 409 503)),
     {"DELETE", "/api/control/v1/sites/{id}/keys/{key_id}"} => MapSet.new(~w(200 401 404 503))

@@ -1232,11 +1232,15 @@ async function audiences(config) {
 
 async function audienceFor(config, url) {
   const origin = originOf(url);
-  const listed = await audiences(config);
-  const match = listed.find((entry) => entry.origin === origin);
-  if (match) return match.audience;
-  const known = listed.map((entry) => entry.origin).join(", ");
-  throw new SiwaError(`${origin} does not accept agent sign-in; sites that do: ${known}`);
+  const query = new URLSearchParams({ origin });
+  const result = await httpJson("GET", `${config.broker}/api/shared/siwa/audience?${query}`);
+  if (result.status === 404) {
+    throw new SiwaError(`${origin} does not accept agent sign-in; \`sites\` lists the Regent sites that do`);
+  }
+  if (result.status !== 200 || result.body?.code !== "audience") {
+    throw new SiwaError(`could not look up ${origin} (${result.status}): ${JSON.stringify(result.body)}`);
+  }
+  return result.body.data.audience;
 }
 
 // The AES-GCM key a passkey's secret opens, the same in the Python and Node clients.

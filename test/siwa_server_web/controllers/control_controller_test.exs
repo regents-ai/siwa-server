@@ -5,7 +5,7 @@ defmodule SiwaServerWeb.ControlControllerTest do
 
   alias SiwaServer.{Billing, Customers, PrivySignIn, Repo}
   alias SiwaServer.Billing.{ActiveAgent, Period}
-  alias SiwaServer.Customers.{Site, SiteCredential}
+  alias SiwaServer.Customers.SiteCredential
   alias SiwaServerWeb.ControlToken
 
   @alice "did:privy:alice"
@@ -26,7 +26,11 @@ defmodule SiwaServerWeb.ControlControllerTest do
   setup do
     PrivySignIn.configure()
     siwa = Application.fetch_env!(:siwa_server, :siwa)
-    on_exit(fn -> Application.put_env(:siwa_server, :siwa, siwa) end)
+
+    on_exit(fn ->
+      Application.put_env(:siwa_server, :siwa, siwa)
+      Application.delete_env(:siwa_server, :site_files)
+    end)
 
     Application.put_env(
       :siwa_server,
@@ -71,7 +75,18 @@ defmodule SiwaServerWeb.ControlControllerTest do
 
     assert %{
              "environment" => "production",
-             "originProof" => "unverified",
+             "originProof" => %{
+               "state" => "unverified",
+               "token" => "siwa_site_" <> _token,
+               "fileUrls" => [
+                 "https://acme.example/.well-known/siwa-site.txt",
+                 "https://app.acme.example/.well-known/siwa-site.txt"
+               ],
+               "checkedAt" => nil,
+               "verifiedAt" => nil,
+               "failureReason" => nil,
+               "failedOrigin" => nil
+             },
              "origins" => ["https://acme.example", "https://app.acme.example"]
            } = production
 
@@ -136,17 +151,128 @@ defmodule SiwaServerWeb.ControlControllerTest do
              })
   end
 
-  test "changing a production site's origins makes its proof unverified again" do
+  test "changing a production site's origins makes its proof unverified again, with its token" do
     customer(@alice)
-    %{"id" => id} = create_site(@alice, @production)
-    Repo.update_all(from(s in Site, where: s.id == ^id), set: [origin_proof: :verified])
+    %{"id" => id, "originProof" => %{"token" => token}} = create_site(@alice, @production)
+    publish(%{"https://acme.example" => {:ok, token}, "https://app.acme.example" => {:ok, token}})
 
-    assert %{"data" => %{"name" => "Acme Web", "originProof" => "verified"}} =
+    assert %{"data" => %{"originProof" => %{"state" => "verified"}}} =
+             check(@alice, id) |> json_response(200)
+
+    assert %{"data" => %{"name" => "Acme Web", "originProof" => %{"state" => "verified"}}} =
              call(@alice, :patch, "/sites/#{id}", %{"name" => "Acme Web"}) |> json_response(200)
 
-    assert %{"data" => %{"originProof" => "unverified", "origins" => ["https://acme.example"]}} =
+    assert %{"data" => %{"originProof" => proof, "origins" => ["https://acme.example"]}} =
              call(@alice, :patch, "/sites/#{id}", %{"origins" => ["https://acme.example"]})
              |> json_response(200)
+
+    assert proof == %{
+             "state" => "unverified",
+             "token" => token,
+             "fileUrls" => ["https://acme.example/.well-known/siwa-site.txt"],
+             "checkedAt" => nil,
+             "verifiedAt" => nil,
+             "failureReason" => nil,
+             "failedOrigin" => nil
+           }
+  end
+
+  test "a check verifies a site once every origin serves its token, and then stays verified" do
+    customer(@alice)
+    %{"id" => id, "originProof" => %{"token" => token}} = create_site(@alice, @production)
+
+    # Both origins fail; the first of the site's origins is the one kept.
+    publish(%{"https://app.acme.example" => {:ok, "siwa_site_someone_else"}})
+
+    assert %{
+             "code" => "site_proof_checked",
+             "data" => %{
+               "originProof" => %{
+                 "state" => "unverified",
+                 "checkedAt" => checked_at,
+                 "verifiedAt" => nil,
+                 "failureReason" => "unreachable",
+                 "failedOrigin" => "https://acme.example"
+               }
+             }
+           } = check(@alice, id) |> json_response(200)
+
+    assert {:ok, _at, 0} = DateTime.from_iso8601(checked_at)
+
+    publish(%{
+      "https://acme.example" => {:ok, token},
+      "https://app.acme.example" => {:ok, "siwa_site_someone_else"}
+    })
+
+    assert %{
+             "originProof" => %{
+               "state" => "unverified",
+               "failureReason" => "wrong_token",
+               "failedOrigin" => "https://app.acme.example"
+             }
+           } = check(@alice, id) |> json_response(200) |> Map.fetch!("data")
+
+    publish(%{
+      "https://acme.example" => {:ok, "\n  " <> token <> "\r\n"},
+      "https://app.acme.example" => {:ok, token}
+    })
+
+    assert %{
+             "originProof" =>
+               %{
+                 "state" => "verified",
+                 "verifiedAt" => verified_at,
+                 "failureReason" => nil,
+                 "failedOrigin" => nil
+               } = verified
+           } = check(@alice, id) |> json_response(200) |> Map.fetch!("data")
+
+    assert verified["checkedAt"] == verified_at
+    assert {:ok, _at, 0} = DateTime.from_iso8601(verified_at)
+
+    # A verified site is answered as it is: nothing is read, so nothing fails.
+    publish(%{})
+
+    assert %{"originProof" => ^verified} =
+             check(@alice, id) |> json_response(200) |> Map.fetch!("data")
+
+    assert %{"data" => %{"originProof" => ^verified}} =
+             call(@alice, :get, "/sites/#{id}") |> json_response(200)
+  end
+
+  test "a sandbox site needs no check" do
+    customer(@alice)
+    %{"id" => id} = create_site(@alice, @sandbox)
+
+    assert %{"error" => %{"code" => "site_proof_not_needed"}} =
+             check(@alice, id) |> json_response(409)
+  end
+
+  test "a site is checked at most ten times a minute, each site on its own" do
+    customer(@alice)
+    %{"id" => id} = create_site(@alice, @production)
+
+    %{"id" => other} =
+      create_site(@alice, %{
+        @production
+        | "audience" => "acme-two",
+          "origins" => ["https://two.example"]
+      })
+
+    for _check <- 1..10 do
+      assert %{"originProof" => %{"failureReason" => "unreachable"}} =
+               check(@alice, id) |> json_response(200) |> Map.fetch!("data")
+    end
+
+    refused = check(@alice, id)
+
+    assert %{"error" => %{"code" => "rate_limited", "retry_after_ms" => wait}} =
+             json_response(refused, 429)
+
+    assert [seconds] = get_resp_header(refused, "retry-after")
+    assert String.to_integer(seconds) == ceil(wait / 1_000)
+
+    assert %{"code" => "site_proof_checked"} = check(@alice, other) |> json_response(200)
   end
 
   test "a site's audience and environment never change, and unknown fields are refused" do
@@ -175,6 +301,7 @@ defmodule SiwaServerWeb.ControlControllerTest do
           {:get, site, nil},
           {:patch, site, %{"name" => "Mine now"}},
           {:delete, site, nil},
+          {:post, site <> "/proof", nil},
           {:get, site <> "/keys", nil},
           {:post, site <> "/keys", nil},
           {:delete, site <> "/keys/#{alice_key["id"]}", nil},
@@ -447,6 +574,11 @@ defmodule SiwaServerWeb.ControlControllerTest do
 
   defp create_key(did, site_id),
     do: call(did, :post, "/sites/#{site_id}/keys") |> json_response(201) |> Map.fetch!("data")
+
+  defp check(did, site_id), do: call(did, :post, "/sites/#{site_id}/proof")
+
+  # What each origin serves as its site file (`SiwaServer.TestSiteFiles`).
+  defp publish(files), do: Application.put_env(:siwa_server, :site_files, files)
 
   defp invalid(did, method, path, body) do
     assert %{"error" => %{"code" => "control_fields_invalid"} = error} =

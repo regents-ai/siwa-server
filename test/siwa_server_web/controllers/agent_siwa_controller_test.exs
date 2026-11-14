@@ -219,6 +219,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/readyz",
                "/regent-services-contract.openapiv3.yaml",
                "/api/shared/siwa/audiences",
+               "/api/shared/siwa/audience",
                "/api/shared/siwa/wallet/nonce",
                "/api/shared/siwa/wallet/verify",
                "/api/shared/siwa/http-verify",
@@ -238,6 +239,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/api/control/v1/agents",
                "/api/control/v1/sites",
                "/api/control/v1/sites/{id}",
+               "/api/control/v1/sites/{id}/proof",
                "/api/control/v1/sites/{id}/keys",
                "/api/control/v1/sites/{id}/keys/{key_id}"
              ])

@@ -38,15 +38,18 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
 
       {:error, retry_after_ms} ->
         conn
-        |> put_status(:too_many_requests)
-        |> put_resp_header("retry-after", Integer.to_string(ceil(retry_after_ms / 1_000)))
-        |> json(
-          ErrorJSON.refusal(conn, "rate_limited", "Please wait a moment before trying again.", %{
-            "retry_after_ms" => retry_after_ms
-          })
-        )
+        |> refuse("rate_limited", "Please wait a moment before trying again.", retry_after_ms)
         |> halt()
     end
+  end
+
+  @doc "Answers 429 with the wait, in `Retry-After` in seconds and in the body in ms."
+  @spec refuse(Plug.Conn.t(), String.t(), String.t(), pos_integer()) :: Plug.Conn.t()
+  def refuse(conn, code, message, retry_after_ms) do
+    conn
+    |> put_status(:too_many_requests)
+    |> put_resp_header("retry-after", Integer.to_string(ceil(retry_after_ms / 1_000)))
+    |> json(ErrorJSON.refusal(conn, code, message, %{"retry_after_ms" => retry_after_ms}))
   end
 
   defp check(conn, name) when name in @address_keyed do
@@ -77,6 +80,7 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
   defp client_key(conn, :siwa_hosted), do: "hosted:#{client_ip(conn)}"
   defp client_key(conn, :agent_profile), do: "agent-profile:#{client_ip(conn)}"
   defp client_key(conn, :siwa_control_session), do: "control-session:#{client_ip(conn)}"
+  defp client_key(conn, :siwa_audience), do: "audience:#{client_ip(conn)}"
 
   defp client_key(conn, _name) do
     body = fetched_body_params(conn)
