@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 14 November 2026, counting
+
 - The Regent sites' activity read names only the Regent sites; a customer's site never appears in it.
 - A customer's site checks its agents' signed requests at `http-verify` with its server key
   as the bearer. A key that is unknown, revoked or whose site is archived is refused
