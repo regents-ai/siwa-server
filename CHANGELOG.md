@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 14 November 2026, control API
+
 - The control API is on at siwa.regents.sh for people signed in with the Regent sites' Privy app
   (`PRIVY_APP_ID` and `PRIVY_VERIFICATION_KEY` in `fly.toml`, both public values).
 - New control API at `/api/control/v1`, for the paid sign-in product. A Regent site trades its
