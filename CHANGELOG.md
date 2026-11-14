@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 14 November 2026
+
 - Chainagent is a site agents can sign in to: the audience `chainagent` signs for
   `https://chainagent.ai`. Its Claude connector may use hosted signing as the template's does
   (`whoami`, `me` and pairing for the `claude` harness) once Chainagent's own key is placed in
