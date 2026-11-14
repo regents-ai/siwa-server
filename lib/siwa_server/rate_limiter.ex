@@ -27,7 +27,7 @@ defmodule SiwaServer.RateLimiter do
     # Counted per calling address, which is a Regent site's server for all of its
     # people. Each needs a new control token every 15 minutes, so 30 a minute
     # serves about 450 people signed in to one site at once.
-    siwa_control_session: [limit: 30, window_ms: 60_000]
+    siwa_control_session: [limit: 600, window_ms: 60_000]
   }
 
   @doc "Counts one request under `name` and `key`; the wait in ms once the window is full."

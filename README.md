@@ -126,7 +126,7 @@ answers `503 control_not_configured`, and the rest of the service runs as before
 **Signing in.** The site trades the person's Privy sign-in for a control token, which lasts
 15 minutes and names only the person's Privy DID. Every other route takes that token as the
 bearer, and reaches only that person's customer. A site, key or customer that is not theirs
-answers exactly as one that does not exist. Exchanges are limited to 30 a minute per
+answers exactly as one that does not exist. Exchanges are limited to 600 a minute per
 calling computer, which is the site's server for all its people: about 450 people signed in
 to one site at once.
 
@@ -223,7 +223,7 @@ field's reasons:
 | 409 | `customer_exists` | `POST /customer` when the person already has one. |
 | 409 | `site_key_limit` | The site already has 5 keys that are not revoked. |
 | 422 | `control_fields_invalid` | A field broke its rule; `fields` says which and why. |
-| 429 | `rate_limited` | `POST /session` more than 30 times a minute from one computer; `retry-after` says when to try again. |
+| 429 | `rate_limited` | `POST /session` more than 600 times a minute from one computer; `retry-after` says when to try again. |
 | 503 | `control_not_configured` | The Privy settings are not set on this server. |
 
 ## Required configuration

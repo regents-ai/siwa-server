@@ -44,7 +44,7 @@ defmodule SiwaServerWeb.ControlControllerTest do
              call(@alice, :get, "/account") |> json_response(200)
 
     assert %{"data" => %{"name" => "Acme Labs"}} =
-             call(@alice, :patch, "/customer", %{"name" => "Acme Labs"}) |> json_response(200)
+             call(@alice, :patch, "/customer", %{"name" => "  Acme Labs "}) |> json_response(200)
 
     assert %{"error" => %{"code" => "customer_exists"}} =
              call(@alice, :post, "/customer", %{"name" => "Again"}) |> json_response(409)
@@ -92,6 +92,8 @@ defmodule SiwaServerWeb.ControlControllerTest do
     assert taken?(@bob, %{@sandbox | "audience" => "acme"})
     assert taken?(@alice, %{@sandbox | "audience" => "acme"})
     assert taken?(@bob, %{@sandbox | "audience" => "patchbay"})
+    assert taken?(@bob, %{@sandbox | "audience" => "agent-book"})
+    assert taken?(@bob, %{@sandbox | "audience" => "agent-link"})
 
     for audience <- ["Acme", "-acme", "acme.example", "acme\n", String.duplicate("a", 65), ""] do
       assert %{"fields" => %{"audience" => [_]}} =

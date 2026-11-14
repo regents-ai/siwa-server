@@ -839,7 +839,7 @@ paths:
         as the bearer and their identity token in privy-id-token. Both must be
         current, for this server's Privy app, and from the same sign-in. The
         answer is a control token naming only the person's Privy DID, good for
-        15 minutes. Limited to 30 a minute per calling computer.
+        15 minutes. Limited to 600 a minute per calling computer.
       tags: [control]
       security:
         - PrivyAccessToken: []

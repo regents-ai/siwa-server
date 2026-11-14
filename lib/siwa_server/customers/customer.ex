@@ -26,6 +26,7 @@ defmodule SiwaServer.Customers.Customer do
   def changeset(customer, params) do
     customer
     |> cast(params, [:name])
+    |> update_change(:name, &(&1 && String.trim(&1)))
     |> validate_required([:name])
     |> validate_length(:name, max: 100, count: :codepoints)
     |> unique_constraint(:owner_did)

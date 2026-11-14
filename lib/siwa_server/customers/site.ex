@@ -23,6 +23,10 @@ defmodule SiwaServer.Customers.Site do
 
   @type t :: %__MODULE__{}
 
+  # The audiences this service signs its own challenges for (`SiwaServer.AgentBook`,
+  # `SiwaServer.AgentRegistration`); no site may take them.
+  @service_audiences ~w(agent-book agent-link)
+
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
@@ -61,6 +65,8 @@ defmodule SiwaServer.Customers.Site do
 
   defp validate_name_and_origins(changeset) do
     changeset
+    |> update_change(:name, &(&1 && String.trim(&1)))
+    |> validate_required([:name])
     |> validate_length(:name, max: 100, count: :codepoints)
     |> validate_length(:origins, min: 1, max: 10)
     |> validate_origins()
@@ -78,7 +84,7 @@ defmodule SiwaServer.Customers.Site do
             "must be 1 to 64 lowercase letters, digits, - or _, starting with a letter or digit"
         ]
 
-      Map.has_key?(Config.wallet_origins(), audience) ->
+      audience in @service_audiences or Map.has_key?(Config.wallet_origins(), audience) ->
         [audience: "has already been taken"]
 
       true ->
