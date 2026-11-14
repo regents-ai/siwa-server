@@ -151,6 +151,11 @@ defmodule SiwaServer.BillingConcurrencyTest do
 
     db(fn ->
       Repo.query!("DELETE FROM siwa_request_replays WHERE replay_key = ANY($1)", [keys])
+
+      # The site's own allowance is counted outside the test's rollback too.
+      Repo.query!("DELETE FROM siwa_rate_limits WHERE name = 'siwa_keyed_site' AND key = $1", [
+        :crypto.hash(:sha256, site.id)
+      ])
     end)
   end
 
