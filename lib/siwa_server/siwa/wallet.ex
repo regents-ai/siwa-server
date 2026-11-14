@@ -1,7 +1,7 @@
 defmodule SiwaServer.Siwa.Wallet do
   @moduledoc "Wallet proof, distinct from registered-agent and human identity."
 
-  alias SiwaServer.Config
+  alias SiwaServer.{Audiences, Config}
   alias SiwaServer.Siwa.Challenge
 
   @nonce_fields [:wallet_address, :chain_id, :audience]
@@ -88,13 +88,13 @@ defmodule SiwaServer.Siwa.Wallet do
 
   defp request(params, fields) do
     with {:ok, request} <- Challenge.cast(params, fields),
-         [origin | _more] <- Map.get(Config.wallet_origins(), request.audience) do
+         [origin | _more] <- Audiences.origins(request.audience) do
       {:ok, request, origin}
     else
       :error ->
         {:error, {400, "invalid_request", "request body does not match the wallet contract"}}
 
-      nil ->
+      [] ->
         {:error,
          {403, "wallet_audience_disabled",
           "wallet author sign-in is not enabled for this audience"}}

@@ -1,25 +1,43 @@
 defmodule SiwaServerWeb.ControlController do
   @moduledoc """
   The control API a Regent site calls for its signed-in person
-  (`/api/control/v1`): the person's customer, its sites and each site's server
-  keys (`SiwaServer.Customers`). The person is the one the control token names
+  (`/api/control/v1`): the person's customer, its cap and usage this billing
+  period, the agents counted in it, its sites and each site's server keys
+  (`SiwaServer.Customers`). The person is the one the control token names
   (`SiwaServerWeb.Plugs.ControlPerson`); nothing in a request chooses whose
   records it reaches.
   """
 
   use SiwaServerWeb, :controller
 
+  alias SiwaServer.Billing.Price
   alias SiwaServer.Customers
 
   action_fallback SiwaServerWeb.FallbackController
 
   def account(conn, _params) do
     did = conn.assigns.did
+    %{customer: found, period: period} = Customers.account(did)
 
     json(conn, %{
       "code" => "account",
-      "data" => %{"did" => did, "customer" => did |> Customers.customer() |> customer()}
+      "data" => %{"did" => did, "customer" => customer(found), "usage" => usage(period)}
     })
+  end
+
+  def put_cap(conn, _params) do
+    with {:ok, {updated, period}} <- Customers.set_cap(conn.assigns.did, conn.body_params),
+         do:
+           answer(conn, :ok, "cap_updated", %{
+             "customer" => customer(updated),
+             "usage" => usage(period)
+           })
+  end
+
+  def agents(conn, _params) do
+    with {:ok, {agents, next}} <- Customers.agents(conn.assigns.did, conn.query_params),
+         do:
+           answer(conn, :ok, "agents", %{"agents" => Enum.map(agents, &agent/1), "next" => next})
   end
 
   def create_customer(conn, _params) do
@@ -86,8 +104,32 @@ defmodule SiwaServerWeb.ControlController do
       "id" => customer.id,
       "name" => customer.name,
       "kind" => customer.kind,
+      "capCents" => customer.cap_cents,
       "createdAt" => time(customer.inserted_at),
       "updatedAt" => time(customer.updated_at)
+    }
+  end
+
+  # The fee is in cents with one decimal place, sent as a string so it stays exact.
+  defp usage(nil), do: nil
+
+  defp usage(period) do
+    %{
+      "periodStartsAt" => time(period.starts_at),
+      "periodEndsAt" => time(period.ends_at),
+      "activeAgents" => period.active_agents,
+      "includedAgents" => Price.included_agents(),
+      "feeCents" => period.active_agents |> Price.fee_cents() |> Decimal.to_string(:normal),
+      "capCents" => period.cap_cents,
+      "maxAgents" => period.max_agents
+    }
+  end
+
+  defp agent(agent) do
+    %{
+      "subject" => agent.subject,
+      "firstVerifiedAt" => time(agent.first_verified_at),
+      "firstSiteId" => agent.first_site_id
     }
   end
 

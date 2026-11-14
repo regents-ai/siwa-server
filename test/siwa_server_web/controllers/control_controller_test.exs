@@ -3,7 +3,8 @@ defmodule SiwaServerWeb.ControlControllerTest do
 
   import Ecto.Query
 
-  alias SiwaServer.{Customers, PrivySignIn, Repo}
+  alias SiwaServer.{Billing, Customers, PrivySignIn, Repo}
+  alias SiwaServer.Billing.{ActiveAgent, Period}
   alias SiwaServer.Customers.{Site, SiteCredential}
   alias SiwaServerWeb.ControlToken
 
@@ -277,6 +278,156 @@ defmodule SiwaServerWeb.ControlControllerTest do
     assert length(keys) == 6
   end
 
+  test "the account shows the current billing period's usage" do
+    assert %{"data" => %{"customer" => nil, "usage" => nil}} =
+             call(@alice, :get, "/account") |> json_response(200)
+
+    customer(@alice)
+
+    assert %{"data" => %{"customer" => %{"capCents" => nil}, "usage" => nil}} =
+             call(@alice, :get, "/account") |> json_response(200)
+
+    period = open(@alice)
+    Repo.update_all(from(p in Period, where: p.id == ^period.id), set: [active_agents: 1_001])
+
+    assert %{"data" => %{"usage" => usage}} =
+             call(@alice, :get, "/account") |> json_response(200)
+
+    assert usage == %{
+             "periodStartsAt" => DateTime.to_iso8601(period.starts_at),
+             "periodEndsAt" => DateTime.to_iso8601(period.ends_at),
+             "activeAgents" => 1_001,
+             "includedAgents" => 1_000,
+             "feeCents" => "9909.9",
+             "capCents" => nil,
+             "maxAgents" => nil
+           }
+  end
+
+  test "a cap is at least the base fee and never below the fee this period has reached" do
+    assert %{"error" => %{"code" => "customer_not_found"}} =
+             call(@alice, :put, "/cap", %{"capCents" => 10_000}) |> json_response(404)
+
+    customer(@alice)
+
+    assert %{"error" => %{"code" => "control_request_invalid"}} =
+             call(@alice, :put, "/cap", %{"capCents" => 10_000, "maxAgents" => 5})
+             |> json_response(400)
+
+    for body <- [
+          %{},
+          %{"capCents" => 9_899},
+          %{"capCents" => "ten dollars"},
+          %{"capCents" => 2_147_483_648}
+        ] do
+      assert %{"fields" => %{"capCents" => [_reason]}} = invalid(@alice, :put, "/cap", body)
+    end
+
+    assert %{
+             "code" => "cap_updated",
+             "data" => %{"customer" => %{"capCents" => 9_900}, "usage" => nil}
+           } =
+             call(@alice, :put, "/cap", %{"capCents" => 9_900}) |> json_response(200)
+
+    period = open(@alice)
+    assert {period.cap_cents, period.max_agents} == {9_900, 1_000}
+    Repo.update_all(from(p in Period, where: p.id == ^period.id), set: [active_agents: 1_000])
+
+    assert %{"data" => %{"usage" => %{"capCents" => 10_009, "maxAgents" => 1_011}}} =
+             call(@alice, :put, "/cap", %{"capCents" => 10_009}) |> json_response(200)
+
+    Repo.update_all(from(p in Period, where: p.id == ^period.id), set: [active_agents: 1_011])
+
+    assert %{"fields" => %{"capCents" => [_reason]}} =
+             invalid(@alice, :put, "/cap", %{"capCents" => 10_008})
+
+    assert %{
+             "data" => %{
+               "customer" => %{"capCents" => 10_009},
+               "usage" => %{"feeCents" => "10008.9"}
+             }
+           } =
+             call(@alice, :get, "/account") |> json_response(200)
+
+    assert %{
+             "data" => %{
+               "customer" => %{"capCents" => nil},
+               "usage" => %{"capCents" => nil, "maxAgents" => nil, "activeAgents" => 1_011}
+             }
+           } = call(@alice, :put, "/cap", %{"capCents" => nil}) |> json_response(200)
+  end
+
+  test "the agents counted this period, newest first a page at a time, and only the person's own" do
+    customer(@alice)
+    customer(@bob)
+
+    assert %{"data" => %{"agents" => [], "next" => nil}} =
+             call(@alice, :get, "/agents") |> json_response(200)
+
+    alice_period = open(@alice)
+    bob_period = open(@bob)
+    alice_site = create_site(@alice, @sandbox)
+    bob_site = create_site(@bob, %{@sandbox | "audience" => "bob-test"})
+    now = DateTime.utc_now()
+
+    agents =
+      for {seconds_ago, n} <- Enum.with_index([0, 10, 10, 20, 30], 1) do
+        counted(alice_period, alice_site, n, DateTime.add(now, -seconds_ago))
+      end
+
+    bob_agent = counted(bob_period, bob_site, 99, now)
+
+    newest_first =
+      agents
+      |> Enum.sort_by(&{DateTime.to_unix(&1.first_verified_at, :microsecond), &1.id}, :desc)
+      |> Enum.map(& &1.subject)
+
+    pages =
+      Stream.unfold("/agents?limit=2", fn
+        nil ->
+          nil
+
+        path ->
+          %{"data" => %{"agents" => page, "next" => next}} =
+            call(@alice, :get, path) |> json_response(200)
+
+          {page, next && "/agents?limit=2&after=#{next}"}
+      end)
+      |> Enum.to_list()
+
+    assert Enum.map(pages, &length/1) == [2, 2, 1]
+    assert pages |> List.flatten() |> Enum.map(& &1["subject"]) == newest_first
+
+    assert %{"firstSiteId" => first_site_id, "firstVerifiedAt" => first_verified_at} =
+             pages |> List.flatten() |> hd()
+
+    assert {first_site_id, first_verified_at} == {alice_site["id"], DateTime.to_iso8601(now)}
+
+    assert %{"data" => %{"agents" => all, "next" => nil}} =
+             call(@alice, :get, "/agents") |> json_response(200)
+
+    assert Enum.map(all, & &1["subject"]) == newest_first
+
+    assert %{"data" => %{"agents" => [%{"subject" => bob_subject}], "next" => nil}} =
+             call(@bob, :get, "/agents") |> json_response(200)
+
+    assert bob_subject == bob_agent.subject
+
+    for query <- [
+          "limit=0",
+          "limit=201",
+          "limit=two",
+          "after=not-a-cursor",
+          "after=" <> Base.url_encode64("1763103460552310.not-an-id", padding: false)
+        ] do
+      assert %{"error" => %{"code" => "control_fields_invalid"}} =
+               call(@alice, :get, "/agents?" <> query) |> json_response(422)
+    end
+
+    assert %{"error" => %{"code" => "control_request_invalid"}} =
+             call(@alice, :get, "/agents?page=2") |> json_response(400)
+  end
+
   defp call(did, method, path, body \\ nil) do
     {token, _expires_at} = ControlToken.issue(did)
 
@@ -307,5 +458,29 @@ defmodule SiwaServerWeb.ControlControllerTest do
   defp taken?(did, body) do
     %{"fields" => %{"audience" => [_reason]}} = invalid(did, :post, "/sites", body)
     true
+  end
+
+  # A billing period for the person's customer, running now by the database clock.
+  defp open(did) do
+    %{rows: [[now]]} = Repo.query!("SELECT now()")
+
+    {:ok, period} =
+      Billing.open_period(
+        Customers.customer(did),
+        DateTime.add(now, -86_400),
+        DateTime.add(now, 29 * 86_400)
+      )
+
+    period
+  end
+
+  defp counted(period, site, n, at) do
+    Repo.insert!(%ActiveAgent{
+      billing_period_id: period.id,
+      customer_id: period.customer_id,
+      subject: "eip155:8453:0x" <> String.pad_leading(Integer.to_string(n, 16), 40, "0"),
+      first_site_id: site["id"],
+      first_verified_at: at
+    })
   end
 end

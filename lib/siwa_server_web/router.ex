@@ -99,6 +99,8 @@ defmodule SiwaServerWeb.Router do
     get "/account", ControlController, :account
     post "/customer", ControlController, :create_customer
     patch "/customer", ControlController, :update_customer
+    put "/cap", ControlController, :put_cap
+    get "/agents", ControlController, :agents
     get "/sites", ControlController, :sites
     post "/sites", ControlController, :create_site
     get "/sites/:id", ControlController, :site

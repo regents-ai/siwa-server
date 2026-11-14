@@ -227,13 +227,28 @@ paths:
     post:
       operationId: verifySharedSiwaHttpEnvelope
       tags: [auth]
+      description: >-
+        A customer's site asks with its server key as the bearer. The key names
+        the site, and the site's audience is the one the receipt must match. An
+        unknown, revoked or archived key is refused before the agent's request
+        is looked at. A production site's request is used up and its agent
+        counted once in the customer's current billing period in one step; a
+        request refused for billing or the cap is not used up, so the agent may
+        send it again. A Regent site named in SIWA_WALLET_ORIGINS may still ask
+        with only x-siwa-audience; a customer's site may not.
+      security:
+        - SiteServerKey: []
+        - {}
       parameters:
         - in: header
           name: x-siwa-audience
-          required: true
+          required: false
           schema:
             type: string
-          description: App audience that the SIWA receipt must match for this protected request
+          description: >-
+            The audience the SIWA receipt must match. Required without a server
+            key. With one it may be left out; when sent it must be the key's
+            site's audience.
       requestBody:
         required: true
         content:
@@ -254,7 +269,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "401":
-          description: Envelope verification failed
+          description: >-
+            Envelope verification failed; or the server key is unknown, revoked
+            or its site archived (site_key_invalid); or x-siwa-audience is not
+            the key's site's audience (site_audience_mismatch); or a customer's
+            site's audience was sent without its key (site_key_required)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "402":
+          description: >-
+            The production site's customer has no billing period running now
+            (billing_required), or its period's cap has no room for another new
+            agent (agent_cap_reached). The request is not used up.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: The key's site is a production site whose origins are not proven (site_not_verified)
           content:
             application/json:
               schema:
@@ -864,7 +898,7 @@ paths:
   /api/control/v1/account:
     get:
       operationId: readControlAccount
-      summary: The person's DID and their customer, or null
+      summary: The person's DID, their customer or null, and its usage this billing period or null
       tags: [control]
       security:
         - ControlToken: []
@@ -947,6 +981,93 @@ paths:
           $ref: "#/components/responses/ControlBodyTooLarge"
         "415":
           $ref: "#/components/responses/ControlUnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ControlFieldsInvalid"
+        "503":
+          $ref: "#/components/responses/ControlNotConfigured"
+  /api/control/v1/cap:
+    put:
+      operationId: setControlCap
+      summary: Set the customer's cap, or remove it with null
+      description: >-
+        The cap is the most the customer pays in one billing period, in cents.
+        It is set on the customer and on its current billing period together.
+        It is at least 9900 (the fee for the 1000 included agents) and never
+        below the fee the current period has already reached. While a period
+        has a cap, it counts no more new agents than the cap pays for; agents
+        already counted keep signing in.
+      tags: [control]
+      security:
+        - ControlToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CapRequest"
+      responses:
+        "200":
+          description: The customer and its usage with the new cap (cap_updated)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapResponse"
+        "400":
+          $ref: "#/components/responses/ControlRequestInvalid"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "404":
+          $ref: "#/components/responses/ControlNotFound"
+        "413":
+          $ref: "#/components/responses/ControlBodyTooLarge"
+        "415":
+          $ref: "#/components/responses/ControlUnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ControlFieldsInvalid"
+        "503":
+          $ref: "#/components/responses/ControlNotConfigured"
+  /api/control/v1/agents:
+    get:
+      operationId: listControlAgents
+      summary: The agents counted in the customer's current billing period, newest first
+      description: >-
+        Each agent once, with the first time it was counted this period and the
+        site that counted it. Empty when no period is running.
+      tags: [control]
+      security:
+        - ControlToken: []
+      parameters:
+        - in: query
+          name: after
+          required: false
+          schema:
+            type: string
+          description: The next cursor a previous page gave.
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: A page of agents (agents)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentsResponse"
+        "400":
+          description: The query has a parameter this route does not take (control_request_invalid)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "404":
+          $ref: "#/components/responses/ControlNotFound"
         "422":
           $ref: "#/components/responses/ControlFieldsInvalid"
         "503":
@@ -1180,6 +1301,10 @@ components:
       type: http
       scheme: bearer
       description: A site's own key for hosted signing, one per site (SIWA_HOSTED_SIGNERS); it opens no other route.
+    SiteServerKey:
+      type: http
+      scheme: bearer
+      description: A customer's site's server key (siwa_sk_test_ or siwa_sk_live_), made with POST /api/control/v1/sites/{id}/keys. It names the site.
     PrivyAccessToken:
       type: http
       scheme: bearer
@@ -1473,9 +1598,25 @@ components:
               items:
                 type: string
             leaseExpiresAt:
-              description: Sent only when the site asked for a lease and the wallet signed with its own key. Until then the site checks this agent's read-only requests under the same receipt itself. Never after receiptExpiresAt.
+              description: Sent only when the site asked for a lease and the wallet signed with its own key. Until then the site checks this agent's read-only requests under the same receipt itself. Never after receiptExpiresAt, nor after the end of the billing period a production site's agent was counted in.
               type: string
               format: date-time
+            subject:
+              description: Sent only to a site that asked with its server key. The agent, as eip155:<chain id>:<lowercase address>.
+              type: string
+              pattern: "^eip155:[1-9][0-9]*:0x[0-9a-f]{40}$"
+            usage:
+              description: Sent only to a production site that asked with its server key.
+              type: object
+              additionalProperties: false
+              required: [activeThisPeriod, newThisPeriod]
+              properties:
+                activeThisPeriod:
+                  type: boolean
+                  enum: [true]
+                newThisPeriod:
+                  description: True when this request counted the agent for the first time in the customer's current billing period.
+                  type: boolean
           additionalProperties: false
       additionalProperties: false
     SiwaHttpVerifyRequest:
@@ -2018,7 +2159,7 @@ components:
     Customer:
       type: object
       additionalProperties: false
-      required: [id, name, kind, createdAt, updatedAt]
+      required: [id, name, kind, capCents, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -2031,6 +2172,8 @@ components:
           type: string
           enum: [paid, internal]
           description: Every customer made here is paid.
+        capCents:
+          $ref: "#/components/schemas/CapCents"
         createdAt:
           type: string
           format: date-time
@@ -2057,7 +2200,7 @@ components:
         data:
           type: object
           additionalProperties: false
-          required: [did, customer]
+          required: [did, customer, usage]
           properties:
             did:
               $ref: "#/components/schemas/PrivyDid"
@@ -2065,6 +2208,114 @@ components:
               description: The person's customer, or null before they make one.
               oneOf:
                 - $ref: "#/components/schemas/Customer"
+                - type: "null"
+            usage:
+              $ref: "#/components/schemas/Usage"
+    CapCents:
+      description: The most the customer pays in one billing period, in cents, or null for no cap.
+      oneOf:
+        - type: integer
+          minimum: 9900
+          maximum: 2147483647
+        - type: "null"
+    Usage:
+      description: The customer's current billing period, or null when none is running.
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required:
+            [periodStartsAt, periodEndsAt, activeAgents, includedAgents, feeCents, capCents, maxAgents]
+          properties:
+            periodStartsAt:
+              type: string
+              format: date-time
+            periodEndsAt:
+              description: The period's end, which is not in it.
+              type: string
+              format: date-time
+            activeAgents:
+              description: Agents counted this period, each once.
+              type: integer
+              minimum: 0
+            includedAgents:
+              description: Agents the base fee covers.
+              type: integer
+              enum: [1000]
+            feeCents:
+              description: >-
+                The fee this period so far, in cents with one decimal place, as a
+                string so it stays exact: 99 dollars for up to 1000 agents, then
+                9.9 cents for each agent after.
+              type: string
+              pattern: "^[0-9]+\\.[0-9]$"
+            capCents:
+              $ref: "#/components/schemas/CapCents"
+            maxAgents:
+              description: The most agents the period's cap pays for, or null with no cap.
+              oneOf:
+                - type: integer
+                  minimum: 1000
+                - type: "null"
+        - type: "null"
+    CapRequest:
+      type: object
+      additionalProperties: false
+      required: [capCents]
+      properties:
+        capCents:
+          $ref: "#/components/schemas/CapCents"
+    CapResponse:
+      type: object
+      additionalProperties: false
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [cap_updated]
+        data:
+          type: object
+          additionalProperties: false
+          required: [customer, usage]
+          properties:
+            customer:
+              $ref: "#/components/schemas/Customer"
+            usage:
+              $ref: "#/components/schemas/Usage"
+    AgentsResponse:
+      type: object
+      additionalProperties: false
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [agents]
+        data:
+          type: object
+          additionalProperties: false
+          required: [agents, next]
+          properties:
+            agents:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [subject, firstVerifiedAt, firstSiteId]
+                properties:
+                  subject:
+                    description: The agent, as eip155:<chain id>:<lowercase address>.
+                    type: string
+                    pattern: "^eip155:[1-9][0-9]*:0x[0-9a-f]{40}$"
+                  firstVerifiedAt:
+                    type: string
+                    format: date-time
+                  firstSiteId:
+                    description: The site whose request counted the agent first this period.
+                    type: string
+                    format: uuid
+            next:
+              description: The cursor for the next page as after, or null on the last page.
+              oneOf:
+                - type: string
                 - type: "null"
     CustomerResponse:
       type: object

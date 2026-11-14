@@ -46,7 +46,8 @@ mix phx.server
 > [!NOTE]
 > Sign-in state lives in this service's own PostgreSQL database: nonces, receipts, and replay
 > records (a hash of each used request, never its path). The [control API](#control-api)
-> adds its customers, their sites, and a hash of each site key, never the key. It holds no
+> adds its customers, their sites, a hash of each site key, never the key, and each
+> customer's billing periods with the agents counted in them (chain and address). It holds no
 > other product data. What leaves the machine in production: the configured Base RPC endpoint, for on-chain
 > checks.
 
@@ -84,7 +85,7 @@ mix phx.server
 | `/` | GET | Service root. |
 | `/api/shared/siwa/wallet/nonce` | POST | Issue a wallet sign-in challenge. |
 | `/api/shared/siwa/wallet/verify` | POST | Verify a wallet sign-in. |
-| `/api/shared/siwa/http-verify` | POST | Verify a signed HTTP request. |
+| `/api/shared/siwa/http-verify` | POST | Verify a signed HTTP request: a customer's site with its server key, a Regent site with its audience. |
 | `/api/shared/siwa/agent/register-step` | POST | Build the optional agent registry listing transaction. |
 | `/api/shared/siwa/agent/registered` | POST | Read that transaction and keep the listing once it lands. |
 | `/api/shared/siwa/agent/link-challenge` | POST | Check the registry names the wallet behind a listing made with another tool, and issue the message linking it. |
@@ -101,10 +102,54 @@ Sign-in has one path: the agent's wallet. A signed request binds the wallet, cha
 audience and the request body when it has one. A site checking a request sends
 `body_digest`, the content-digest of the body it read, and never the body itself.
 Protected request verification also expects the signed path to include the query string when
-one is present, and callers must send the app audience that owns the request.
+one is present. A customer's site asks with its server key; a Regent site named in
+`SIWA_WALLET_ORIGINS` may still ask with only its audience in `x-siwa-audience`.
 
 Malformed expiry values, expired requests, receipt-binding mismatches, and replayed requests
 must fail closed. The SIWA library and the service tests cover these cases.
+
+**Server keys.** A customer's site (see [Control API](#control-api)) sends its server key
+as the bearer:
+
+```http
+POST /api/shared/siwa/http-verify
+Authorization: Bearer siwa_sk_live_...
+content-type: application/json
+
+{"method":"POST","path":"/v1/notes","authority":"acme.example","headers":{...},"body_digest":"sha-256=:...:"}
+```
+
+The key names the site, so `x-siwa-audience` may be left out; when it is sent it must be
+the site's audience. A sandbox site always takes agents. A production site takes them only
+once its `originProof` is `verified`. An archived site, or a revoked key, takes none. A
+key that does not name a usable site is refused before the agent's request is looked at,
+so the request is not used up and works afterwards with the right key. A customer's
+site's audience sent without its key is refused.
+
+A production site's request is used up and its agent counted in one database
+transaction: the agent is counted once per customer in the customer's current billing
+period, whichever of its production sites saw it first. While the period has a cap, a new
+agent the cap has no room for is refused and the request is not used up; an agent already
+counted this period always passes. A sandbox site's request is only used up, and counts
+nothing. The answer adds the agent's `subject` (`eip155:<chain id>:<lowercase address>`)
+and, for a production site, `usage`:
+
+```json
+{"subject":"eip155:8453:0xabc...","usage":{"activeThisPeriod":true,"newThisPeriod":true}}
+```
+
+An internal customer's billing period is the current UTC calendar month, opened by its
+first counted agent. A paid customer's periods are opened for it; until one is running,
+its production sites answer `402 billing_required`.
+
+| Status | Code | When |
+| --- | --- | --- |
+| 401 | `site_key_invalid` | The key is unknown or revoked, or its site is archived. |
+| 401 | `site_audience_mismatch` | `x-siwa-audience` is not the key's site's audience. |
+| 401 | `site_key_required` | A customer's site's audience was sent without its key. |
+| 402 | `billing_required` | The production site's customer has no billing period running now. The request is not used up. |
+| 402 | `agent_cap_reached` | The period's cap has no room for another new agent. The request is not used up. |
+| 403 | `site_not_verified` | The production site's origins are not proven yet. |
 
 Wallet sign-in, agent registration and AgentBook steps are limited per wallet address
 the caller names, and every computer also has one ceiling across all of them (300 a
@@ -114,11 +159,12 @@ so one computer's ceiling there is 3,000 a minute.
 
 ## Control API
 
-The paid sign-in product's customers manage their account here: a customer, its sites, and
-each site's server keys. Regent sites (the template first, then regents.sh, Patchbay and
-Chainagent) call it from their own server for the person signed in to them with Privy. It
-changes nothing about agent sign-in, `http-verify`, `SIWA_WALLET_ORIGINS` or hosted
-signing, and nothing calls a server key yet.
+The paid sign-in product's customers manage their account here: a customer, its cap and
+usage, the agents counted this billing period, its sites, and each site's server keys.
+Regent sites (the template first, then regents.sh, Patchbay and Chainagent) call it from
+their own server for the person signed in to them with Privy. A site's server key is what
+the site sends to `http-verify` (see [Server keys](#public-routes)); a usable site's
+audience is also one agents sign in for, from the site's own origins.
 
 It is off until `PRIVY_APP_ID` and `PRIVY_VERIFICATION_KEY` are both set: every route then
 answers `503 control_not_configured`, and the rest of the service runs as before.
@@ -151,14 +197,31 @@ and environment never change. Archiving a site keeps it, hides it, keeps its aud
 and stops its keys. A server key (`siwa_sk_test_...` for sandbox, `siwa_sk_live_...` for
 production) is shown once, when made; the server keeps only its SHA-256 hash and its first
 19 characters. A site has at most 5 keys that are not revoked. A body may hold only the
-fields its route names.
+fields its route names, and a query only the parameters its route names.
+
+**Price and cap.** A billing period's fee is 99 dollars for up to 1,000 agents, then 9.9
+cents for each agent after, worked out in tenths of a cent so it stays exact: `feeCents` is
+a string with one decimal place, such as `"9900.0"`. `capCents` is the most the customer
+pays in one period, or null for no cap; it is at least `9900` and is set on the customer and
+its current period together, and never below the fee that period has already reached.
+`maxAgents` is the most agents the cap pays for (`1000 + (capCents × 10 − 99000) ÷ 99`,
+rounded down). A new period takes the customer's cap when it opens.
+
+| Agents | Fee (cents) | Cap (cents) | Most agents |
+| --- | --- | --- | --- |
+| 0 to 1,000 | 9900.0 | 9900 | 1,000 |
+| 1,001 | 9909.9 | 10000 | 1,010 |
+| 2,000 | 19800.0 | 19800 | 2,000 |
+| 10,000 | 99000.0 | 99000 | 10,000 |
 
 | Route | Body | Success |
 | --- | --- | --- |
 | `POST /session` | none (headers above) | `200 control_session` |
-| `GET /account` | none | `200 account` |
+| `GET /account` | none | `200 account`, with `usage` this period or null |
 | `POST /customer` | `name` | `201 customer_created` |
 | `PATCH /customer` | `name` | `200 customer_updated` |
+| `PUT /cap` | `capCents`, a whole number of cents or null | `200 cap_updated`, the customer and `usage` |
+| `GET /agents?after=&limit=` | none | `200 agents`, this period's agents newest first, `limit` 1 to 200 (50 when left out), and `next` for `after` |
 | `GET /sites` | none | `200 sites`, oldest first |
 | `GET /sites/{id}` | none | `200 site` |
 | `POST /sites` | `name`, `audience`, `environment`, `origins` | `201 site_created` |
@@ -172,13 +235,19 @@ Every path is under `/api/control/v1`. Examples, each with `Authorization: Beare
 
 ```http
 GET /api/control/v1/account
-200 {"code":"account","data":{"did":"did:privy:cmabc123","customer":null}}
+200 {"code":"account","data":{"did":"did:privy:cmabc123","customer":null,"usage":null}}
 
 POST /api/control/v1/customer   {"name":"Acme"}
-201 {"code":"customer_created","data":{"id":"551352af-783e-4b8e-b409-24b8555683d7","name":"Acme","kind":"paid","createdAt":"2026-11-14T06:56:57Z","updatedAt":"2026-11-14T06:56:57Z"}}
+201 {"code":"customer_created","data":{"id":"551352af-783e-4b8e-b409-24b8555683d7","name":"Acme","kind":"paid","capCents":null,"createdAt":"2026-11-14T06:56:57Z","updatedAt":"2026-11-14T06:56:57Z"}}
 
 PATCH /api/control/v1/customer   {"name":"Acme Labs"}
-200 {"code":"customer_updated","data":{"id":"551352af-...","name":"Acme Labs","kind":"paid","createdAt":"...","updatedAt":"..."}}
+200 {"code":"customer_updated","data":{"id":"551352af-...","name":"Acme Labs","kind":"paid","capCents":null,"createdAt":"...","updatedAt":"..."}}
+
+PUT /api/control/v1/cap   {"capCents":10000}
+200 {"code":"cap_updated","data":{"customer":{"id":"551352af-...","capCents":10000, ...},"usage":{"periodStartsAt":"2026-11-01T00:00:00Z","periodEndsAt":"2026-12-01T00:00:00Z","activeAgents":2,"includedAgents":1000,"feeCents":"9900.0","capCents":10000,"maxAgents":1010}}}
+
+GET /api/control/v1/agents?limit=2
+200 {"code":"agents","data":{"agents":[{"subject":"eip155:8453:0x5f...","firstVerifiedAt":"2026-11-14T06:58:02.114071Z","firstSiteId":"204cdfd8-..."},{"subject":"eip155:8453:0x1c...","firstVerifiedAt":"2026-11-14T06:57:40.552310Z","firstSiteId":"204cdfd8-..."}],"next":"MTc2MzEwMzQ2MDU1MjMxMC4..."}}
 
 POST /api/control/v1/sites   {"name":"Acme","audience":"acme","environment":"production","origins":["https://acme.example"]}
 201 {"code":"site_created","data":{"id":"204cdfd8-3ba2-44f5-b235-268addb0e013","name":"Acme","audience":"acme","environment":"production","origins":["https://acme.example"],"originProof":"unverified","archivedAt":null,"createdAt":"2026-11-14T06:56:57Z","updatedAt":"2026-11-14T06:56:57Z"}}
@@ -214,15 +283,15 @@ field's reasons:
 
 | Status | Code | When |
 | --- | --- | --- |
-| 400 | `control_request_invalid` | The body holds a field the route does not take, such as `audience` on `PATCH /sites/{id}`. |
+| 400 | `control_request_invalid` | The body holds a field the route does not take, such as `audience` on `PATCH /sites/{id}`, or the query a parameter it does not take. |
 | 401 | `privy_proof_invalid` | `POST /session`: the Privy tokens are missing, expired, for another app, from two sign-ins, or not signed by Privy. |
 | 401 | `control_token_invalid` | The control token is missing, not valid or older than 15 minutes. |
-| 404 | `customer_not_found` | The person has no customer yet (`PATCH /customer` and every site route). |
+| 404 | `customer_not_found` | The person has no customer yet (`PATCH /customer`, `PUT /cap`, `GET /agents` and every site route). |
 | 404 | `site_not_found` | No site with that id among the person's sites that are not archived. |
 | 404 | `site_key_not_found` | No key with that id on that site. |
 | 409 | `customer_exists` | `POST /customer` when the person already has one. |
 | 409 | `site_key_limit` | The site already has 5 keys that are not revoked. |
-| 422 | `control_fields_invalid` | A field broke its rule; `fields` says which and why. |
+| 422 | `control_fields_invalid` | A field broke its rule; `fields` says which and why. On `PUT /cap`, a cap below 9900 or below the fee this period has already reached; on `GET /agents`, a `limit` outside 1 to 200 or an `after` this list did not give. |
 | 429 | `rate_limited` | `POST /session` more than 600 times a minute from one computer; `retry-after` says when to try again. |
 | 503 | `control_not_configured` | The Privy settings are not set on this server. |
 
@@ -404,8 +473,11 @@ in from, as comma-separated `audience=origin` pairs, for example
 `patchbay=https://patchbay.help,keyfleet=https://keyfleet.example`. An audience that
 signs in from several origins repeats, one entry per origin; its first origin is the one
 the challenge names, and no origin may belong to two audiences. Leaving it empty
-disables this flow for every audience. Callers never choose an origin; only this table
-does. The server binds the origin, audience, address, chain and expiry in the
+disables this flow for every Regent audience. A customer's site is a sign-in audience
+too, from the origins it lists through the [control API](#control-api): a sandbox site
+always, a production site once its `originProof` is `verified`, an archived site never.
+The public audience list names only the audiences in this table. Callers never choose an
+origin; only this table and the customer's site do. The server binds the origin, audience, address, chain and expiry in the
 challenge. An origin change invalidates outstanding challenges. Rate limits use the
 existing nonce/verification buckets. This option does not grant product permissions.
 
@@ -464,7 +536,8 @@ remain separate.
 A site asks for a lease (`"lease": true`) on a request that changes nothing and
 spends nothing. For a wallet that signed with its own key, the answer adds
 `leaseExpiresAt`: 10 minutes from now (`:siwa, :lease_seconds`), never past the
-receipt's expiry. Until then the site checks that agent's read-only requests under
+receipt's expiry, nor, for a customer's production site, past the end of the billing
+period its agent was counted in. Until then the site checks that agent's read-only requests under
 the same receipt itself with the shared `siwa` library and this server sees none of
 them; every request that writes or pays still comes here. A smart wallet never gets
 a lease. The activity read counts, for each site and day, the verified requests and
@@ -476,7 +549,9 @@ refused as `401 http_signature_invalid`), and its use is kept until it expires, 
 http-verify never accepts it again while it lasts. The use is kept as `h1:` and the SHA-256 of
 what was signed (wallet, chain, audience, nonce, method, path with its query, body digest),
 never as the request's path or query. The use is on the database's disk before
-http-verify answers, so a database crash never lets the same request through twice. A
+http-verify answers, so a database crash never lets the same request through twice. For a
+customer's production site the use is written in the same transaction that counts the
+agent, after every other check, so a request refused for billing or the cap is not used up. A
 restore from a backup still can: the restored database has none of the uses recorded
 after its backup was taken. A request is accepted only while the time it was signed for
 is within the 300 second signature tolerance of the server's clock, and that time

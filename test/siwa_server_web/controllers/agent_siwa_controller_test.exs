@@ -234,6 +234,8 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/api/control/v1/session",
                "/api/control/v1/account",
                "/api/control/v1/customer",
+               "/api/control/v1/cap",
+               "/api/control/v1/agents",
                "/api/control/v1/sites",
                "/api/control/v1/sites/{id}",
                "/api/control/v1/sites/{id}/keys",
@@ -241,7 +243,7 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
              ])
 
     assert operation_response_codes(contract, "/api/shared/siwa/http-verify", "post") ==
-             MapSet.new(~w(200 400 401 409 413 415 429 500 502))
+             MapSet.new(~w(200 400 401 402 403 409 413 415 429 500 502))
 
     assert operation_response_codes(contract, "/api/shared/siwa/activity", "post") ==
              MapSet.new(~w(200 400 401 413 415 429))

@@ -95,6 +95,35 @@ defmodule SiwaServerWeb.Help do
   end
 
   defp steps(code, _context)
+       when code in ~w(site_key_invalid site_key_required site_audience_mismatch) do
+    [
+      "The site did not show this service a server key that names it, so this is the site's ",
+      "problem, not yours. Tell your person which site answered this."
+    ]
+  end
+
+  defp steps("site_not_verified", _context) do
+    [
+      "This site has not yet proven its addresses are its own, so it cannot take agents. ",
+      "This is the site's problem, not yours. Tell your person which site answered this."
+    ]
+  end
+
+  defp steps("billing_required", _context) do
+    [
+      "This site's account has no billing running just now, so it cannot take agents. ",
+      "This is the site's problem, not yours. Tell your person which site answered this."
+    ]
+  end
+
+  defp steps("agent_cap_reached", _context) do
+    [
+      "This site's account has taken the most agents its limit allows this billing period. ",
+      "Nothing you send or pay changes that. Tell your person which site answered this."
+    ]
+  end
+
+  defp steps(code, _context)
        when code in ~w(http_headers_missing http_required_components_missing) do
     [
       "The request is missing signature headers. New here: follow ",

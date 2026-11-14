@@ -23,8 +23,8 @@ defmodule SiwaServer.HostedRequests do
   import Ecto.Query
 
   alias SiwaKeyring.HostedIdentity
-  alias SiwaServer.{Config, Repo}
-  alias SiwaServer.Siwa.{HttpVerifier, Wallet}
+  alias SiwaServer.{Audiences, Config, Repo}
+  alias SiwaServer.Siwa.Wallet
 
   @table "siwa_hosted_identities"
 
@@ -66,7 +66,8 @@ defmodule SiwaServer.HostedRequests do
         signer,
         receipt_secret: secret,
         audience: site,
-        wallet_audiences: Map.keys(Config.wallet_origins())
+        # A sign-in audience: `authority/2` found its hosts.
+        wallet_audiences: [site]
       )
     end
   end
@@ -132,7 +133,7 @@ defmodule SiwaServer.HostedRequests do
 
   # The request is sent to one of the site's own hosts, so it is refused at any other.
   defp authority(site, %{"authority" => authority} = request) do
-    if authority in HttpVerifier.authorities(site),
+    if authority in Audiences.authorities(site),
       do: {:ok, authority, Map.delete(request, "authority")},
       else: {:error, :hosted_request_not_allowed}
   end

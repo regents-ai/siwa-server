@@ -15,14 +15,19 @@ defmodule SiwaServer.Customers do
   `SiwaServer.Customers.Site`). A refusal is `{status, code, message}`, or the
   changeset naming the fields that failed.
 
-  `site_for_key/1` is how request verification will find the site a presented
-  server key belongs to. Nothing calls it yet.
+  The customer's cap, its current billing period and the agents counted in it
+  are `SiwaServer.Billing`'s; the steps here find the customer for the person.
+
+  `site_for_key/1` is how request verification finds the site a presented
+  server key belongs to (`SiwaServer.Siwa.HttpVerifier`), and `site_audience?/1`
+  how it knows an audience is a customer's site, which needs its key.
   """
 
   import Ecto.Query
 
+  alias SiwaServer.{Billing, Repo}
+  alias SiwaServer.Billing.{ActiveAgent, Period}
   alias SiwaServer.Customers.{Customer, Site, SiteCredential}
-  alias SiwaServer.Repo
 
   @max_keys 5
 
@@ -32,6 +37,35 @@ defmodule SiwaServer.Customers do
   @doc "The person's customer, or nil."
   @spec customer(did()) :: Customer.t() | nil
   def customer(did), do: Repo.get_by(Customer, owner_did: did)
+
+  @doc "The person's customer and its current billing period, each nil when there is none."
+  @spec account(did()) :: %{customer: Customer.t() | nil, period: Period.t() | nil}
+  def account(did) do
+    customer = customer(did)
+    %{customer: customer, period: customer && Billing.current_period(customer)}
+  end
+
+  @doc """
+  Sets the customer's cap (`capCents`, null for none), and its current
+  period's with it (`SiwaServer.Billing.set_cap/2`).
+  """
+  @spec set_cap(did(), map()) :: {:ok, {Customer.t(), Period.t() | nil}} | refusal()
+  def set_cap(did, params) do
+    with {:ok, params} <- body(params, ~w(capCents)),
+         {:ok, customer} <- fetch_customer(did),
+         do: Billing.set_cap(customer, params)
+  end
+
+  @doc """
+  The agents counted in the customer's current period, a page at a time
+  (`SiwaServer.Billing.agents/2`), and the cursor for the next page.
+  """
+  @spec agents(did(), map()) :: {:ok, {[ActiveAgent.t()], String.t() | nil}} | refusal()
+  def agents(did, params) do
+    with {:ok, params} <- query(params, ~w(after limit)),
+         {:ok, customer} <- fetch_customer(did),
+         do: Billing.agents(customer, params)
+  end
 
   @doc "Makes the person's customer, `paid`, unless they have one already."
   @spec create_customer(did(), map()) :: {:ok, Customer.t()} | refusal()
@@ -182,14 +216,20 @@ defmodule SiwaServer.Customers do
     end
   end
 
-  defp body(params, fields) do
-    case Map.keys(params) -- fields do
-      [] ->
-        {:ok, params}
+  @doc "Whether a customer's site, archived ones included, holds `audience`."
+  @spec site_audience?(String.t()) :: boolean()
+  def site_audience?(audience), do: Repo.exists?(from s in Site, where: s.audience == ^audience)
 
-      _other_fields ->
-        {:error,
-         {400, "control_request_invalid", "the request body has fields this step does not take"}}
+  defp body(params, fields),
+    do: only(params, fields, "the request body has fields this step does not take")
+
+  defp query(params, fields),
+    do: only(params, fields, "the query has parameters this step does not take")
+
+  defp only(params, fields, message) do
+    case Map.keys(params) -- fields do
+      [] -> {:ok, params}
+      _other_fields -> {:error, {400, "control_request_invalid", message}}
     end
   end
 

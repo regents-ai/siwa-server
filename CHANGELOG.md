@@ -5,6 +5,28 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- A customer's site checks its agents' signed requests at `http-verify` with its server key
+  as the bearer. A key that is unknown, revoked or whose site is archived is refused
+  (`401 site_key_invalid`) before the agent's request is looked at, so the agent can send it
+  again. A production site whose origins are not proven answers `403 site_not_verified`.
+  The answer adds the agent's `subject`.
+- A production site's agent is counted once per customer in its current billing period, in
+  the same step that uses the request up, and the answer adds `usage`. A customer with no
+  period running answers `402 billing_required`, and one whose cap has no room for another
+  new agent `402 agent_cap_reached`; either way the request is not used up. An agent already
+  counted always passes, and a lease never runs past the period's end. A sandbox site counts
+  nothing.
+- Agents sign in for a customer's sandbox site, or production site with proven origins, from
+  the site's own origins. The public audience list still names only the Regent sites. A
+  customer's site's audience sent to `http-verify` without its key is refused
+  (`401 site_key_required`); Regent sites asking with their audience alone are unchanged.
+- The control API shows the customer's `capCents` and its `usage` this billing period, sets
+  the cap with `PUT /api/control/v1/cap` (at least 9900 cents, never below the fee already
+  reached) and lists the period's agents, newest first, with `GET /api/control/v1/agents`.
+- For whoever releases: migration `20261114180000` only adds the `billing_periods` and
+  `monthly_active_agents` tables, a nullable `customers.cap_cents`, and the `btree_gist`
+  extension, which the production database role must be allowed to create.
+
 ## 14 November 2026, control API
 
 - The control API is on at siwa.regents.sh for people signed in with the Regent sites' Privy app

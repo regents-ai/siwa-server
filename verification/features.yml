@@ -4,12 +4,13 @@
 repo: siwa-server
 features:
   - id: wallet-sign-in
-    what: A wallet asks for a sign-in challenge for a site and signs it in once, for each origin the site lists.
+    what: A wallet asks for a sign-in challenge for a site and signs it in once, for each origin the site lists; a site is a Regent one SIWA_WALLET_ORIGINS names, or a customer's sandbox site or proven production site.
     who: agent
     level: protected
     paths:
       - lib/siwa_server_web/wallet_siwa_controller.ex
       - lib/siwa_server/siwa/wallet.ex
+      - lib/siwa_server/audiences.ex
       - lib/siwa_server/siwa/challenge.ex
       - lib/siwa_server/config.ex
       - lib/siwa_server/ethereum.ex
@@ -26,6 +27,7 @@ features:
       - test/siwa_server/nonce_redeem_once_property_test.exs
       - test/siwa_server/siwa_message_round_trip_property_test.exs
       - test/siwa_server/wallet_origins_property_test.exs
+      - test/siwa_server_web/controllers/keyed_http_verify_test.exs
     regressions:
       - id: R-20261018-origin-two-spellings
         from: property test, seed 814171 (patchbay.help listed again as patchbay.help:443)
@@ -252,9 +254,52 @@ features:
       - test/siwa_server_web/controllers/control_controller_test.exs
       - test/siwa_server/customers_concurrency_test.exs
     gaps:
-      - Nothing calls a server key yet (SiwaServer.Customers.site_for_key/1 is tested, not used), and nothing proves a production site's origins, so originProof stays unverified.
+      - Nothing proves a production site's origins yet, so originProof stays unverified until it is set by hand.
       - The database's own rules (one customer per person, one site per audience, 1 to 10 distinct origins, proof only for production, key hash and prefix shape) were walked by hand in psql on 14 Nov 2026; no test breaks them directly.
       - No property test over audience and origin spellings of its own; the https:// origin rule is the one SIWA_WALLET_ORIGINS uses, whose property test covers lookalikes.
+
+  - id: site-key-verification
+    what: A customer's site checks its agents' signed requests with its server key; a production site's request is used up and its agent counted once per customer and billing period in one transaction, never past the period's cap, and a request refused for billing or the cap stays unused.
+    who: agent
+    level: protected
+    paths:
+      - lib/siwa_server_web/agent_siwa_controller.ex
+      - lib/siwa_server/siwa/http_verifier.ex
+      - lib/siwa_server/audiences.ex
+      - lib/siwa_server/billing.ex
+      - lib/siwa_server/billing/**
+      - priv/repo/migrations/20261114180000_create_billing_periods_and_monthly_active_agents.exs
+    entry:
+      - route: POST /api/shared/siwa/http-verify
+    proofs:
+      - test/siwa_server_web/controllers/keyed_http_verify_test.exs
+      - test/siwa_server/billing_concurrency_test.exs
+      - test/siwa_server/price_property_test.exs
+    gaps:
+      - No browser e2e: API only.
+      - Nothing opens a paid customer's period yet (no billing provider), so a paid customer's production sites answer billing_required; only an internal customer's month opens by itself.
+      - The agent clients find an audience in the public list, which names only SIWA_WALLET_ORIGINS; an agent signing in for a customer's site must be given its audience.
+      - The cap test was run once against a conditional update with its cap condition removed (14 Nov 2026) and failed; the database's own cap rule fired too. No test breaks the other billing rules in the database (no overlapping periods, cap at least 9900, subject shape) directly.
+      - btree_gist, which the no-overlap rule needs, was created on the local database only; that the production role may create it is not proven.
+
+  - id: billing-cap-and-usage
+    what: A person reads their customer's usage this billing period, sets or removes its cap, never below the base fee or the fee already reached, and lists the agents counted this period a page at a time, only their own.
+    who: person
+    level: protected
+    paths:
+      - lib/siwa_server/customers.ex
+      - lib/siwa_server/billing.ex
+      - lib/siwa_server/billing/**
+      - lib/siwa_server_web/control_controller.ex
+    entry:
+      - route: GET /api/control/v1/account
+      - route: PUT /api/control/v1/cap
+      - route: GET /api/control/v1/agents
+    proofs:
+      - test/siwa_server_web/controllers/control_controller_test.exs
+      - test/siwa_server/price_property_test.exs
+    gaps:
+      - No browser e2e: no site calls these routes yet.
 
   - id: discovery-and-readiness
     what: The service describes itself, says when it is ready and which checks failed, and serves its contract and the websites guide.

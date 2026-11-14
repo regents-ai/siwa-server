@@ -2,7 +2,8 @@ defmodule SiwaServer.Customers.Customer do
   @moduledoc """
   A company that uses the paid product. In this slice each person owns at most
   one, named by their Privy DID (`owner_did`), and every customer made through
-  the control API is `paid`.
+  the control API is `paid`. `cap_cents` is the most it pays a billing period,
+  copied into each period it opens (`SiwaServer.Billing`); nil for no cap.
   """
 
   use Ecto.Schema
@@ -17,6 +18,7 @@ defmodule SiwaServer.Customers.Customer do
     field :owner_did, :string
     field :name, :string
     field :kind, Ecto.Enum, values: [:paid, :internal]
+    field :cap_cents, :integer
 
     timestamps(type: :utc_datetime)
   end
