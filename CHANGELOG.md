@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 14 November 2026, site proof
+
 - A company proves its production site's addresses are its own. Each site has a public
   token; the company puts it in a file at `/.well-known/siwa-site.txt` on each of the
   site's addresses and asks for a check with `POST /api/control/v1/sites/{id}/proof`. When
