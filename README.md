@@ -190,7 +190,8 @@ the Regent sites from `/api/shared/siwa/audiences`.
 ## Control API
 
 The paid sign-in product's customers manage their account here: a customer, its cap and
-usage, the agents counted this billing period, its sites, and each site's server keys.
+usage, the agents counted this billing period, its sites, each site's server keys, and its
+subscription and invoices (see [Billing](#billing)).
 Regent sites (the template first, then regents.sh, Patchbay and Chainagent) call it from
 their own server for the person signed in to them with Privy. A site's server key is what
 the site sends to `http-verify` (see [Server keys](#public-routes)); a usable site's
@@ -277,7 +278,7 @@ resolved twice; a redirect is never followed; nothing is retried; and the read s
 | Route | Body | Success |
 | --- | --- | --- |
 | `POST /session` | none (headers above) | `200 control_session` |
-| `GET /account` | none | `200 account`, with `usage` this period or null |
+| `GET /account` | none | `200 account`, with `usage` this period or null, and `billing` |
 | `POST /customer` | `name` | `201 customer_created` |
 | `PATCH /customer` | `name` | `200 customer_updated` |
 | `PUT /cap` | `capCents`, a whole number of cents or null | `200 cap_updated`, the customer and `usage` |
@@ -291,12 +292,15 @@ resolved twice; a redirect is never followed; nothing is retried; and the read s
 | `GET /sites/{id}/keys` | none | `200 site_keys`, newest first, revoked ones too |
 | `POST /sites/{id}/keys` | none | `201 site_key_created`, the only answer holding `key` |
 | `DELETE /sites/{id}/keys/{key_id}` | none | `200 site_key_revoked`; again changes nothing |
+| `POST /billing/checkout` | `returnUrl` | `200 billing_checkout`, the Stripe Checkout page's `url` |
+| `POST /billing/portal` | `returnUrl` | `200 billing_portal`, the Stripe billing page's `url` |
+| `GET /billing/invoices?after=&limit=` | none | `200 invoices`, read from Stripe newest first, `limit` 1 to 50 (12 when left out), and `next` for `after` |
 
 Every path is under `/api/control/v1`. Examples, each with `Authorization: Bearer <control token>`:
 
 ```http
 GET /api/control/v1/account
-200 {"code":"account","data":{"did":"did:privy:cmabc123","customer":null,"usage":null}}
+200 {"code":"account","data":{"did":"did:privy:cmabc123","customer":null,"usage":null,"billing":{"configured":true,"subscriptionStatus":null}}}
 
 POST /api/control/v1/customer   {"name":"Acme"}
 201 {"code":"customer_created","data":{"id":"551352af-783e-4b8e-b409-24b8555683d7","name":"Acme","kind":"paid","capCents":null,"createdAt":"2026-11-14T06:56:57Z","updatedAt":"2026-11-14T06:56:57Z"}}
@@ -339,6 +343,15 @@ GET /api/control/v1/sites/204cdfd8-.../keys
 
 DELETE /api/control/v1/sites/204cdfd8-.../keys/f5abb4c6-...
 200 {"code":"site_key_revoked","data":{"id":"f5abb4c6-...","prefix":"siwa_sk_live_QssKxd","createdAt":"2026-11-14T06:56:57Z","revokedAt":"2026-11-14T06:56:57Z"}}
+
+POST /api/control/v1/billing/checkout   {"returnUrl":"https://regents.sh/billing"}
+200 {"code":"billing_checkout","data":{"url":"https://checkout.stripe.com/c/pay/cs_test_a1..."}}
+
+POST /api/control/v1/billing/portal   {"returnUrl":"https://regents.sh/billing"}
+200 {"code":"billing_portal","data":{"url":"https://billing.stripe.com/p/session/test_YWNj..."}}
+
+GET /api/control/v1/billing/invoices?limit=1
+200 {"code":"invoices","data":{"invoices":[{"id":"in_1Q...","createdAt":"2026-12-01T09:31:02Z","periodStartsAt":"2026-11-01T09:30:00Z","periodEndsAt":"2026-12-01T09:30:00Z","totalCents":24750,"status":"paid","hostedUrl":"https://invoice.stripe.com/i/acct_.../test_YW...","agents":2500}],"next":"in_1Q..."}}
 ```
 
 A refusal is `{"error":{"code","message","hint"}}`; a field refusal adds `fields`, each
@@ -353,15 +366,72 @@ field's reasons:
 | 400 | `control_request_invalid` | The body holds a field the route does not take, such as `audience` on `PATCH /sites/{id}`, or the query a parameter it does not take. |
 | 401 | `privy_proof_invalid` | `POST /session`: the Privy tokens are missing, expired, for another app, from two sign-ins, or not signed by Privy. |
 | 401 | `control_token_invalid` | The control token is missing, not valid or older than 15 minutes. |
-| 404 | `customer_not_found` | The person has no customer yet (`PATCH /customer`, `PUT /cap`, `GET /agents` and every site route). |
+| 404 | `customer_not_found` | The person has no customer yet (`PATCH /customer`, `PUT /cap`, `GET /agents`, every site route and every billing route). |
 | 404 | `site_not_found` | No site with that id among the person's sites that are not archived. |
 | 404 | `site_key_not_found` | No key with that id on that site. |
 | 409 | `customer_exists` | `POST /customer` when the person already has one. |
 | 409 | `site_key_limit` | The site already has 5 keys that are not revoked. |
 | 409 | `site_proof_not_needed` | `POST /sites/{id}/proof` on a sandbox site, which needs no proof. |
-| 422 | `control_fields_invalid` | A field broke its rule; `fields` says which and why. On `PUT /cap`, a cap below 9900 or below the fee this period has already reached; on `GET /agents`, a `limit` outside 1 to 200 or an `after` this list did not give. |
-| 429 | `rate_limited` | `POST /session` more than 600 times a minute from one computer, or `POST /sites/{id}/proof` more than 10 times a minute for one site; `retry-after` says when to try again. |
+| 409 | `subscription_exists` | `POST /billing/checkout` while the customer's subscription is `active`, `trialing` or `past_due`. |
+| 409 | `billing_not_needed` | `POST /billing/checkout` for an internal customer, which is not billed. |
+| 409 | `billing_not_started` | `POST /billing/portal` before the customer's first checkout. |
+| 422 | `control_fields_invalid` | A field broke its rule; `fields` says which and why. On `PUT /cap`, a cap below 9900 or below the fee this period has already reached; on `GET /agents`, a `limit` outside 1 to 200 or an `after` this list did not give; on `GET /billing/invoices`, a `limit` outside 1 to 50 or an `after` that is not an invoice id; on the billing pages, a `returnUrl` that is not https on one of `SIWA_PORTAL_ORIGINS`. |
+| 429 | `rate_limited` | `POST /session` more than 600 times a minute from one computer, `POST /sites/{id}/proof` more than 10 times a minute for one site, or `GET /billing/invoices` more than 30 times a minute for one customer; `retry-after` says when to try again. |
+| 502 | `billing_provider_failed` | A billing route: Stripe did not answer as expected. Nothing changed here. |
 | 503 | `control_not_configured` | The Privy settings are not set on this server. |
+| 503 | `billing_not_configured` | A billing route: the Stripe settings are not all set on this server. |
+
+## Billing
+
+A paid customer's production sites take agents only while its Stripe subscription is
+`active`, `trialing` or `past_due`; otherwise `http-verify` answers `402 billing_required`.
+Internal customers are not billed and count by calendar month as before.
+
+**Subscribing.** The site sends its person to `POST /billing/checkout`'s page. The first
+call makes the customer's Stripe customer, named with the customer's name, with its SIWA id
+in its metadata and no email, and every later call uses it. The page subscribes it to the
+one SIWA price: 99 dollars a month for up to 1,000 agents, then 9.9 cents for each agent
+after. `POST /billing/portal` opens Stripe's billing page for it. Both send the person back
+to `returnUrl`, which must be https on one of `SIWA_PORTAL_ORIGINS` exactly.
+
+**Periods.** Each billing period is the subscription's current period as Stripe gives it.
+When a period ends before Stripe's notice of the next one arrives, the first agent counted
+opens the next period at the exact end of the last one, a calendar month long, and Stripe's
+period replaces that end when its notice arrives.
+
+**Counting to Stripe.** Every 5 minutes, each paid period whose count rose since it was
+last sent sends its whole agent count to Stripe's meter (`siwa_active_agents`, which keeps
+the last value). A minute after the period ends the final count is sent, then the meter is
+read back and compared with the count here. Stripe bills by the minute, so counts are sent
+for the period's last whole minute at the latest.
+
+**Checks.** If the meter still disagrees after 10 minutes, the period is marked, the log
+says `billing check failed check=meter`, and its invoice is held as a draft
+(`auto_advance` off) for someone to look at. When the invoice is finalised, the agents and
+total it bills are compared with the count and the price; a difference is logged as
+`billing check failed check=invoice`. A second running subscription for one customer is
+logged as `check=subscription` and not taken in. Each one also counts in
+`siwa_server_billing_check_failures_total`, by `check`. Nothing here ever changes a count.
+
+**Setting it up.** Run the setup task once for each Stripe account; it finds or makes the
+meter, product and price, changes nothing when run again, and prints the two settings:
+
+```bash
+mix siwa_server.stripe_setup
+```
+
+Then add a webhook endpoint in Stripe for `https://<host>/api/stripe/webhook` sending
+`checkout.session.completed`, `customer.subscription.created`,
+`customer.subscription.updated`, `customer.subscription.deleted`, `invoice.created` and
+`invoice.finalized`, and set its signing secret as `STRIPE_WEBHOOK_SECRET`. The endpoint
+takes only notices its `Stripe-Signature` signs, at most 5 minutes old; each is kept once by
+its id, and what it says is read from Stripe again before it is acted on.
+
+Billing is off until all five of `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+`STRIPE_PRICE_ID`, `STRIPE_METER_EVENT_NAME` and `SIWA_PORTAL_ORIGINS` are set; every billing
+route and the webhook then answer `503 billing_not_configured`, and the account says
+`"configured": false`. `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are secrets: set them
+with `fly secrets set`, never in `fly.toml`.
 
 ## Required configuration
 
@@ -392,6 +462,12 @@ field's reasons:
 | `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Expired nonce, replay and activity rows removed per batch. A sweep runs once a minute and repeats batches until one comes back short, at most 20 for each kind. |
 | `PRIVY_APP_ID` | unset | The Privy app whose signed-in people may use the [control API](#control-api). Unset turns the control API off. |
 | `PRIVY_VERIFICATION_KEY` | unset | That Privy app's ES256 verification **public** key, not its app secret: the PEM with real line breaks, for example `fly secrets set PRIVY_VERIFICATION_KEY="$(cat privy-verification-key.pem)"`. Unset turns the control API off. |
+| `STRIPE_SECRET_KEY` | unset | Secret. The Stripe key billing calls Stripe with. Unset turns [billing](#billing) off. |
+| `STRIPE_WEBHOOK_SECRET` | unset | Secret. The signing secret of Stripe's webhook endpoint for `/api/stripe/webhook`. Unset turns billing off. |
+| `STRIPE_PRICE_ID` | unset | The price customers subscribe to, as `mix siwa_server.stripe_setup` prints it. Unset turns billing off. |
+| `STRIPE_METER_EVENT_NAME` | unset | The meter's event name, as the setup task prints it (`siwa_active_agents`). Unset turns billing off. |
+| `SIWA_PORTAL_ORIGINS` | unset | The https origins, comma separated, of the pages people may come back to from Stripe's pages. Unset turns billing off. |
+| `STRIPE_TEST_KEY_FILE` | unset | Off production only: a file holding a Stripe test-mode key, read instead of `STRIPE_SECRET_KEY`. |
 
 > [!WARNING]
 > `SIWA_RECEIPT_SECRET` and `KEYSTORE_PASSWORD` are the two values that keep this service

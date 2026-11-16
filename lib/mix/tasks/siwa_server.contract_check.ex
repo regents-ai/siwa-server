@@ -46,7 +46,14 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     {"POST", "/api/control/v1/sites/{id}/proof"} => MapSet.new(~w(200 401 404 409 429 503)),
     {"GET", "/api/control/v1/sites/{id}/keys"} => MapSet.new(~w(200 401 404 503)),
     {"POST", "/api/control/v1/sites/{id}/keys"} => MapSet.new(~w(201 401 404 409 503)),
-    {"DELETE", "/api/control/v1/sites/{id}/keys/{key_id}"} => MapSet.new(~w(200 401 404 503))
+    {"DELETE", "/api/control/v1/sites/{id}/keys/{key_id}"} => MapSet.new(~w(200 401 404 503)),
+    {"POST", "/api/control/v1/billing/checkout"} =>
+      MapSet.new(~w(200 400 401 404 409 413 415 422 502 503)),
+    {"POST", "/api/control/v1/billing/portal"} =>
+      MapSet.new(~w(200 400 401 404 409 413 415 422 502 503)),
+    {"GET", "/api/control/v1/billing/invoices"} =>
+      MapSet.new(~w(200 400 401 404 422 429 502 503)),
+    {"POST", "/api/stripe/webhook"} => MapSet.new(~w(200 400 413 415 503))
   }
 
   @impl Mix.Task

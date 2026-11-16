@@ -5,6 +5,30 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- Customers pay through Stripe. `POST /api/control/v1/billing/checkout` answers a Stripe
+  Checkout page where the person subscribes their customer: 99 dollars a month for up to
+  1,000 agents, then 9.9 cents for each agent after. `POST /api/control/v1/billing/portal`
+  answers Stripe's billing page for it, and `GET /api/control/v1/billing/invoices` lists its
+  invoices from Stripe, with the agents each bills. Both pages send the person back only to
+  an https page on one of `SIWA_PORTAL_ORIGINS`.
+- `GET /api/control/v1/account` adds `billing`: whether billing runs on this server, and the
+  customer's subscription status as Stripe last gave it.
+- A paid customer's production sites take agents only while its subscription is active,
+  trialing or past due; otherwise `http-verify` answers `402 billing_required`. Each billing
+  period is the subscription's period. Internal customers are unchanged.
+- Each period's agent count goes to Stripe's meter every 5 minutes while it rises, and a
+  final time just after the period ends. Then the meter and the finalised invoice are checked
+  against the count; a meter that disagrees holds the invoice as a draft and is logged as
+  `billing check failed`. Nothing changes a count.
+- Stripe's notices arrive at `POST /api/stripe/webhook`, signed; each is kept once and acted
+  on after reading Stripe again.
+- For whoever releases: billing stays off, answering `503 billing_not_configured`, until
+  `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` (secrets) and `STRIPE_PRICE_ID` and
+  `SIWA_PORTAL_ORIGINS` are set (`STRIPE_METER_EVENT_NAME` is in `fly.toml`). Until a paid
+  customer subscribes, its production sites answer `402 billing_required`. Migration
+  `20261115120000` adds nullable or defaulted columns to `customers` and `billing_periods`
+  and a new `stripe_events` table; the release before it ignores them.
+
 ## 14 November 2026, site proof
 
 - A company proves its production site's addresses are its own. Each site has a public

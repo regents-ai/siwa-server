@@ -19,6 +19,9 @@ kill_timeout = "5s"
   PRIVY_APP_ID = "cmky518c003ngl40cc3wlyc99"
   PRIVY_VERIFICATION_KEY = "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEIUR2EQRL9xzLYpvbM+MTytts9OUO\n9rNWxKoJD0O3I5o7r+oIikQafRKybOG5gmoMGDsmmCryO/H77yn2RTEAjA==\n-----END PUBLIC KEY-----\n"
   SIWA_CLEANUP_BATCH_SIZE = "10000"
+  # The event name of the Stripe meter SIWA bills on, the same in every Stripe account
+  # (mix siwa_server.stripe_setup prints it).
+  STRIPE_METER_EVENT_NAME = "siwa_active_agents"
   SIWA_WALLET_ORIGINS = "patchbay=https://patchbay.help,regents=https://regents.sh,keyfleet=https://keyfleet.ai,keyfleet=https://regents-club.notebooks.keyfleet.ai,keyfleet=https://fleet-tech-classic.notebooks.keyfleet.ai,keyfleet=https://code.keyfleet.ai,techtree=https://techtree.sh,ash-template=https://template.regents.sh,regents-mobile=https://regents-mobile-server.fly.dev,autolaunch=https://autolaunch.sh,chainagent=https://chainagent.ai"
 
 [metrics]

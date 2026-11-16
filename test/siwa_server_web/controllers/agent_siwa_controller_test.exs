@@ -241,7 +241,11 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/api/control/v1/sites/{id}",
                "/api/control/v1/sites/{id}/proof",
                "/api/control/v1/sites/{id}/keys",
-               "/api/control/v1/sites/{id}/keys/{key_id}"
+               "/api/control/v1/sites/{id}/keys/{key_id}",
+               "/api/control/v1/billing/checkout",
+               "/api/control/v1/billing/portal",
+               "/api/control/v1/billing/invoices",
+               "/api/stripe/webhook"
              ])
 
     assert operation_response_codes(contract, "/api/shared/siwa/http-verify", "post") ==

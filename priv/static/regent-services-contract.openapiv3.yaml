@@ -323,7 +323,8 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "402":
           description: >-
-            The production site's customer has no billing period running now
+            The production site's customer has no billing period running now,
+            or its subscription is not active, trialing or past_due
             (billing_required), or its period's cap has no room for another new
             agent (agent_cap_reached). The request is not used up.
           content:
@@ -1390,6 +1391,207 @@ paths:
           $ref: "#/components/responses/ControlNotFound"
         "503":
           $ref: "#/components/responses/ControlNotConfigured"
+  /api/control/v1/billing/checkout:
+    post:
+      operationId: startControlCheckout
+      summary: A Stripe Checkout page where the person subscribes their customer
+      description: >-
+        The customer's Stripe customer is made on the first call, named with
+        the customer's name and holding no email, and kept for every later
+        call. The page subscribes it to the one SIWA price and sends the person
+        back to returnUrl when they finish or leave. Send the person to url.
+      tags: [control]
+      security:
+        - ControlToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillingReturnRequest"
+      responses:
+        "200":
+          description: The Checkout page (billing_checkout)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingPageResponse"
+        "400":
+          $ref: "#/components/responses/ControlRequestInvalid"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "404":
+          $ref: "#/components/responses/ControlNotFound"
+        "409":
+          description: >-
+            The customer's subscription is active, trialing or past_due
+            (subscription_exists), or the customer is internal and not billed
+            (billing_not_needed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          $ref: "#/components/responses/ControlBodyTooLarge"
+        "415":
+          $ref: "#/components/responses/ControlUnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ControlFieldsInvalid"
+        "502":
+          $ref: "#/components/responses/BillingProviderFailed"
+        "503":
+          $ref: "#/components/responses/BillingNotConfigured"
+  /api/control/v1/billing/portal:
+    post:
+      operationId: openControlBillingPortal
+      summary: A Stripe billing page where the person manages their customer's subscription
+      description: >-
+        Stripe's customer portal for the customer's Stripe customer, with what
+        the Stripe account's portal settings allow (such as changing the card
+        or cancelling), then back to returnUrl. Send the person to url.
+      tags: [control]
+      security:
+        - ControlToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillingReturnRequest"
+      responses:
+        "200":
+          description: The billing page (billing_portal)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingPageResponse"
+        "400":
+          $ref: "#/components/responses/ControlRequestInvalid"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "404":
+          $ref: "#/components/responses/ControlNotFound"
+        "409":
+          description: The customer has not started a checkout yet, so Stripe has nothing for it (billing_not_started)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          $ref: "#/components/responses/ControlBodyTooLarge"
+        "415":
+          $ref: "#/components/responses/ControlUnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ControlFieldsInvalid"
+        "502":
+          $ref: "#/components/responses/BillingProviderFailed"
+        "503":
+          $ref: "#/components/responses/BillingNotConfigured"
+  /api/control/v1/billing/invoices:
+    get:
+      operationId: listControlInvoices
+      summary: The customer's Stripe invoices, newest first
+      description: >-
+        Read from Stripe on each call, so each shows Stripe's status now. Empty
+        before the customer's first checkout. At most 30 reads a minute for
+        each customer.
+      tags: [control]
+      security:
+        - ControlToken: []
+      parameters:
+        - in: query
+          name: after
+          required: false
+          schema:
+            type: string
+            pattern: "^in_[A-Za-z0-9]{1,250}$"
+          description: The next cursor a previous page gave.
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 12
+      responses:
+        "200":
+          description: A page of invoices (invoices)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoicesResponse"
+        "400":
+          description: The query has a parameter this route does not take (control_request_invalid)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/ControlTokenInvalid"
+        "404":
+          $ref: "#/components/responses/ControlNotFound"
+        "422":
+          $ref: "#/components/responses/ControlFieldsInvalid"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
+        "502":
+          $ref: "#/components/responses/BillingProviderFailed"
+        "503":
+          $ref: "#/components/responses/BillingNotConfigured"
+  /api/stripe/webhook:
+    post:
+      operationId: takeStripeNotice
+      summary: Stripe's signed notices about subscriptions and invoices
+      description: >-
+        Called by Stripe only. The Stripe-Signature header must sign the body
+        exactly as sent with the endpoint's signing secret, at a time within 5
+        minutes of this server's. Each notice is kept once by its id and acted
+        on after the answer, by reading the subscription or invoice from Stripe
+        again; a notice sent again is answered the same and does nothing.
+        Notices of other kinds are answered and ignored.
+      tags: [internal]
+      parameters:
+        - in: header
+          name: Stripe-Signature
+          required: true
+          schema:
+            type: string
+          description: t=<unix seconds>,v1=<hex HMAC-SHA256 of "t.body">, with one v1 for each signing secret.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LooseObject"
+      responses:
+        "200":
+          description: The notice is taken, or was taken before (notice_received)
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [code]
+                properties:
+                  code:
+                    type: string
+                    enum: [notice_received]
+        "400":
+          description: >-
+            The Stripe-Signature header is missing, malformed, too old or does
+            not sign this body (stripe_signature_invalid), or the body is not
+            JSON (bad_request). Nothing is kept.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          $ref: "#/components/responses/ControlBodyTooLarge"
+        "415":
+          $ref: "#/components/responses/ControlUnsupportedMediaType"
+        "503":
+          $ref: "#/components/responses/BillingNotConfigured"
 components:
   securitySchemes:
     ActivityReadToken:
@@ -1480,6 +1682,21 @@ components:
             $ref: "#/components/schemas/ErrorEnvelope"
     ControlUnsupportedMediaType:
       description: The body is not application/json (unsupported_media_type)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    BillingNotConfigured:
+      description: >-
+        Billing is off on this server until its Stripe settings are set
+        (billing_not_configured); on the control routes, also while the control
+        API is off (control_not_configured)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    BillingProviderFailed:
+      description: Stripe did not answer as expected; nothing was changed here (billing_provider_failed)
       content:
         application/json:
           schema:
@@ -2319,7 +2536,7 @@ components:
         data:
           type: object
           additionalProperties: false
-          required: [did, customer, usage]
+          required: [did, customer, usage, billing]
           properties:
             did:
               $ref: "#/components/schemas/PrivyDid"
@@ -2330,6 +2547,112 @@ components:
                 - type: "null"
             usage:
               $ref: "#/components/schemas/Usage"
+            billing:
+              $ref: "#/components/schemas/Billing"
+    Billing:
+      type: object
+      additionalProperties: false
+      required: [configured, subscriptionStatus]
+      properties:
+        configured:
+          description: Whether billing runs on this server; when false the billing routes answer 503.
+          type: boolean
+        subscriptionStatus:
+          description: >-
+            The customer's subscription status as Stripe last gave it, or null
+            before it subscribes or with no customer. Production sites take
+            agents while it is active, trialing or past_due.
+          oneOf:
+            - type: string
+              enum:
+                [incomplete, incomplete_expired, trialing, active, past_due, canceled, unpaid, paused]
+            - type: "null"
+    BillingReturnRequest:
+      type: object
+      additionalProperties: false
+      required: [returnUrl]
+      properties:
+        returnUrl:
+          description: >-
+            Where Stripe sends the person back: an https address, at most 2048
+            characters, with no user and no port but 443, whose origin is
+            exactly one of this server's SIWA_PORTAL_ORIGINS.
+          type: string
+          format: uri
+          maxLength: 2048
+    BillingPageResponse:
+      type: object
+      additionalProperties: false
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [billing_checkout, billing_portal]
+        data:
+          type: object
+          additionalProperties: false
+          required: [url]
+          properties:
+            url:
+              description: The Stripe page to send the person to now. Stripe makes it expire, so ask for a new one each visit.
+              type: string
+              format: uri
+    Invoice:
+      type: object
+      additionalProperties: false
+      required:
+        [id, createdAt, periodStartsAt, periodEndsAt, totalCents, status, hostedUrl, agents]
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        periodStartsAt:
+          type: string
+          format: date-time
+        periodEndsAt:
+          description: The billed period's end, which is not in it.
+          type: string
+          format: date-time
+        totalCents:
+          description: The invoice's total, in whole cents.
+          type: integer
+        status:
+          type: string
+          enum: [draft, open, paid, uncollectible, void]
+        hostedUrl:
+          description: Stripe's page for the invoice, or null while it is a draft.
+          oneOf:
+            - type: string
+              format: uri
+            - type: "null"
+        agents:
+          description: The agents the invoice bills.
+          type: integer
+          minimum: 0
+    InvoicesResponse:
+      type: object
+      additionalProperties: false
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [invoices]
+        data:
+          type: object
+          additionalProperties: false
+          required: [invoices, next]
+          properties:
+            invoices:
+              type: array
+              items:
+                $ref: "#/components/schemas/Invoice"
+            next:
+              description: The cursor for the next page as after, or null on the last page.
+              oneOf:
+                - type: string
+                - type: "null"
     CapCents:
       description: The most the customer pays in one billing period, in cents, or null for no cap.
       oneOf:
