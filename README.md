@@ -433,6 +433,10 @@ route and the webhook then answer `503 billing_not_configured`, and the account 
 `"configured": false`. `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are secrets: set them
 with `fly secrets set`, never in `fly.toml`.
 
+`STRIPE_TEST_KEY_FILE=<file holding a test-mode key> mix test --only stripe_live` runs the whole
+of billing against Stripe's test mode in about 30 minutes, with each first period a few minutes
+long; it leaves no rows behind and cancels the subscriptions it made. The usual test run skips it.
+
 ## Required configuration
 
 | Variable | Required | What it is for |
