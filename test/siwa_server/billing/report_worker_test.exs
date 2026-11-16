@@ -107,11 +107,11 @@ defmodule SiwaServer.Billing.ReportWorkerTest do
   end
 
   test "the sweep forgets the records of notices older than thirty days and keeps the rest" do
-    days_ago = fn days -> DateTime.add(DateTime.utc_now(), -days, :day) end
+    at(~U[2026-11-01 10:40:00Z])
 
     Repo.insert_all("stripe_events", [
-      %{id: "evt_old", type: "invoice.created", inserted_at: days_ago.(31)},
-      %{id: "evt_recent", type: "invoice.created", inserted_at: days_ago.(29)}
+      %{id: "evt_old", type: "invoice.created", inserted_at: ~U[2026-10-02 10:39:00.000000Z]},
+      %{id: "evt_recent", type: "invoice.created", inserted_at: ~U[2026-10-02 10:41:00.000000Z]}
     ])
 
     assert :ok = perform_job(SweepWorker, %{})
