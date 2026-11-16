@@ -24,6 +24,14 @@ config :siwa_server, :siwa,
 # The control API checks a person's Privy sign-in with these; unset turns it off.
 config :siwa_server, :privy, app_id: nil, verification_key: nil
 
+# Billing through Stripe; any one unset turns it off (SiwaServer.Config.stripe/0).
+config :siwa_server, :stripe,
+  secret_key: nil,
+  webhook_secret: nil,
+  price_id: nil,
+  meter_event_name: nil,
+  portal_origins: []
+
 config :siwa_server, Oban,
   repo: SiwaServer.Repo,
   notifier: Oban.Notifiers.PG,

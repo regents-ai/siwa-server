@@ -13,7 +13,7 @@ defmodule SiwaServer.SecretAllowlistTest do
     assert allowlist =~ "  - per_site_siwa_activity_read_keys"
     assert allowlist =~ "  - product_billing_secret"
     assert allowlist =~ "  - mobile_payment_secret"
-    refute allowlist =~ "STRIPE_SECRET"
+    assert allowlist =~ "  - siwa_billing_stripe_keys"
     refute allowlist =~ "PRIVY_APP_SECRET"
   end
 

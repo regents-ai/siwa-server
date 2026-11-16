@@ -65,6 +65,58 @@ defmodule SiwaServer.Config do
     end
   end
 
+  @doc """
+  The Stripe settings billing runs on, or `:error` while any is unset: billing
+  is then off. The secret key, the webhook signing secret, the one price
+  customers subscribe to, the meter event name its usage is reported under, and
+  the origins of the pages a person may return to from Stripe.
+  """
+  @spec stripe() ::
+          {:ok,
+           %{
+             secret_key: String.t(),
+             webhook_secret: String.t(),
+             price_id: String.t(),
+             meter_event_name: String.t(),
+             portal_origins: [String.t(), ...]
+           }}
+          | :error
+  def stripe do
+    stripe = Application.fetch_env!(:siwa_server, :stripe) |> Map.new()
+
+    if Enum.all?(Map.values(stripe), &(&1 not in [nil, []])),
+      do: {:ok, stripe},
+      else: :error
+  end
+
+  @doc "The Stripe secret key, or nil while unset."
+  @spec stripe_secret_key() :: String.t() | nil
+  def stripe_secret_key, do: Application.fetch_env!(:siwa_server, :stripe)[:secret_key]
+
+  @doc """
+  Parses `SIWA_PORTAL_ORIGINS`, the origins of the pages a person may come back
+  to from Stripe's checkout and billing pages, comma separated, each `https://`
+  in the one spelling `wallet_origins!/2` takes. Unset or empty is none.
+  """
+  @spec portal_origins!(String.t() | nil) :: [String.t()]
+  def portal_origins!(nil), do: []
+
+  def portal_origins!(value) do
+    value
+    |> entries()
+    |> Enum.map(fn origin ->
+      origin = String.replace_suffix(origin, "/", "")
+
+      unless https_origin?(origin) do
+        raise ArgumentError,
+              "SIWA_PORTAL_ORIGINS origin #{inspect(origin)} must be https:// and a lowercase host, with nothing else"
+      end
+
+      origin
+    end)
+    |> Enum.uniq()
+  end
+
   @doc "Whether `name` is a site's name, the audience its agents sign in for."
   @spec site_name?(String.t()) :: boolean()
   def site_name?(name), do: Regex.match?(@site_regex, name)
