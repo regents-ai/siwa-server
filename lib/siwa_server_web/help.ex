@@ -282,6 +282,33 @@ defmodule SiwaServerWeb.Help do
   defp steps("site_proof_not_needed", _context),
     do: "A sandbox site's local origins need no proof: agents can sign in for it as it is."
 
+  defp steps("billing_not_configured", _context) do
+    "This server's billing is off until its Stripe settings are set. Tell the people who run it."
+  end
+
+  defp steps("billing_not_needed", _context),
+    do: "This customer is not billed, so it has nothing to subscribe to."
+
+  defp steps("subscription_exists", _context) do
+    [
+      "The customer's subscription is already running. Send the person to ",
+      "POST /api/control/v1/billing/portal to change or cancel it."
+    ]
+  end
+
+  defp steps("billing_not_started", _context),
+    do: "The customer has not subscribed yet. Start with POST /api/control/v1/billing/checkout."
+
+  defp steps("billing_provider_failed", _context),
+    do: "Stripe did not answer as expected just now. Wait a minute and try again."
+
+  defp steps("stripe_signature_invalid", _context) do
+    [
+      "This address takes only Stripe's signed notices. Check the endpoint's signing secret ",
+      "matches STRIPE_WEBHOOK_SECRET."
+    ]
+  end
+
   defp steps(_code, _context) do
     [
       "The sign-in service had a problem on its side. Wait a minute and try again. ",

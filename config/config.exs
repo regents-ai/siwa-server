@@ -35,11 +35,12 @@ config :siwa_server, :stripe,
 config :siwa_server, Oban,
   repo: SiwaServer.Repo,
   notifier: Oban.Notifiers.PG,
-  queues: [cleanup: 1, chain: 1],
+  queues: [cleanup: 1, chain: 1, billing: 1, stripe: 2],
   cron: [
     crontab: [
       {"* * * * *", SiwaServer.Siwa.CleanupWorker},
-      {"*/5 * * * *", SiwaServer.AgentRegistration.OwnerCheckWorker}
+      {"*/5 * * * *", SiwaServer.AgentRegistration.OwnerCheckWorker},
+      {"*/5 * * * *", SiwaServer.Billing.SweepWorker}
     ]
   ],
   pruner: [max_age: {7, :days}],

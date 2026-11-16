@@ -6,6 +6,12 @@ defmodule SiwaServer.Billing.Period do
   (`max_agents`, `SiwaServer.Billing.Price`), how many agents it has counted
   (`active_agents`) and the price it is billed at (`price_version`).
 
+  A paid customer's period is reported to Stripe (`SiwaServer.Billing.ReportWorker`):
+  the count last sent (`reported_agents`) and the second it was sent for
+  (`reported_at`), when the final count was sent (`final_reported_at`), the
+  invoice Stripe bills it on, and whether Stripe's meter and that invoice agree
+  with the count (`meter_check`, `invoice_check`, `SiwaServer.Billing.ReconcileWorker`).
+
   No two periods of one customer overlap, `active_agents` never passes
   `max_agents`, and a cap is never below the minimum fee: the database holds
   each rule as well as this changeset.
@@ -30,6 +36,12 @@ defmodule SiwaServer.Billing.Period do
     field :max_agents, :integer
     field :active_agents, :integer, default: 0
     field :price_version, :string, default: "v1"
+    field :reported_agents, :integer, default: 0
+    field :reported_at, :utc_datetime_usec
+    field :final_reported_at, :utc_datetime_usec
+    field :stripe_invoice_id, :string
+    field :meter_check, Ecto.Enum, values: [:matched, :mismatched]
+    field :invoice_check, Ecto.Enum, values: [:matched, :mismatched]
 
     timestamps(type: :utc_datetime)
   end

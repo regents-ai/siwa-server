@@ -17,7 +17,9 @@ defmodule SiwaServer.Customers do
   fields that failed.
 
   The customer's cap, its current billing period and the agents counted in it
-  are `SiwaServer.Billing`'s; the steps here find the customer for the person.
+  are `SiwaServer.Billing`'s, and its Stripe subscription and invoices
+  `SiwaServer.Billing.Subscription`'s and `SiwaServer.Billing.Invoices`'; the
+  steps here find the customer for the person.
 
   `site_for_key/1` is how request verification finds the site a presented
   server key belongs to (`SiwaServer.Siwa.HttpVerifier`), and `site_audience?/1`
@@ -27,7 +29,7 @@ defmodule SiwaServer.Customers do
   import Ecto.Query
 
   alias SiwaServer.{Billing, RateLimiter, Repo}
-  alias SiwaServer.Billing.{ActiveAgent, Period}
+  alias SiwaServer.Billing.{ActiveAgent, Invoices, Period, Subscription}
   alias SiwaServer.Customers.{Customer, Site, SiteCredential, SiteFile}
 
   @max_keys 5
@@ -73,6 +75,40 @@ defmodule SiwaServer.Customers do
     with {:ok, params} <- query(params, ~w(after limit)),
          {:ok, customer} <- fetch_customer(did),
          do: Billing.agents(customer, params)
+  end
+
+  @doc """
+  A Stripe Checkout page that subscribes the person's customer
+  (`SiwaServer.Billing.Subscription.checkout/3`), coming back to `returnUrl`.
+  """
+  @spec checkout(did(), map(), map()) :: {:ok, String.t()} | refusal()
+  def checkout(did, params, stripe) do
+    with {:ok, params} <- body(params, ~w(returnUrl)),
+         {:ok, return_url} <- Subscription.return_url(params, stripe.portal_origins),
+         {:ok, customer} <- fetch_customer(did),
+         do: Subscription.checkout(customer, return_url, stripe.price_id)
+  end
+
+  @doc "Stripe's billing page for the person's customer, coming back to `returnUrl`."
+  @spec portal(did(), map(), map()) :: {:ok, String.t()} | refusal()
+  def portal(did, params, stripe) do
+    with {:ok, params} <- body(params, ~w(returnUrl)),
+         {:ok, return_url} <- Subscription.return_url(params, stripe.portal_origins),
+         {:ok, customer} <- fetch_customer(did),
+         do: Subscription.portal(customer, return_url)
+  end
+
+  @doc """
+  The customer's invoices as Stripe has them, a page at a time
+  (`SiwaServer.Billing.Invoices.list/2`). At most 30 reads a minute for each
+  customer, since each one asks Stripe.
+  """
+  @spec invoices(did(), map()) :: {:ok, {[Invoices.invoice()], String.t() | nil}} | refusal()
+  def invoices(did, params) do
+    with {:ok, params} <- query(params, ~w(after limit)),
+         {:ok, customer} <- fetch_customer(did),
+         :ok <- allowance(:siwa_billing_invoices, customer.id),
+         do: Invoices.list(customer, params)
   end
 
   @doc "Makes the person's customer, `paid`, unless they have one already."
@@ -163,11 +199,12 @@ defmodule SiwaServer.Customers do
   defp check_proof(_customer, %Site{origin_proof: :verified} = site), do: {:ok, site}
 
   defp check_proof(customer, %Site{origin_proof: :unverified} = site) do
-    with :ok <- proof_allowance(site), do: record_proof(customer, site, first_failure(site))
+    with :ok <- allowance(:siwa_site_proof, site.id),
+         do: record_proof(customer, site, first_failure(site))
   end
 
-  defp proof_allowance(site) do
-    case RateLimiter.check(:siwa_site_proof, site.id) do
+  defp allowance(name, key) do
+    case RateLimiter.check(name, key) do
       :ok ->
         :ok
 

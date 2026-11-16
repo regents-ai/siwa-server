@@ -38,6 +38,18 @@ defmodule SiwaServerWeb.Router do
     plug SiwaServerWeb.Plugs.ControlPerson
   end
 
+  # Billing through Stripe. Without its Stripe settings each of these answers 503.
+  pipeline :control_billing do
+    plug :accepts, ["json"]
+    plug SiwaServerWeb.Plugs.ControlConfigured
+    plug SiwaServerWeb.Plugs.BillingConfigured
+    plug SiwaServerWeb.Plugs.ControlPerson
+  end
+
+  pipeline :stripe_webhook do
+    plug SiwaServerWeb.Plugs.BillingConfigured
+  end
+
   scope "/", SiwaServerWeb do
     get "/", DiscoveryController, :root
     get "/healthz", DiscoveryController, :healthz
@@ -116,5 +128,17 @@ defmodule SiwaServerWeb.Router do
     get "/sites/:id/keys", ControlController, :keys
     post "/sites/:id/keys", ControlController, :create_key
     delete "/sites/:id/keys/:key_id", ControlController, :revoke_key
+  end
+
+  scope "/api/control/v1/billing", SiwaServerWeb do
+    pipe_through :control_billing
+    post "/checkout", ControlController, :checkout
+    post "/portal", ControlController, :portal
+    get "/invoices", ControlController, :invoices
+  end
+
+  scope "/api/stripe", SiwaServerWeb do
+    pipe_through :stripe_webhook
+    post "/webhook", StripeWebhookController, :notice
   end
 end

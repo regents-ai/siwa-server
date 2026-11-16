@@ -2,8 +2,9 @@ defmodule SiwaServerWeb.ControlController do
   @moduledoc """
   The control API a Regent site calls for its signed-in person
   (`/api/control/v1`): the person's customer, its cap and usage this billing
-  period, the agents counted in it, its sites and each site's server keys
-  (`SiwaServer.Customers`). The person is the one the control token names
+  period, the agents counted in it, its sites and each site's server keys, and
+  its subscription and invoices through Stripe (`/api/control/v1/billing`,
+  `SiwaServer.Customers`). The person is the one the control token names
   (`SiwaServerWeb.Plugs.ControlPerson`); nothing in a request chooses whose
   records it reaches.
   """
@@ -11,7 +12,7 @@ defmodule SiwaServerWeb.ControlController do
   use SiwaServerWeb, :controller
 
   alias SiwaServer.Billing.Price
-  alias SiwaServer.Customers
+  alias SiwaServer.{Config, Customers}
   alias SiwaServer.Customers.SiteFile
 
   action_fallback SiwaServerWeb.FallbackController
@@ -22,8 +23,33 @@ defmodule SiwaServerWeb.ControlController do
 
     json(conn, %{
       "code" => "account",
-      "data" => %{"did" => did, "customer" => customer(found), "usage" => usage(period)}
+      "data" => %{
+        "did" => did,
+        "customer" => customer(found),
+        "usage" => usage(period),
+        "billing" => billing(found)
+      }
     })
+  end
+
+  def checkout(conn, _params) do
+    with {:ok, url} <-
+           Customers.checkout(conn.assigns.did, conn.body_params, conn.assigns.stripe),
+         do: answer(conn, :ok, "billing_checkout", %{"url" => url})
+  end
+
+  def portal(conn, _params) do
+    with {:ok, url} <- Customers.portal(conn.assigns.did, conn.body_params, conn.assigns.stripe),
+         do: answer(conn, :ok, "billing_portal", %{"url" => url})
+  end
+
+  def invoices(conn, _params) do
+    with {:ok, {invoices, next}} <- Customers.invoices(conn.assigns.did, conn.query_params),
+         do:
+           answer(conn, :ok, "invoices", %{
+             "invoices" => Enum.map(invoices, &invoice/1),
+             "next" => next
+           })
   end
 
   def put_cap(conn, _params) do
@@ -128,6 +154,28 @@ defmodule SiwaServerWeb.ControlController do
       "feeCents" => period.active_agents |> Price.fee_cents() |> Decimal.to_string(:normal),
       "capCents" => period.cap_cents,
       "maxAgents" => period.max_agents
+    }
+  end
+
+  # Whether billing runs on this server, and the customer's subscription status
+  # as Stripe last gave it, nil before it subscribes.
+  defp billing(customer) do
+    %{
+      "configured" => Config.stripe() != :error,
+      "subscriptionStatus" => customer && customer.subscription_status
+    }
+  end
+
+  defp invoice(invoice) do
+    %{
+      "id" => invoice.id,
+      "createdAt" => time(invoice.created_at),
+      "periodStartsAt" => time(invoice.period_starts_at),
+      "periodEndsAt" => time(invoice.period_ends_at),
+      "totalCents" => invoice.total_cents,
+      "status" => invoice.status,
+      "hostedUrl" => invoice.hosted_url,
+      "agents" => invoice.agents
     }
   end
 

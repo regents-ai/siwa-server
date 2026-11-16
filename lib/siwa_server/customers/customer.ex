@@ -4,6 +4,10 @@ defmodule SiwaServer.Customers.Customer do
   one, named by their Privy DID (`owner_did`), and every customer made through
   the control API is `paid`. `cap_cents` is the most it pays a billing period,
   copied into each period it opens (`SiwaServer.Billing`); nil for no cap.
+
+  A paid customer is billed through Stripe (`SiwaServer.Billing.Subscription`):
+  its Stripe customer, the subscription it pays through and that subscription's
+  status as last read from Stripe, at `stripe_synced_at` by the database clock.
   """
 
   use Ecto.Schema
@@ -19,6 +23,10 @@ defmodule SiwaServer.Customers.Customer do
     field :name, :string
     field :kind, Ecto.Enum, values: [:paid, :internal]
     field :cap_cents, :integer
+    field :stripe_customer_id, :string
+    field :stripe_subscription_id, :string
+    field :subscription_status, :string
+    field :stripe_synced_at, :utc_datetime_usec
 
     timestamps(type: :utc_datetime)
   end

@@ -50,6 +50,17 @@ config :siwa_server, :readiness_keep_ms, 0
 # Each origin's site file is what a test sets under :site_files.
 config :siwa_server, :site_file, SiwaServer.TestSiteFiles
 
+# Billing is on, and every Stripe call is answered by what the test sets
+# (SiwaServer.TestStripe); none leaves the computer.
+config :siwa_server, :stripe,
+  secret_key: "sk_test_siwa_stand_in",
+  webhook_secret: "whsec_siwa_stand_in",
+  price_id: "price_siwa_test",
+  meter_event_name: "siwa_active_agents",
+  portal_origins: ["https://regents.example"]
+
+config :siwa_server, :stripe_http, SiwaServer.TestStripe
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

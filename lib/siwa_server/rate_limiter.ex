@@ -29,6 +29,8 @@ defmodule SiwaServer.RateLimiter do
     siwa_keyed_site: [limit: 6_000, window_ms: 60_000],
     # Counted per customer's site: each check reads a file from every origin.
     siwa_site_proof: [limit: 10, window_ms: 60_000],
+    # Counted per customer: each read asks Stripe for the customer's invoices.
+    siwa_billing_invoices: [limit: 30, window_ms: 60_000],
     # Counted per calling address. An agent looks a site up before each request it signs.
     siwa_audience: [limit: 600, window_ms: 60_000],
     # Counted per calling address, which is a Regent site's server for all of its

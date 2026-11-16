@@ -104,7 +104,8 @@ defmodule SiwaServer.BillingConcurrencyTest do
             owner_did: "did:privy:#{Ecto.UUID.generate()}",
             name: "Acme",
             kind: kind,
-            cap_cents: cap_cents
+            cap_cents: cap_cents,
+            subscription_status: if(kind == :paid, do: "active")
           })
 
         site =

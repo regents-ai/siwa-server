@@ -14,10 +14,15 @@ defmodule SiwaServer.Billing do
   request that counts a new agent wait its turn. An agent already counted
   passes at the cap.
 
-  `open_period/3` opens a period. A `paid` customer's periods will come from
-  its billing provider; until then a paid customer has none and its production
-  sites answer `billing_required`. An `internal` customer's current UTC calendar
-  month opens on first use (`period_to_count/1`).
+  `open_period/3` opens a period. A `paid` customer's periods come from its
+  Stripe subscription (`put_period/3`, `SiwaServer.Billing.Subscription`), and
+  its production sites take agents only while that subscription is `active`,
+  `trialing` or `past_due`; otherwise they answer `billing_required`. When a
+  period has ended and Stripe has not yet told this server the next one, the
+  next opens on first use at exactly the previous end, provisionally one
+  calendar month long, and Stripe's own end replaces that when it arrives. An
+  `internal` customer's current UTC calendar month opens on first use
+  (`period_to_count/1`).
 
   The control API reads and sets a customer's usage and cap through
   `SiwaServer.Customers`, which finds the customer for its person.
@@ -34,6 +39,7 @@ defmodule SiwaServer.Billing do
   @max_integer 2_147_483_647
   @default_page 50
   @max_page 200
+  @working_statuses ~w(active trialing past_due)
 
   @type refusal :: {:error, {pos_integer(), String.t(), String.t()} | Ecto.Changeset.t()}
 
@@ -61,19 +67,57 @@ defmodule SiwaServer.Billing do
 
   @doc """
   The period a production verification counts its agent in. An internal
-  customer's current UTC calendar month opens here the first time; two
-  verifications opening it at once open it once.
+  customer's current UTC calendar month opens here the first time, and so does
+  the period after a paid customer's last one ended; two verifications opening
+  one at once open it once.
   """
   @spec period_to_count(Customer.t()) :: {:ok, Period.t()} | refusal()
   def period_to_count(customer) do
-    case current_period(customer) || open_month(customer) do
-      nil ->
+    case running?(customer) && (current_period(customer) || open_next(customer)) do
+      period when is_struct(period, Period) ->
+        {:ok, period}
+
+      _none ->
         {:error,
          {402, "billing_required", "this site's customer has no billing period running now"}}
-
-      period ->
-        {:ok, period}
     end
+  end
+
+  @doc "The Stripe subscription statuses a paid customer's sites take agents in."
+  @spec working_statuses() :: [String.t(), ...]
+  def working_statuses, do: @working_statuses
+
+  defp running?(%Customer{kind: :internal}), do: true
+
+  defp running?(%Customer{kind: :paid, subscription_status: status}),
+    do: status in @working_statuses
+
+  @doc """
+  Sets the customer's period that starts at `starts_at` to end at `ends_at`,
+  opening it when there is none: Stripe's period of the customer's
+  subscription. A period still running at `starts_at` that began before it ends
+  there. A later period it would overlap is left as it is and the step fails,
+  for the job that asked to try again.
+  """
+  @spec put_period(Customer.t(), DateTime.t(), DateTime.t()) :: Period.t()
+  def put_period(customer, starts_at, ends_at) do
+    now = DateTime.utc_now(:second)
+    mine = from(p in Period, where: p.customer_id == ^customer.id)
+
+    Repo.update_all(
+      where(mine, [p], p.starts_at < ^starts_at and p.ends_at > ^starts_at),
+      set: [ends_at: starts_at, updated_at: now]
+    )
+
+    {:ok, _opened_or_already_open} =
+      customer |> period(starts_at, ends_at) |> Repo.insert(on_conflict: :nothing)
+
+    Repo.update_all(
+      where(mine, [p], p.starts_at == ^starts_at and p.ends_at != ^ends_at),
+      set: [ends_at: ends_at, updated_at: now]
+    )
+
+    Repo.one!(where(mine, [p], p.starts_at == ^starts_at and p.ends_at == ^ends_at))
   end
 
   @doc """
@@ -244,7 +288,7 @@ defmodule SiwaServer.Billing do
     end
   end
 
-  defp open_month(%Customer{kind: :internal} = customer) do
+  defp open_next(%Customer{kind: :internal} = customer) do
     %{rows: [[starts_at, ends_at]]} =
       Repo.query!("""
       SELECT month AT TIME ZONE 'UTC', (month + interval '1 month') AT TIME ZONE 'UTC'
@@ -257,7 +301,28 @@ defmodule SiwaServer.Billing do
     current_period(customer)
   end
 
-  defp open_month(%Customer{kind: :paid}), do: nil
+  # The next period starts exactly where the last ended, so two machines opening
+  # it at once open the same one: the second insert meets the first's row in the
+  # rule that periods never overlap, waits for it, and does nothing.
+  defp open_next(%Customer{kind: :paid} = customer) do
+    last =
+      Repo.one(
+        from p in Period,
+          where: p.customer_id == ^customer.id and p.ends_at <= fragment("now()"),
+          order_by: [desc: p.ends_at],
+          limit: 1,
+          select: p.ends_at
+      )
+
+    if last do
+      {:ok, _opened_or_already_open} =
+        customer
+        |> period(last, DateTime.shift(last, month: 1))
+        |> Repo.insert(on_conflict: :nothing)
+
+      current_period(customer)
+    end
+  end
 
   defp period(customer, starts_at, ends_at) do
     %Period{

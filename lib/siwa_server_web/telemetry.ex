@@ -94,6 +94,13 @@ defmodule SiwaServerWeb.Telemetry do
         measurement: fn _measurements, _metadata -> 1 end,
         description: "Verified requests whose daily count could not be written"
       ),
+      counter("siwa_server.billing.check_failures.total",
+        event_name: [:siwa_server, :billing, :check_failed],
+        measurement: fn _measurements, _metadata -> 1 end,
+        tags: [:check],
+        description:
+          "Billing checks that found Stripe disagreeing with the ledger, or a customer with two running subscriptions"
+      ),
       counter("siwa_server.siwa.cleanup.runs.total",
         event_name: [:siwa_server, :siwa, :cleanup],
         measurement: fn _measurements, _metadata -> 1 end,

@@ -29,6 +29,7 @@ defmodule SiwaServerWeb.Endpoint do
     length: 65_536,
     read_length: 8_192,
     read_timeout: 5_000,
+    body_reader: {SiwaServerWeb.StripeBody, :read_body, []},
     json_decoder: Phoenix.json_library()
 
   plug Plug.Head
