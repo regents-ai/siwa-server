@@ -4,7 +4,9 @@ defmodule SiwaServer.Billing.SweepWorker do
   period that has one to send: a running period whose count has risen past the
   count last sent, and an ended period whose final count is not sent yet.
   Oban's cron queues it every five minutes on the `billing` queue, and only one
-  exists at a time. Without Stripe settings it does nothing.
+  exists at a time. Without Stripe settings it queues nothing. Each run also
+  forgets the records of Stripe's notices (`SiwaServer.Billing.Notice`) older
+  than thirty days.
   """
 
   use Oban.Worker,
@@ -17,8 +19,13 @@ defmodule SiwaServer.Billing.SweepWorker do
   alias SiwaServer.Billing.{Period, ReportWorker}
   alias SiwaServer.{Config, Repo}
 
+  # Stripe sends a notice again for three days at most; its record is kept well past that.
+  @notice_days 30
+
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
+    forget_old_notices()
+
     case Config.stripe() do
       {:ok, _stripe} ->
         Enum.each(due(), fn period_id ->
@@ -28,6 +35,13 @@ defmodule SiwaServer.Billing.SweepWorker do
       :error ->
         :ok
     end
+  end
+
+  defp forget_old_notices do
+    Repo.delete_all(
+      from e in "stripe_events",
+        where: e.inserted_at < fragment("now() - make_interval(days => ?)", @notice_days)
+    )
   end
 
   defp due do

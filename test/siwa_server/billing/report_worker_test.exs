@@ -106,6 +106,19 @@ defmodule SiwaServer.Billing.ReportWorkerTest do
              all_enqueued(worker: ReportWorker) |> Enum.map(& &1.args["period_id"]) |> Enum.sort()
   end
 
+  test "the sweep forgets the records of notices older than thirty days and keeps the rest" do
+    days_ago = fn days -> DateTime.add(DateTime.utc_now(), -days, :day) end
+
+    Repo.insert_all("stripe_events", [
+      %{id: "evt_old", type: "invoice.created", inserted_at: days_ago.(31)},
+      %{id: "evt_recent", type: "invoice.created", inserted_at: days_ago.(29)}
+    ])
+
+    assert :ok = perform_job(SweepWorker, %{})
+
+    assert ["evt_recent"] == Repo.all(from e in "stripe_events", select: e.id)
+  end
+
   # Whatever order counts rise, reports run, fail and are retried, Stripe's last
   # event in the period carries the period's whole count, and no two share a second.
   property "the latest event Stripe holds for a period always carries the highest count" do
