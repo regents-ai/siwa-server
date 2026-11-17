@@ -22,6 +22,11 @@ kill_timeout = "5s"
   # The event name of the Stripe meter SIWA bills on, the same in every Stripe account
   # (mix siwa_server.stripe_setup prints it).
   STRIPE_METER_EVENT_NAME = "siwa_active_agents"
+  # Price v1 in the Stripe account STRIPE_SECRET_KEY opens, as that task prints it. This
+  # one is in Stripe's test mode: no real money moves until a live key and its price replace both.
+  STRIPE_PRICE_ID = "price_1UcrSfRo8Z6It8bY3sQPIqEO"
+  # The sites whose pages a person may come back to from Stripe's checkout and billing pages.
+  SIWA_PORTAL_ORIGINS = "https://template.regents.sh,https://regents.sh"
   SIWA_WALLET_ORIGINS = "patchbay=https://patchbay.help,regents=https://regents.sh,keyfleet=https://keyfleet.ai,keyfleet=https://regents-club.notebooks.keyfleet.ai,keyfleet=https://fleet-tech-classic.notebooks.keyfleet.ai,keyfleet=https://code.keyfleet.ai,techtree=https://techtree.sh,ash-template=https://template.regents.sh,regents-mobile=https://regents-mobile-server.fly.dev,autolaunch=https://autolaunch.sh,chainagent=https://chainagent.ai"
 
 [metrics]

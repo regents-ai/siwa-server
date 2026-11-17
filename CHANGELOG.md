@@ -23,8 +23,10 @@ a release moves those lines under its date. Which version and commit each releas
 - Stripe's notices arrive at `POST /api/stripe/webhook`, signed; each is kept once and acted
   on after reading Stripe again.
 - For whoever releases: billing stays off, answering `503 billing_not_configured`, until
-  `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` (secrets) and `STRIPE_PRICE_ID` and
-  `SIWA_PORTAL_ORIGINS` are set (`STRIPE_METER_EVENT_NAME` is in `fly.toml`). Until a paid
+  `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` (secrets) are set; `STRIPE_PRICE_ID`,
+  `STRIPE_METER_EVENT_NAME` and `SIWA_PORTAL_ORIGINS` are in `fly.toml`. The price there is in
+  Stripe's test mode, and people come back from Stripe's pages only to
+  https://template.regents.sh or https://regents.sh. Until a paid
   customer subscribes, its production sites answer `402 billing_required`. Migration
   `20261115120000` adds nullable or defaulted columns to `customers` and `billing_periods`
   and a new `stripe_events` table; the release before it ignores them.
