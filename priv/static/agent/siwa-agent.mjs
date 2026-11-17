@@ -1604,6 +1604,8 @@ Use any Regent site:
   request METHOD URL [--body TEXT] [--header NAME=VALUE]
                                    send a signed request and print the answer
   headers METHOD URL [--body TEXT] print signed headers without sending the request
+                                   a request with no body leaves --body off; no body
+                                   and an empty body are the same request
   sign-in SITE                     sign in now (requests do this on their own)
   whoami                           show your address, how you sign and where you are signed in
 

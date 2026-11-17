@@ -2,6 +2,7 @@ defmodule SiwaServer.HttpVerifierTest do
   use SiwaServer.DataCase, async: false
 
   alias SiwaServer.{Config, Ethereum, Repo, TestRpcServer, TestWallet}
+  alias SiwaServer.Customers.{Customer, Site, SiteCredential}
   alias SiwaServer.Siwa.{HttpVerifier, ReplayStore}
 
   @wallet_address TestWallet.address()
@@ -100,6 +101,88 @@ defmodule SiwaServer.HttpVerifierTest do
              })
 
     assert message =~ "does not match"
+  end
+
+  # The agent signs no content-digest (nil) or the empty body's (""); the site
+  # reports no digest or the empty body's.
+  test "no body and an empty body are one request, however the agent and the site spell it" do
+    for signed_body <- [nil, ""] do
+      answers =
+        for reported <- [%{}, %{"body_digest" => Siwa.content_digest_for_body("")}] do
+          created = System.os_time(:second)
+
+          assert {:ok, %{"data" => %{"verified" => true} = data}} =
+                   %{
+                     "method" => "POST",
+                     "path" => "/v1/agent/bug-report",
+                     "headers" => signed_headers(receipt(), signed_body, created, created + 120)
+                   }
+                   |> Map.merge(reported)
+                   |> verify_http_request()
+
+          Map.take(data, ["requiredHeaders", "requiredCoveredComponents", "coveredComponents"])
+        end
+
+      assert [same, same] = answers
+    end
+  end
+
+  test "a request without a body is used once, whichever way the site reports its body" do
+    none = %{}
+    empty = %{"body_digest" => Siwa.content_digest_for_body("")}
+
+    for signed_body <- [nil, ""], [first, second] <- [[none, empty], [empty, none]] do
+      created = System.os_time(:second)
+
+      request = %{
+        "method" => "POST",
+        "path" => "/v1/agent/bug-report",
+        "headers" => signed_headers(receipt(), signed_body, created, created + 120)
+      }
+
+      assert {:ok, _payload} = verify_http_request(Map.merge(request, first))
+
+      assert {:error, {409, "request_replayed", _message}} =
+               verify_http_request(Map.merge(request, second))
+    end
+  end
+
+  test "a customer's site checking with its key gets the same rule for a request without a body" do
+    customer =
+      Repo.insert!(%Customer{
+        owner_did: "did:privy:#{Ecto.UUID.generate()}",
+        name: "Acme",
+        kind: :paid
+      })
+
+    site =
+      Repo.insert!(%Site{
+        customer_id: customer.id,
+        name: "Sandbox",
+        audience: "sandbox-#{System.unique_integer([:positive])}",
+        environment: :sandbox,
+        # The host `signed_headers` signs for.
+        origins: ["https://patchbay.help"]
+      })
+
+    {key, credential} = SiteCredential.new(site)
+    Repo.insert!(credential)
+    created = System.os_time(:second)
+
+    request = %{
+      "method" => "POST",
+      "path" => "/v1/agent/bug-report",
+      "authority" => "patchbay.help",
+      "headers" => signed_headers(receipt(site.audience), nil, created, created + 120)
+    }
+
+    assert {:ok, %{"data" => %{"verified" => true}}} =
+             request
+             |> Map.put("body_digest", Siwa.content_digest_for_body(""))
+             |> HttpVerifier.verify_for_key(key, nil)
+
+    assert {:error, {409, "request_replayed", _message}} =
+             HttpVerifier.verify_for_key(request, key, nil)
   end
 
   test "signed requests from a smart wallet are accepted once Base approves the signature" do
@@ -744,6 +827,7 @@ defmodule SiwaServer.HttpVerifierTest do
     receipt.token
   end
 
+  # A nil `body` signs no content-digest.
   defp signed_headers(
          receipt,
          body,
@@ -753,16 +837,18 @@ defmodule SiwaServer.HttpVerifierTest do
          components_override \\ nil,
          path \\ "/v1/agent/bug-report"
        ) do
+    body_headers =
+      if body, do: %{"content-digest" => Elixir.Siwa.content_digest_for_body(body)}, else: %{}
+
     base_headers = %{
       "x-siwa-receipt" => receipt,
       "x-key-id" => @wallet_address,
       "x-timestamp" => Integer.to_string(created),
       "x-agent-wallet-address" => @wallet_address,
-      "x-agent-chain-id" => Integer.to_string(@chain_id),
-      "content-digest" => Elixir.Siwa.content_digest_for_body(body)
+      "x-agent-chain-id" => Integer.to_string(@chain_id)
     }
 
-    headers = Map.merge(base_headers, extra_headers)
+    headers = base_headers |> Map.merge(body_headers) |> Map.merge(extra_headers)
 
     components =
       components_override ||
@@ -774,9 +860,8 @@ defmodule SiwaServer.HttpVerifierTest do
           "x-key-id",
           "x-timestamp",
           "x-agent-wallet-address",
-          "x-agent-chain-id",
-          "content-digest"
-        ]
+          "x-agent-chain-id"
+        ] ++ Map.keys(body_headers)
 
     signature_params =
       "(#{Enum.map_join(components, " ", &~s("#{&1}"))})" <>

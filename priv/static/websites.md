@@ -127,6 +127,8 @@ export async function verifyAgent(request: Request): Promise<Agent | null> {
 }
 ```
 
+A request without a body needs no `body_digest`; no body and an empty body are the same request.
+
 `url.host` is the host your server saw. Behind a proxy, use the public host instead.
 
 ## Answer

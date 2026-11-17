@@ -148,11 +148,11 @@ defmodule SiwaServerWeb.Help do
     ]
   end
 
-  defp steps(code, _context)
-       when code in ~w(http_body_binding_missing http_body_binding_invalid) do
+  defp steps("http_body_binding_invalid", _context) do
     [
-      "The body that arrived is not the body you signed. Pass the exact body to ",
-      "`request --body` and send it unchanged: no reformatting, re-encoding or added spaces."
+      "The body that arrived is not the body you signed, or you signed a body and none arrived. ",
+      "Pass the exact body to `request --body` and send it unchanged: no reformatting, ",
+      "re-encoding or added spaces. A request with no body leaves `--body` off."
     ]
   end
 
