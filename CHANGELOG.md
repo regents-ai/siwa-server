@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 17 November 2026, plug
+
 - Plug 1.20.4 closes EEF-CVE-2026-120287: the multipart parser did not count part and header
   framing towards its length limit. This service parses only JSON bodies, at most 64 KB, so
   it was not open to it; the fixed version is in anyway. Bandit 1.15.0 comes with it and
