@@ -14,7 +14,7 @@ a release moves those lines under its date. Which version and commit each releas
   `missing_content_digest`, and the code `http_body_binding_missing`, are gone from the
   contract (26f6ba8e), and both served clients carry it. The clients sign as before:
   `--body ''` signs the empty body's digest and no `--body` signs none, and both are valid.
-  Hosted signing signs an empty body as no body.
+  No allowed hosted request has an empty body, so hosted signing is unchanged.
 - The shared library pin is elixir-utils e40068b, which brings the body rule. It also moves the
   address rule a customer's site file is read under to the shared outbound package
   (`RegentHttp.Public`); the rule and every limit of that read are unchanged, and the MCP
