@@ -40,7 +40,9 @@ defmodule SiwaServer.Siwa.HttpVerifier do
   transaction that counts its agent for the customer's billing period
   (`SiwaServer.Billing`) when the site is a production one: a request refused
   for billing or the cap is not used up, and an agent is never counted for a
-  request that was not. Only after that commits are the answer, its lease and
+  request that was not. A database fault in that step leaves neither done and
+  is answered `503 verification_unavailable`, so the agent may send the request
+  again, signed fresh. Only after that commits are the answer, its lease and
   the activity count made.
 
   Each verified request is then counted by `SiwaServer.Siwa.ActivityStore` (a
@@ -76,6 +78,13 @@ defmodule SiwaServer.Siwa.HttpVerifier do
 
   alias SiwaServer.Customers.Site
   alias SiwaServer.Siwa.{ActivityStore, ReplayStore}
+
+  require Logger
+
+  # What the database raises, or the replay store returns, when it cannot do the
+  # step now: a lost or unavailable connection, or an error such as a lock or
+  # statement timeout.
+  @database_faults [DBConnection.ConnectionError, Postgrex.Error]
 
   @types %{
     method: :string,
@@ -259,13 +268,25 @@ defmodule SiwaServer.Siwa.HttpVerifier do
     end
   end
 
+  # A database fault in this step leaves the request unused and its agent
+  # uncounted: the single use is one statement, and the use with the count one
+  # transaction.
+  defp use_up(site, customer, subject, kept) do
+    case record(site, customer, subject, kept) do
+      {:error, %fault{} = error} when fault in @database_faults -> unrecorded(site, error)
+      recorded -> recorded
+    end
+  rescue
+    error in @database_faults -> unrecorded(site, error)
+  end
+
   # A sandbox site's request is only used up. A production site's is used up
   # and its agent counted in one transaction; a refusal from either rolls both back.
-  defp use_up(%Site{environment: :sandbox}, _customer, _subject, {replay_key, expires}) do
+  defp record(%Site{environment: :sandbox}, _customer, _subject, {replay_key, expires}) do
     with :ok <- ReplayStore.consume(replay_key, expires), do: {:ok, nil}
   end
 
-  defp use_up(%Site{environment: :production} = site, customer, subject, {replay_key, expires}) do
+  defp record(%Site{environment: :production} = site, customer, subject, {replay_key, expires}) do
     Repo.transact(fn ->
       with :ok <- ReplayStore.consume(replay_key, expires),
            {:ok, period} <- Billing.period_to_count(customer),
@@ -273,6 +294,16 @@ defmodule SiwaServer.Siwa.HttpVerifier do
         {:ok, %{period: period, new?: new?}}
       end
     end)
+  end
+
+  defp unrecorded(site, error) do
+    Logger.error(
+      "keyed check not recorded site=#{site.id} #{Exception.format_banner(:error, error)}"
+    )
+
+    {:error,
+     {503, "verification_unavailable",
+      "the check could not be recorded just now; send the request again, signed fresh"}}
   end
 
   defp subject(%{"chain_id" => chain_id, "sub" => address}),

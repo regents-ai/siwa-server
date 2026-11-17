@@ -192,6 +192,13 @@ defmodule SiwaServerWeb.Help do
     ]
   end
 
+  defp steps("verification_unavailable", _context) do
+    [
+      "The sign-in service could not record this request just now, so the site did not act on ",
+      "it. Wait a moment, then send it again with `request`, which signs it fresh."
+    ]
+  end
+
   defp steps("audience_not_found", _context) do
     [
       "No site accepts agent sign-in at that address. Check the address with your person. ",

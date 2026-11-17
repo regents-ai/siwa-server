@@ -277,7 +277,9 @@ paths:
         request is used up and its agent
         counted once in the customer's current billing period in one step; a
         request refused for billing or the cap is not used up, so the agent may
-        send it again. A Regent site named in SIWA_WALLET_ORIGINS may still ask
+        send it again. When the database fails in that step, a keyed check
+        answers 503 verification_unavailable and nothing is used up or counted.
+        A Regent site named in SIWA_WALLET_ORIGINS may still ask
         with only x-siwa-audience; a customer's site may not.
       security:
         - SiteServerKey: []
@@ -356,13 +358,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
-          description: SIWA HTTP verification is not configured, or the verified request could not be recorded
+          description: >-
+            SIWA HTTP verification is not configured, or a check asked with
+            x-siwa-audience alone could not record the verified request
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "502":
           description: Smart wallet signature lookup on Base failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: >-
+            A check asked with a server key could not be recorded just now
+            (verification_unavailable): the database failed while the request
+            was used up and its agent counted, so neither happened. The site
+            did not get a verified request and must not act on it; the agent
+            sends it again, signed fresh.
           content:
             application/json:
               schema:

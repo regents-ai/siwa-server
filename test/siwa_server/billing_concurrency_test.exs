@@ -3,6 +3,9 @@ defmodule SiwaServer.BillingConcurrencyTest do
 
   import Ecto.Changeset, only: [change: 2]
   import Ecto.Query
+  import ExUnit.CaptureLog
+  import Phoenix.ConnTest
+  import Plug.Conn, only: [put_req_header: 3]
 
   alias Ecto.Adapters.SQL.Sandbox
   alias SiwaServer.{Billing, Repo, SignedRequest, TestRpcServer}
@@ -10,8 +13,14 @@ defmodule SiwaServer.BillingConcurrencyTest do
   alias SiwaServer.Customers.{Customer, Site, SiteCredential}
   alias SiwaServer.Siwa.HttpVerifier
 
+  @endpoint SiwaServerWeb.Endpoint
+
   # Room for this many new agents under the cap; one more arrives at once.
   @room 6
+
+  # The address these tests' requests to the route come from, so its own limits'
+  # rows are theirs alone (TEST-NET-1).
+  @remote_ip {192, 0, 2, 1}
 
   setup do
     assert String.starts_with?(Repo.config()[:database], "siwa_server_test")
@@ -79,6 +88,222 @@ defmodule SiwaServer.BillingConcurrencyTest do
       assert [period] = Repo.all(from p in Period, where: p.customer_id == ^customer.id)
       assert counted(period) == {6, 6}
     end)
+  end
+
+  # The count waits for a lock on the period's row only at its last step, the
+  # `UPDATE` that adds one: the request's use and the agent's row are already
+  # written in the transaction when the fault comes.
+  test "a lock wait past the database's lock timeout answers 503; the request stays unused and its agent uncounted" do
+    %{site: site, key: key, period: period} = production(:paid, nil)
+    request = signed(site)
+    on_exit(fn -> forget([request], site) end)
+    holder = hold(period)
+
+    log =
+      capture_log(fn ->
+        conn =
+          on_pool([parameters: [lock_timeout: "100ms"]], fn -> http_verify(request, key) end)
+
+        assert_unavailable(conn)
+      end)
+
+    assert log =~
+             "not recorded site=#{site.id} ** (Postgrex.Error) ERROR 55P03 (lock_not_available)"
+
+    release(holder)
+    assert_unrecorded_then_accepted(request, site, key, period)
+  end
+
+  # The pool's reconnecting to a link that is gone is logged after the answer.
+  @tag :capture_log
+  test "the database connection lost while the count waits answers 503; the request stays unused and its agent uncounted" do
+    %{site: site, key: key, period: period} = production(:paid, nil)
+    request = signed(site)
+    on_exit(fn -> forget([request], site) end)
+    holder = hold(period)
+    {link, port} = open_link()
+
+    cut =
+      Task.async(fn ->
+        db(fn -> blocked_by(holder.backend) end)
+        send(link, :cut)
+      end)
+
+    log =
+      capture_log(fn ->
+        conn =
+          on_pool([hostname: "127.0.0.1", port: port], fn -> http_verify(request, key) end)
+
+        assert_unavailable(conn)
+      end)
+
+    Task.await(cut)
+    assert log =~ "not recorded site=#{site.id} ** (DBConnection.ConnectionError) tcp recv"
+    release(holder)
+    assert_unrecorded_then_accepted(request, site, key, period)
+  end
+
+  test "a request whose use waits past the lock timeout on another unfinished use answers 503 and stays unused" do
+    %{site: site, key: key, period: period} = production(:paid, nil)
+    request = signed(site)
+    on_exit(fn -> forget([request], site) end)
+    other_use = hold_use(request, site)
+
+    log =
+      capture_log(fn ->
+        conn =
+          on_pool([parameters: [lock_timeout: "100ms"]], fn -> http_verify(request, key) end)
+
+        assert_unavailable(conn)
+      end)
+
+    assert log =~
+             "not recorded site=#{site.id} ** (Postgrex.Error) ERROR 55P03 (lock_not_available)"
+
+    release(other_use)
+    assert_unrecorded_then_accepted(request, site, key, period)
+  end
+
+  defp assert_unavailable(conn) do
+    assert %{"error" => %{"code" => "verification_unavailable"} = error} =
+             json_response(conn, 503)
+
+    assert Map.keys(error) == ["code", "hint", "message"]
+  end
+
+  # Nothing of the refused check is left, and the same signed request then
+  # goes through and counts its agent once.
+  defp assert_unrecorded_then_accepted(request, site, key, period) do
+    db(fn ->
+      refute used?(request, site)
+      assert counted(period) == {0, 0}
+    end)
+
+    conn = db(fn -> http_verify(request, key) end)
+    assert %{"data" => %{"usage" => %{"newThisPeriod" => true}}} = json_response(conn, 200)
+    db(fn -> assert counted(period) == {1, 1} end)
+  end
+
+  # This process's queries go to a pool of the server's own kind, opened with
+  # `opts`, until `fun` returns.
+  defp on_pool(opts, fun) do
+    pool =
+      start_supervised!(
+        {Repo, [name: nil, pool: DBConnection.ConnectionPool, pool_size: 1] ++ opts}
+      )
+
+    previous = Repo.put_dynamic_repo(pool)
+
+    try do
+      fun.()
+    after
+      Repo.put_dynamic_repo(previous)
+    end
+  end
+
+  # Another transaction holds the period's row, as a count of a new agent does,
+  # until `release/1`.
+  defp hold(period) do
+    holding(
+      "SELECT 1 FROM billing_periods WHERE id = $1 FOR NO KEY UPDATE",
+      [Ecto.UUID.dump!(period.id)]
+    )
+  end
+
+  # Another transaction has written the request's use and not yet finished;
+  # `release/1` rolls it back.
+  defp hold_use(request, site) do
+    holding(
+      """
+      INSERT INTO siwa_request_replays (id, replay_key, expires_at, inserted_at, updated_at)
+      VALUES (gen_random_uuid(), $1, now() + interval '5 minutes', now(), now())
+      """,
+      [SignedRequest.stored_replay_key(request, site.audience)]
+    )
+  end
+
+  defp holding(sql, params) do
+    test = self()
+    task = Task.async(fn -> db(fn -> held(sql, params, test) end) end)
+    assert_receive {:held, backend}
+    %{task: task, backend: backend}
+  end
+
+  defp held(sql, params, test) do
+    Repo.transact(fn ->
+      Repo.query!(sql, params)
+      %{rows: [[backend]]} = Repo.query!("SELECT pg_backend_pid()")
+      send(test, {:held, backend})
+
+      receive do
+        :release -> {:error, :released}
+      end
+    end)
+  end
+
+  defp release(%{task: task}) do
+    send(task.pid, :release)
+    assert {:error, :released} = Task.await(task)
+  end
+
+  # Returns once a query waits for a lock the `backend` holds.
+  defp blocked_by(backend) do
+    %{rows: [[blocked?]]} =
+      Repo.query!(
+        "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid)))",
+        [backend]
+      )
+
+    if not blocked? do
+      Process.sleep(10)
+      blocked_by(backend)
+    end
+  end
+
+  # One connection to the test database, relayed through a local port, that
+  # `:cut` ends as a lost network does: both sides close and neither is told why.
+  defp open_link do
+    test = self()
+    database = Repo.config()
+
+    link =
+      spawn_link(fn ->
+        {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, ip: {127, 0, 0, 1}])
+        {:ok, port} = :inet.port(listen)
+        send(test, {:link, port})
+        {:ok, client} = :gen_tcp.accept(listen)
+
+        {:ok, server} =
+          :gen_tcp.connect(String.to_charlist(database[:hostname]), database[:port], [:binary])
+
+        :ok = :inet.setopts(client, active: true)
+        relay(listen, client, server)
+      end)
+
+    assert_receive {:link, port}
+    {link, port}
+  end
+
+  defp relay(listen, client, server) do
+    receive do
+      {:tcp, ^client, data} ->
+        :ok = :gen_tcp.send(server, data)
+        relay(listen, client, server)
+
+      {:tcp, ^server, data} ->
+        :ok = :gen_tcp.send(client, data)
+        relay(listen, client, server)
+
+      :cut ->
+        Enum.each([listen, client, server], &:gen_tcp.close/1)
+    end
+  end
+
+  defp http_verify(request, key) do
+    %{build_conn() | remote_ip: @remote_ip}
+    |> put_req_header("authorization", "Bearer " <> key)
+    |> put_req_header("content-type", "application/json")
+    |> post("/api/shared/siwa/http-verify", Jason.encode!(request))
   end
 
   defp concurrently(requests, verify) do
@@ -153,10 +378,27 @@ defmodule SiwaServer.BillingConcurrencyTest do
     db(fn ->
       Repo.query!("DELETE FROM siwa_request_replays WHERE replay_key = ANY($1)", [keys])
 
-      # The site's own allowance is counted outside the test's rollback too.
+      # The site's own allowance is counted outside the test's rollback too, and
+      # so are the route's limits when a test sends the request through it.
       Repo.query!("DELETE FROM siwa_rate_limits WHERE name = 'siwa_keyed_site' AND key = $1", [
         :crypto.hash(:sha256, site.id)
       ])
+
+      address = @remote_ip |> :inet.ntoa() |> to_string()
+
+      agents =
+        Enum.map(requests, fn %{"headers" => headers} ->
+          wallet = String.downcase(headers["x-agent-wallet-address"])
+          :crypto.hash(:sha256, "http-verify:#{wallet}:#{headers["x-agent-chain-id"]}:#{address}")
+        end)
+
+      Repo.query!(
+        """
+        DELETE FROM siwa_rate_limits
+        WHERE (name = 'siwa_http_verify' AND key = ANY($1)) OR (name = 'siwa_site' AND key = $2)
+        """,
+        [agents, :crypto.hash(:sha256, address)]
+      )
     end)
   end
 

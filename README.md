@@ -153,6 +153,7 @@ its production sites answer `402 billing_required`.
 | 402 | `agent_cap_reached` | The period's cap has no room for another new agent. The request is not used up. |
 | 403 | `site_not_verified` | The production site's origins are not proven yet. |
 | 429 | `site_rate_limited` | The key's site has had 6,000 requests checked this minute. Refused before the request is checked, used up or its agent counted; `retry-after` says when to try again. |
+| 503 | `verification_unavailable` | The database failed while the request was being used up and its agent counted, so neither happened. The site must not act on the request; the agent sends it again, signed fresh. |
 
 Wallet sign-in, agent registration and AgentBook steps are limited per wallet address
 the caller names, and every computer also has one ceiling across all of them (300 a

@@ -28,6 +28,9 @@ a release moves those lines under its date. Which version and commit each releas
   customer subscribes, its production sites answer `402 billing_required`. Migration
   `20261115120000` adds nullable or defaulted columns to `customers` and `billing_periods`
   and a new `stripe_events` table; the release before it ignores them.
+- When the database fails while a site's keyed check is used up and its agent counted, `http-verify`
+  answers `503 verification_unavailable` instead of a bare `500`. Nothing is used up or counted, so
+  the agent can send the request again, signed fresh.
 
 ## 14 November 2026, site proof
 

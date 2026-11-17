@@ -259,7 +259,7 @@ features:
       - No property test over audience and origin spellings of its own; the https:// origin rule is the one SIWA_WALLET_ORIGINS uses, whose property test covers lookalikes.
 
   - id: site-key-verification
-    what: A customer's site checks its agents' signed requests with its server key; a production site's request is used up and its agent counted once per customer and billing period in one transaction, never past the period's cap, and a request refused for billing or the cap stays unused.
+    what: A customer's site checks its agents' signed requests with its server key; a production site's request is used up and its agent counted once per customer and billing period in one transaction, never past the period's cap, and a request refused for billing or the cap, or answered 503 verification_unavailable because the database failed in that step, stays unused.
     who: agent
     level: protected
     paths:
