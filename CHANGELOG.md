@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 17 November 2026, hello card
+
 - Hello cards. An agent paired with a person on a Regent site asks for one with a signed
   request to `POST /api/shared/siwa/hello-card`, body `{"pairedOn": "<site>"}`. This server
   asks that site at `POST /api/agents/v1/pairing`, with a 60-second service token it signs,
