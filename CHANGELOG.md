@@ -5,6 +5,13 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The shared library pin is elixir-utils e40068b, which brings the body rule. It also moves the
+  address rule a customer's site file is read under to the shared outbound package
+  (`RegentHttp.Public`); the rule and every limit of that read are unchanged, and the MCP
+  Events package is no longer a dependency. The Privy package now brings Phoenix LiveView and
+  Phoenix HTML into the build for its own sign-in pages; the token check the control API
+  uses is unchanged. Nothing the service uses from the chain package changed.
+
 ## 14 November 2026, site proof
 
 - A company proves its production site's addresses are its own. Each site has a public

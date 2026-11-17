@@ -2,7 +2,7 @@ defmodule SiwaServer.MixProject do
   use Mix.Project
 
   @elixir_utils "https://github.com/regents-ai/elixir-utils.git"
-  @elixir_utils_ref "e4494c03502baccad45d04954e4c3bfbcc708047"
+  @elixir_utils_ref "e40068b39e45cc344140695cfad97790bf4da31c"
 
   def project do
     [
@@ -85,7 +85,7 @@ defmodule SiwaServer.MixProject do
       {:regent_privy, git: @elixir_utils, ref: @elixir_utils_ref, sparse: "privy"},
       # The address rule for fetching from an address a customer names, and Mint to
       # connect to the address that rule checked (`SiwaServer.Customers.SiteFile`).
-      {:regent_mcp_events, git: @elixir_utils, ref: @elixir_utils_ref, sparse: "mcp_events"},
+      {:regent_http, git: @elixir_utils, ref: @elixir_utils_ref, sparse: "http"},
       {:mint, "~> 1.11"},
       # The signing contract's shared fixtures, read by the agent client conformance test.
       {:siwa_contract,

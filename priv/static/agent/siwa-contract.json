@@ -149,18 +149,6 @@
       "message": "signed request is for another site"
     },
     {
-      "reason": "request_body_required",
-      "status": 401,
-      "code": "http_body_binding_missing",
-      "message": "request body is required when content-digest is present"
-    },
-    {
-      "reason": "missing_content_digest",
-      "status": 401,
-      "code": "http_body_binding_missing",
-      "message": "missing content-digest header"
-    },
-    {
       "reason": "content_digest_mismatch",
       "status": 401,
       "code": "http_body_binding_invalid",

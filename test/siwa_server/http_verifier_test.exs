@@ -86,20 +86,20 @@ defmodule SiwaServer.HttpVerifierTest do
     assert message =~ "does not match"
   end
 
-  test "signed requests require the verified request body when content-digest is present" do
+  test "a signed body that does not arrive is refused as the wrong body" do
     receipt = receipt()
     body = Jason.encode!(%{"summary" => "Missing body", "details" => "body binding"})
     created = System.os_time(:second)
     expires = created + 120
 
-    assert {:error, {401, "http_body_binding_missing", message}} =
+    assert {:error, {401, "http_body_binding_invalid", message}} =
              verify_http_request(%{
                "method" => "POST",
                "path" => "/v1/agent/bug-report",
                "headers" => signed_headers(receipt, body, created, expires)
              })
 
-    assert message =~ "request body is required"
+    assert message =~ "does not match"
   end
 
   test "signed requests from a smart wallet are accepted once Base approves the signature" do
