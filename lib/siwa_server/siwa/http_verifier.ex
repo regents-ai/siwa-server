@@ -19,6 +19,9 @@ defmodule SiwaServer.Siwa.HttpVerifier do
       way in without a key, until those sites move to keys. A customer's site
       is refused here: its audience needs its key.
 
+  An agent's own request to this server, for a hello card, is checked by
+  `verify_own/2` with the same library call, its authority this server's host.
+
   Both check the request body once, against the contract: method, absolute
   path, the host the site received it at as `authority`, string headers (names
   compared in lower case), the optional `body_digest` the site worked out from
@@ -136,6 +139,28 @@ defmodule SiwaServer.Siwa.HttpVerifier do
          {:ok, counted} <- use_up(site, customer, subject, replay) do
       {:ok, answer(request, verified, site.audience, counted, keyed_fields(subject, counted))}
     else
+      error -> refusal(error)
+    end
+  end
+
+  @doc """
+  Verifies a request an agent sent to this server itself, signed with its
+  receipt for `audience` (`SiwaServerWeb.HelloCardController`). Only this
+  server's own host, from its configured URL (`PHX_HOST`), is accepted as the
+  signed authority. The request is the shape `cast/1` makes, built from the
+  connection instead of a site's body. The answer is the agent's subject,
+  `eip155:<chain id>:<address>`.
+  """
+  @spec verify_own(map(), String.t()) :: {:ok, String.t()} | refusal()
+  def verify_own(request, audience) do
+    case authenticate(
+           request,
+           audience,
+           [SiwaServerWeb.Endpoint.url()],
+           Map.keys(Config.wallet_origins()),
+           &ReplayStore.consume/2
+         ) do
+      {:ok, verified} -> {:ok, subject(verified.claims)}
       error -> refusal(error)
     end
   end

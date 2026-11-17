@@ -117,6 +117,44 @@ defmodule SiwaServer.Config do
     |> Enum.uniq()
   end
 
+  @doc """
+  The hello card signing keys (`SiwaServer.HelloCard`), each a 32-byte Ed25519
+  seed: the first signs and every one is published. None while
+  `SIWA_CARD_KEYS` is unset, and hello cards are then off.
+  """
+  @spec card_keys() :: [<<_::256>>]
+  def card_keys, do: Keyword.fetch!(siwa(), :card_keys)
+
+  @doc """
+  Parses `SIWA_CARD_KEYS`: one or two different Ed25519 private key seeds, comma
+  separated, each 32 bytes as unpadded base64url in its one spelling. Unset or
+  empty is none. The error never repeats the value, since it is secret.
+  """
+  @spec card_keys!(String.t() | nil) :: [<<_::256>>]
+  def card_keys!(nil), do: []
+
+  def card_keys!(value) do
+    seeds =
+      value
+      |> entries()
+      |> Enum.map(fn entry ->
+        with {:ok, <<_::binary-size(32)>> = seed} <- Base.url_decode64(entry, padding: false),
+             ^entry <- Base.url_encode64(seed, padding: false) do
+          seed
+        else
+          _malformed ->
+            raise ArgumentError,
+                  "SIWA_CARD_KEYS entries must each be 32 bytes as unpadded base64url"
+        end
+      end)
+
+    unless length(seeds) in 1..2 and Enum.uniq(seeds) == seeds do
+      raise ArgumentError, "SIWA_CARD_KEYS must hold one or two different keys"
+    end
+
+    seeds
+  end
+
   @doc "Whether `name` is a site's name, the audience its agents sign in for."
   @spec site_name?(String.t()) :: boolean()
   def site_name?(name), do: Regex.match?(@site_regex, name)

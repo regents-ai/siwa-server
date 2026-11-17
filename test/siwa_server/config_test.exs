@@ -8,7 +8,7 @@ defmodule SiwaServer.ConfigTest do
   @patchbay String.duplicate("p", 32)
   @env ~w(BASE_RPC_URL SIWA_RECEIPT_SECRET SIWA_NONCE_TTL_SECONDS SIWA_RECEIPT_TTL_SECONDS SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS
           ETHEREUM_RPC_URL WORLD_RPC_URL KEYSTORE_PASSWORD SIWA_ACTIVITY_READERS SIWA_WALLET_ORIGINS SIWA_RELEASE_COMMAND
-          DATABASE_URL SECRET_KEY_BASE PHX_HOST PRIVY_APP_ID PRIVY_VERIFICATION_KEY)
+          DATABASE_URL SECRET_KEY_BASE PHX_HOST PRIVY_APP_ID PRIVY_VERIFICATION_KEY SIWA_CARD_KEYS)
   @pem "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----"
 
   setup do
@@ -112,6 +112,36 @@ defmodule SiwaServer.ConfigTest do
     end
   end
 
+  test "hello card keys: one or two from SIWA_CARD_KEYS, in order; none while it is unset" do
+    [first, second] = for _key <- 1..2, do: :crypto.strong_rand_bytes(32)
+
+    System.put_env("SIWA_CARD_KEYS", " #{card_key(first)} , #{card_key(second)} ")
+    assert started_siwa()[:card_keys] == [first, second]
+
+    System.put_env("SIWA_CARD_KEYS", card_key(second))
+    assert started_siwa()[:card_keys] == [second]
+
+    System.delete_env("SIWA_CARD_KEYS")
+    assert started_siwa()[:card_keys] == []
+  end
+
+  test "hello card keys: each exactly 32 bytes as unpadded base64url, at most two, all different" do
+    key = :crypto.strong_rand_bytes(32)
+
+    for bad <- [
+          ",",
+          card_key(:crypto.strong_rand_bytes(31)),
+          card_key(:crypto.strong_rand_bytes(33)),
+          Base.url_encode64(key),
+          # The same 32 zero bytes, spelled with a last letter no encoder writes.
+          String.duplicate("A", 42) <> "B",
+          Enum.map_join(1..3, ",", fn _key -> card_key(:crypto.strong_rand_bytes(32)) end),
+          card_key(key) <> "," <> card_key(key)
+        ] do
+      assert_raise ArgumentError, fn -> Config.card_keys!(bad) end
+    end
+  end
+
   test "names the site whose activity read key is presented" do
     key = Application.fetch_env!(:siwa_server, :siwa)[:activity_readers]["patchbay"]
 
@@ -154,6 +184,8 @@ defmodule SiwaServer.ConfigTest do
 
     assert Config.privy() == :error
   end
+
+  defp card_key(seed), do: Base.url_encode64(seed, padding: false)
 
   defp started_siwa, do: Keyword.fetch!(started(:test), :siwa)
 

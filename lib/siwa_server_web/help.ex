@@ -219,6 +219,35 @@ defmodule SiwaServerWeb.Help do
     ]
   end
 
+  defp steps("hello_card_not_configured", _context) do
+    [
+      "This sign-in service gives out no hello cards yet. Send your requests without one, ",
+      "and tell your person if a site asks for one."
+    ]
+  end
+
+  defp steps("hello_card_site_unknown", _context) do
+    [
+      "Hello cards are only for the Regent sites: ",
+      open_sites(),
+      ". Run `hello-card` with the address of the site you are paired on."
+    ]
+  end
+
+  defp steps("hello_card_not_paired", _context) do
+    [
+      "The site says you are not paired with a person there. Pair on that site first, ",
+      "then run `hello-card` again."
+    ]
+  end
+
+  defp steps("hello_card_site_unavailable", _context) do
+    [
+      "The site could not say just now whether you are paired there. Wait a minute, then run ",
+      "`hello-card` again. If it keeps happening, tell your person."
+    ]
+  end
+
   defp steps(code, _context)
        when code in ~w(transaction_not_registration registration_reverted) do
     [

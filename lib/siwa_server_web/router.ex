@@ -16,7 +16,8 @@ defmodule SiwaServerWeb.Router do
         :siwa_register,
         :agent_book,
         :agent_profile,
-        :siwa_audience
+        :siwa_audience,
+        :siwa_hello_card
       ] do
     pipeline name do
       plug :accepts, ["json"]
@@ -56,11 +57,17 @@ defmodule SiwaServerWeb.Router do
     get "/readyz", DiscoveryController, :readyz
     get "/regent-services-contract.openapiv3.yaml", DiscoveryController, :services_contract
     get "/api/shared/siwa/audiences", DiscoveryController, :audiences
+    get "/.well-known/jwks.json", HelloCardController, :jwks
   end
 
   scope "/api/shared/siwa", SiwaServerWeb do
     pipe_through :siwa_audience
     get "/audience", DiscoveryController, :audience
+  end
+
+  scope "/api/shared/siwa", SiwaServerWeb do
+    pipe_through :siwa_hello_card
+    post "/hello-card", HelloCardController, :create
   end
 
   scope "/api/shared/siwa", SiwaServerWeb do

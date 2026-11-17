@@ -14,7 +14,7 @@ defmodule SiwaServerWeb.StripeWebhookController do
   def notice(conn, _params) do
     signed =
       Notice.verify(
-        conn.private[:stripe_body],
+        conn.private[:raw_body],
         get_req_header(conn, "stripe-signature"),
         conn.assigns.stripe.webhook_secret,
         System.os_time(:second)

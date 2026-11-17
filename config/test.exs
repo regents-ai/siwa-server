@@ -61,6 +61,10 @@ config :siwa_server, :stripe,
 
 config :siwa_server, :stripe_http, SiwaServer.TestStripe
 
+# A site's pairing read for a hello card is answered by the test's Req.Test stub;
+# none leaves the computer.
+config :siwa_server, :pairing_http, plug: {Req.Test, SiwaServer.HelloCard}
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

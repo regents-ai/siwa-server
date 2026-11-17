@@ -77,6 +77,14 @@ defmodule SiwaServerWeb.Telemetry do
         reporter_options: [buckets: @request_duration_buckets],
         description: "Ethereum RPC operation duration in seconds"
       ),
+      distribution("siwa_server.hello_card.pairing.duration.seconds",
+        event_name: [:siwa_server, :hello_card, :pairing, :stop],
+        measurement: :duration,
+        tags: [:audience, :result],
+        unit: {:native, :second},
+        reporter_options: [buckets: @request_duration_buckets],
+        description: "Hello card pairing reads from a site, by site and what it said"
+      ),
       counter("siwa_server.siwa.activity.reads.total",
         event_name: [:siwa_server, :siwa, :activity, :read],
         measurement: fn _measurements, _metadata -> 1 end,

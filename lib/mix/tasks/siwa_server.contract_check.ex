@@ -13,6 +13,9 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
     {"GET", "/regent-services-contract.openapiv3.yaml"} => MapSet.new(~w(200)),
     {"GET", "/api/shared/siwa/audiences"} => MapSet.new(~w(200)),
     {"GET", "/api/shared/siwa/audience"} => MapSet.new(~w(200 400 404 429)),
+    {"GET", "/.well-known/jwks.json"} => MapSet.new(~w(200)),
+    {"POST", "/api/shared/siwa/hello-card"} =>
+      MapSet.new(~w(200 400 401 404 409 413 415 429 500 502 503)),
     {"POST", "/api/shared/siwa/http-verify"} =>
       MapSet.new(~w(200 400 401 402 403 409 413 415 429 500 502 503)),
     {"POST", "/api/shared/siwa/activity"} => MapSet.new(~w(200 400 401 413 415 429)),

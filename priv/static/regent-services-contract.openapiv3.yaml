@@ -127,6 +127,111 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "429":
           $ref: "#/components/responses/RateLimitError"
+  /.well-known/jwks.json:
+    get:
+      operationId: readHelloCardKeys
+      tags: [auth]
+      description: >-
+        The public keys hello cards are signed with, as Ed25519 JSON Web Keys.
+        The first signs; every key is listed, so a card signed with a key that
+        is being replaced still checks. Each kid is the key's RFC 7638
+        thumbprint. The list is empty while this server signs no cards. Sent
+        with cache-control public, max-age=3600.
+      responses:
+        "200":
+          description: The published keys
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HelloCardKeys"
+  /api/shared/siwa/hello-card:
+    post:
+      operationId: issueHelloCard
+      tags: [auth]
+      description: >-
+        An agent asks for its hello card for one Regent site it is paired on,
+        with an ordinary signed request addressed to this server itself: the
+        signed authority is this server's own host, and the receipt is the
+        agent's sign-in for the site it names in pairedOn. This server then asks
+        that site, at its first origin, POST /api/agents/v1/pairing with the
+        body {"subject": "eip155:<chain id>:<address>"} and a bearer service
+        token: a compact JWS signed with the first published key, header
+        {"alg": "EdDSA", "kid": ..., "typ": "siwa-service+jwt"}, claims iss
+        (this server's origin), aud (the site's origin), sub (the subject),
+        iat, exp (iat + 60) and jti. The site answers 200 with exactly
+        {"name", "person", "pairedAt"} for an agent paired there, or 404. The
+        card is a compact JWS, header {"alg": "EdDSA", "kid": ..., "typ":
+        "siwa-hello-card+jws"}, whose payload is exactly the eight fields
+        below. Nothing is stored. At most 60 requests a minute for each caller
+        address.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HelloCardRequest"
+      responses:
+        "200":
+          description: The card and its fields (hello_card)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HelloCardResponse"
+        "400":
+          description: The body is not JSON (bad_request), or is not exactly {"pairedOn"} (invalid_request)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: >-
+            The signed request failed: it is signed for another host, its
+            receipt is for another site, or its signature does not check
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: >-
+            pairedOn is not a Regent site (hello_card_site_unknown), or the site
+            says the agent is not paired there (hello_card_not_paired)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The signed request was used before (request_replayed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          $ref: "#/components/responses/ControlBodyTooLarge"
+        "415":
+          $ref: "#/components/responses/ControlUnsupportedMediaType"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
+        "500":
+          description: SIWA HTTP verification is not configured on this server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "502":
+          description: >-
+            The site did not answer 200 with the pairing or 404 within 5
+            seconds, without a redirect (hello_card_site_unavailable); or a
+            smart wallet signature lookup failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: This server signs no hello cards until SIWA_CARD_KEYS is set (hello_card_not_configured)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/shared/siwa/wallet/nonce:
     post:
       operationId: createSharedWalletSiwaNonce
@@ -1817,6 +1922,91 @@ components:
               type: string
               format: uri
               description: The origin asked for, in lower case.
+    HelloCardKeys:
+      type: object
+      additionalProperties: false
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          maxItems: 2
+          items:
+            type: object
+            additionalProperties: false
+            required: [kty, crv, alg, use, kid, x]
+            properties:
+              kty:
+                type: string
+                enum: [OKP]
+              crv:
+                type: string
+                enum: [Ed25519]
+              alg:
+                type: string
+                enum: [EdDSA]
+              use:
+                type: string
+                enum: [sig]
+              kid:
+                type: string
+                description: The key's RFC 7638 thumbprint, unpadded base64url.
+              x:
+                type: string
+                description: The public key, unpadded base64url.
+    HelloCardRequest:
+      type: object
+      additionalProperties: false
+      required: [pairedOn]
+      properties:
+        pairedOn:
+          type: string
+          description: The audience of the Regent site the agent is paired on.
+    HelloCardResponse:
+      type: object
+      additionalProperties: false
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [hello_card]
+        data:
+          type: object
+          additionalProperties: false
+          required: [card, cardId, subject, name, person, pairedAt, pairedOn, issuedAt, expiresAt]
+          properties:
+            card:
+              type: string
+              description: The compact JWS; its payload is exactly the other eight fields.
+            cardId:
+              type: string
+              description: 16 random bytes, unpadded base64url.
+            subject:
+              type: string
+              description: The agent, eip155:<chain id>:<address in lower case>.
+            name:
+              type: string
+              minLength: 1
+              maxLength: 200
+              description: The agent's name on the site, as the site gave it.
+            person:
+              type: string
+              minLength: 1
+              maxLength: 200
+              description: The person the agent is paired with there, as the site gave it.
+            pairedAt:
+              type: string
+              format: date-time
+              description: When the site paired them, UTC, whole seconds.
+            pairedOn:
+              type: string
+              description: The site's audience.
+            issuedAt:
+              type: string
+              format: date-time
+            expiresAt:
+              type: string
+              format: date-time
+              description: A day after issuedAt.
     WalletSiwaNonceResponse:
       type: object
       required: [code, data]

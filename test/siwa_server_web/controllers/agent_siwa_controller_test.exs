@@ -220,6 +220,8 @@ defmodule SiwaServerWeb.AgentSiwaControllerTest do
                "/regent-services-contract.openapiv3.yaml",
                "/api/shared/siwa/audiences",
                "/api/shared/siwa/audience",
+               "/.well-known/jwks.json",
+               "/api/shared/siwa/hello-card",
                "/api/shared/siwa/wallet/nonce",
                "/api/shared/siwa/wallet/verify",
                "/api/shared/siwa/http-verify",
