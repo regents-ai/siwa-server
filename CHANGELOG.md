@@ -31,6 +31,10 @@ a release moves those lines under its date. Which version and commit each releas
 - When the database fails while a site's keyed check is used up and its agent counted, `http-verify`
   answers `503 verification_unavailable` instead of a bare `500`. Nothing is used up or counted, so
   the agent can send the request again, signed fresh.
+- For whoever releases: migration `20261116120000` drops the trigger `siwa_request_replays_hashed_key`
+  and its function, which hashed the plain keys of releases before v90. After it runs, never roll back
+  to v89 or earlier; a rollback to v90 or later needs nothing, and the migration's undo puts the
+  trigger back.
 
 ## 14 November 2026, site proof
 

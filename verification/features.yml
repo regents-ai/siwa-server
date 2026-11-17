@@ -48,6 +48,7 @@ features:
       - lib/siwa_server/siwa/http_verifier.ex
       - lib/siwa_server/siwa/replay_store.ex
       - priv/repo/migrations/20261113150000_hash_request_replay_keys.exs
+      - priv/repo/migrations/20261116120000_drop_request_replay_key_hash_trigger.exs
     entry:
       - route: POST /api/shared/siwa/http-verify
     proofs:
