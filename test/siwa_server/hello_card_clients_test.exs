@@ -4,7 +4,7 @@ defmodule SiwaServer.HelloCardClientsTest do
 
   This server runs on a real local port, and so does one Regent site, over https with a
   certificate from a root made for this run that the clients are told to trust. The
-  site's pairing read is answered through its seam: the agent is paired with Ada. For
+  site's pairing read is answered through its seam: the agent is paired with one person. For
   each client (Python through `uv`, Node beside its one library): showing a card before
   there is one is refused on the computer and the site hears nothing; `hello-card` gets a
   card that this server's published keys verify, and keeps it; `request --hello-card`
@@ -22,7 +22,8 @@ defmodule SiwaServer.HelloCardClientsTest do
   @python Path.expand("priv/static/agent/siwa_agent.py")
   @node Path.expand("priv/static/agent/siwa-agent.mjs")
   @node_modules Path.expand("e2e/node_modules")
-  @paired %{"name" => "Astra", "person" => "Ada", "pairedAt" => "2026-11-01T09:30:00Z"}
+  @person "8c1f2e7a-3b4d-4f60-9a12-5de7c0b8a941"
+  @paired %{"name" => "Astra", "person" => @person, "pairedAt" => "2026-11-01T09:30:00Z"}
 
   defmodule Site do
     @moduledoc false
@@ -117,7 +118,7 @@ defmodule SiwaServer.HelloCardClientsTest do
       subject = "eip155:8453:" <> address
       assert_received {:pairing, %{"subject" => ^subject}}
       assert Jason.decode!(File.read!(kept_at)) == card
-      assert %{"subject" => ^subject, "pairedOn" => "cardsite", "person" => "Ada"} = card
+      assert %{"subject" => ^subject, "pairedOn" => "cardsite", "person" => @person} = card
 
       keys = Req.get!(broker <> "/.well-known/jwks.json").body["keys"]
 

@@ -14,7 +14,9 @@ defmodule SiwaServerWeb.HelloCardControllerTest do
 
   @path "/api/shared/siwa/hello-card"
   @chain_id 8453
-  @paired %{"name" => "Astra", "person" => "Sam", "pairedAt" => "2026-11-01T09:30:00.250Z"}
+  @person "8c1f2e7a-3b4d-4f60-9a12-5de7c0b8a941"
+  @other_person "d27a90b3-1e5c-4a88-b6f4-0c93e7125fda"
+  @paired %{"name" => "Astra", "person" => @person, "pairedAt" => "2026-11-01T09:30:00.250Z"}
 
   setup do
     siwa = Application.fetch_env!(:siwa_server, :siwa)
@@ -45,7 +47,7 @@ defmodule SiwaServerWeb.HelloCardControllerTest do
     assert %{
              "subject" => ^subject,
              "name" => "Astra",
-             "person" => "Sam",
+             "person" => @person,
              "pairedAt" => "2026-11-01T09:30:00Z",
              "pairedOn" => "keyfleet",
              "cardId" => card_id,
@@ -117,7 +119,7 @@ defmodule SiwaServerWeb.HelloCardControllerTest do
       payload
       |> Base.url_decode64!(padding: false)
       |> Jason.decode!()
-      |> Map.put("person", "Mallory")
+      |> Map.put("person", @other_person)
       |> Jason.encode!()
       |> Base.url_encode64(padding: false)
 
@@ -259,7 +261,7 @@ defmodule SiwaServerWeb.HelloCardControllerTest do
 
   test "a card is logged by its id, site and subject, never with the card or the person",
        %{signer: signer, own: own} do
-    site(fn conn -> Req.Test.json(conn, Map.put(@paired, "person", "Sam Quill")) end)
+    site(fn conn -> Req.Test.json(conn, Map.put(@paired, "person", @other_person)) end)
     level = Logger.level()
     Logger.configure(level: :info)
     on_exit(fn -> Logger.configure(level: level) end)
@@ -271,7 +273,7 @@ defmodule SiwaServerWeb.HelloCardControllerTest do
 
     assert log =~ card_id
     refute log =~ card
-    refute log =~ "Sam Quill"
+    refute log =~ @other_person
   end
 
   test "the published keys: every key with its thumbprint, the first signing, public keys only" do

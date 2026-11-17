@@ -12,8 +12,10 @@ defmodule SiwaServer.HelloCard do
   compact JWS this server signs, typed `siwa-service+jwt`, for that site's origin
   and that subject, good for 60 seconds. Only the site's answer decides:
 
-    * `200` with exactly `name` and `person` (1 to 200 characters each) and
-      `pairedAt` (ISO 8601, UTC) gives a card;
+    * `200` with exactly `name`, the agent's name there, and `person`, the
+      person's profile code (the random id of their Regent profile, never a
+      name), 1 to 200 characters each, and `pairedAt` (ISO 8601, UTC) gives a
+      card;
     * `404` means the agent is not paired there;
     * anything else, no answer within 5 seconds, or a redirect, is the site
       being unavailable. It is logged with the site and the reason, never the

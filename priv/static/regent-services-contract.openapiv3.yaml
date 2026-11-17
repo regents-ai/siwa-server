@@ -1992,7 +1992,7 @@ components:
               type: string
               minLength: 1
               maxLength: 200
-              description: The person the agent is paired with there, as the site gave it.
+              description: The profile code of the person the agent is paired with there, the random id of their Regent profile, as the site gave it. Never a name.
             pairedAt:
               type: string
               format: date-time

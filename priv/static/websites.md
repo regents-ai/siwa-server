@@ -204,8 +204,9 @@ things:
 4. `subject` is `eip155:<x-agent-chain-id>:<walletAddress>` of the signed request.
    Otherwise the card is another agent's.
 
-A card that passes says only that the site `pairedOn` has this agent paired with a person
-it calls `person`, and calls the agent `name`. Do not conclude from it:
+A card that passes says only that the site `pairedOn` has this agent paired with a person,
+and calls the agent `name`. `person` is that person's profile code: the random id of their
+Regent profile, never a name, and it says nothing else about them. Do not conclude from it:
 
 - that the agent is paired on your site;
 - that the person approved this request, or anything the agent does on your site;
@@ -216,7 +217,8 @@ it calls `person`, and calls the agent `name`. Do not conclude from it:
 - anything at all once it has expired, or when the request beside it is not signed by its
   `subject`.
 
-On your pages, say "paired with <person> on <site>". Never say "trusted" or "verified".
+On your pages, say "paired with a person on <site>". Never say "trusted" or "verified", and
+never greet anyone with `person`: it is a code, not a name.
 
 ## Know
 

@@ -5,6 +5,11 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- A hello card's `person` is the person's profile code: the random id of their Regent
+  profile, never a name. The README, the guide for websites and the contract said "the
+  person's name"; they now say the code, and that a page says "paired with a person on
+  <site>" and never greets anyone with it. What the server accepts and signs is unchanged.
+
 ## 17 November 2026, hello card
 
 - Hello cards. An agent paired with a person on a Regent site asks for one with a signed

@@ -224,17 +224,17 @@ The service token is a compact JWS signed with this server's card key, header
 URL), `aud` (the site's origin), `sub` (the agent's subject), `iat`, `exp` (60 seconds later)
 and `jti`. The site checks it against the published keys before it answers:
 
-- `200 {"name":"Astra","person":"Ada","pairedAt":"2026-11-01T09:30:00Z"}`, exactly those
-  three, when the agent is paired with a person there: `name` is the agent's name and
-  `person` the person's name on that site, 1 to 200 characters each, and `pairedAt` is in
-  UTC;
+- `200 {"name":"Astra","person":"8c1f2e7a-3b4d-4f60-9a12-5de7c0b8a941","pairedAt":"2026-11-01T09:30:00Z"}`,
+  exactly those three, when the agent is paired with a person there: `name` is the agent's
+  name and `person` is the person's profile code, the random id of their Regent profile and
+  never a name, 1 to 200 characters each, and `pairedAt` is in UTC;
 - `404` when it is not.
 
 The site is asked once, with 5 seconds to connect and 5 to answer, and a redirect is not
 followed. The answer:
 
 ```json
-{"code":"hello_card","data":{"card":"eyJ...","cardId":"...","subject":"eip155:8453:0xabc...","name":"Astra","person":"Ada","pairedAt":"2026-11-01T09:30:00Z","pairedOn":"keyfleet","issuedAt":"2026-11-17T12:00:00Z","expiresAt":"2026-11-18T12:00:00Z"}}
+{"code":"hello_card","data":{"card":"eyJ...","cardId":"...","subject":"eip155:8453:0xabc...","name":"Astra","person":"8c1f2e7a-3b4d-4f60-9a12-5de7c0b8a941","pairedAt":"2026-11-01T09:30:00Z","pairedOn":"keyfleet","issuedAt":"2026-11-17T12:00:00Z","expiresAt":"2026-11-18T12:00:00Z"}}
 ```
 
 `card` is a compact JWS, header `{"alg":"EdDSA","typ":"siwa-hello-card+jws","kid":"..."}`,
@@ -273,7 +273,8 @@ signed request. The signature does not cover that header, so a site checks four 
    agent's and says nothing about this one.
 
 A card that passes says only that, until it expires, the site `pairedOn` had this agent
-paired with a person it calls `person`. A site must not conclude from it:
+paired with the person whose profile code is `person`. The code is random and says nothing
+else about them. A site must not conclude from it:
 
 - that the agent is paired here, on the site reading it;
 - that the person approved this request, or anything the agent does here;
@@ -284,7 +285,8 @@ paired with a person it calls `person`. A site must not conclude from it:
 - anything at all once the card has expired, or when the request beside it is not signed by
   the card's `subject`.
 
-Page copy says "paired with <person> on <site>", never "trusted" or "verified".
+Page copy says "paired with a person on <site>", never "trusted" or "verified". `person` is
+a code, not a name: a page never greets anyone with it.
 
 Both agent clients get and show cards: `hello-card SITE` asks for one from the site it is
 paired on and keeps it in `<home>/cards/<audience>.json`, and `request ... --hello-card SITE`
