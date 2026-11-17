@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 17 November 2026, billing
+
 - Customers pay through Stripe. `POST /api/control/v1/billing/checkout` answers a Stripe
   Checkout page where the person subscribes their customer: 99 dollars a month for up to
   1,000 agents, then 9.9 cents for each agent after. `POST /api/control/v1/billing/portal`
