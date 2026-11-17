@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 17 November 2026, empty body
+
 - No body and an empty body are the same signed request (Sean, 16 Nov). A request without a
   body verifies whether the agent signed no `content-digest` or the empty body's, and whether
   the site reports no `body_digest` or the empty body's; either way it is used once. A request
