@@ -63,6 +63,28 @@ features:
       - No browser e2e: API only.
       - The window property reads the real clock around each check; the verifier takes no clock of its own.
 
+  - id: hello-card
+    what: An agent gets a card, signed here and good for a day, saying a Regent site has it paired with a person, once that site says so; sites check it against the published keys, and the clients keep it and show it.
+    who: agent
+    level: protected
+    paths:
+      - lib/siwa_server/hello_card.ex
+      - lib/siwa_server_web/hello_card_controller.ex
+      - lib/siwa_server_web/raw_body.ex
+      - lib/siwa_server/siwa/http_verifier.ex
+    entry:
+      - route: POST /api/shared/siwa/hello-card
+      - route: GET /.well-known/jwks.json
+      - cli: uv run siwa_agent.py hello-card
+      - cli: node siwa-agent.mjs hello-card
+    proofs:
+      - test/siwa_server_web/controllers/hello_card_controller_test.exs
+      - test/siwa_server/hello_card_clients_test.exs
+      - test/siwa_server/config_test.exs
+    gaps:
+      - No real Regent site answers the pairing read yet; the tests answer it through the HTTP seam.
+      - The site answer's size is not capped; it comes only from a site in SIWA_WALLET_ORIGINS, within 5 seconds.
+
   - id: refusal-help
     what: Every refusal tells the agent what to do next, in words shaped by the site and how it signs.
     who: agent

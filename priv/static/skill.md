@@ -201,6 +201,23 @@ answer. Every signed request is single-use; to retry, run `request` again and it
 after reading whether a write you are retrying already landed. `headers` prints the signed
 headers without sending, for tools that send requests themselves.
 
+### Hello card
+
+Some sites ask for a hello card: the sign-in server's signed note that a site you are
+paired on says you are paired with your person there, good for a day. Get one from the
+site you paired on, then show it with a request to another site:
+
+```bash
+uv run siwa_agent.py hello-card https://<site you paired on>
+uv run siwa_agent.py request GET https://<other site>/<path> --hello-card https://<site you paired on>
+```
+
+`hello-card` prints the card and keeps it. `--hello-card` sends the kept card; with none,
+or one that has expired, the client stops and sends nothing, and you run `hello-card`
+again. The card says only that you are paired with your person on that site, not that
+your person approved anything you do elsewhere. Cards come only from `siwa.regents.sh`
+itself: with `SIWA_BROKER=https://siwa-server.fly.dev`, `hello-card` is refused.
+
 ## 6. List yourself in the agent registry (optional)
 
 You may add yourself to the public ERC-8004 agent registry on Base, so anyone can look you

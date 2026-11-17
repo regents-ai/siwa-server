@@ -187,6 +187,37 @@ return new Response("Free trial started", { status: 201 });
 The `PRIMARY KEY` on `human_id` keeps one trial for each person, also when two of their
 agents ask at the same moment.
 
+## Cards
+
+An agent paired with a person on a Regent site can show your site a hello card: SIWA's
+signed note that the site said so, good for a day. It comes in the `x-siwa-hello-card`
+header beside a signed request. The signature does not cover that header, so check four
+things:
+
+1. The signed request, as above.
+2. The card's signature. The card is a compact JWS whose header has `alg` `EdDSA`, `typ`
+   `siwa-hello-card+jws` and a `kid`. Check it with the key that `kid` names in
+   [SIWA's published keys](https://siwa.regents.sh/.well-known/jwks.json), which you may
+   keep for an hour.
+3. The payload has exactly `cardId`, `subject`, `name`, `person`, `pairedAt`, `pairedOn`,
+   `issuedAt` and `expiresAt`, and `expiresAt` is still ahead.
+4. `subject` is `eip155:<x-agent-chain-id>:<walletAddress>` of the signed request.
+   Otherwise the card is another agent's.
+
+A card that passes says only that the site `pairedOn` has this agent paired with a person
+it calls `person`, and calls the agent `name`. Do not conclude from it:
+
+- that the agent is paired on your site;
+- that the person approved this request, or anything the agent does on your site;
+- that `name` is unique or verified;
+- that `person` is signed in to your site, or is anyone in particular there;
+- that the agent or its person can pay;
+- that the agent is honest or capable;
+- anything at all once it has expired, or when the request beside it is not signed by its
+  `subject`.
+
+On your pages, say "paired with <person> on <site>". Never say "trusted" or "verified".
+
 ## Know
 
 - **The person number is public.** Anyone can read it from World's AgentBook with the

@@ -85,6 +85,8 @@ mix phx.server
 | `/` | GET | Service root. |
 | `/api/shared/siwa/audiences` | GET | The Regent sites agents can sign in to, one row per origin. The agent clients' `sites` command prints it. |
 | `/api/shared/siwa/audience?origin=` | GET | The audience an agent signs in for at one exact origin. See [Audience lookup](#audience-lookup). |
+| `/api/shared/siwa/hello-card` | POST | An agent's hello card from a Regent site it is paired on. See [Hello card](#hello-card). |
+| `/.well-known/jwks.json` | GET | The public keys hello cards are signed with. |
 | `/api/shared/siwa/wallet/nonce` | POST | Issue a wallet sign-in challenge. |
 | `/api/shared/siwa/wallet/verify` | POST | Verify a wallet sign-in. |
 | `/api/shared/siwa/http-verify` | POST | Verify a signed HTTP request: a customer's site with its server key, a Regent site with its audience. |
@@ -188,6 +190,106 @@ GET /api/shared/siwa/audience?origin=https%3A%2F%2Facme.example&audience=acme
 
 Both agent clients ask here to find a site's audience; their `sites` command still prints
 the Regent sites from `/api/shared/siwa/audiences`.
+
+## Hello card
+
+A hello card is this server's signed note that a Regent site said an agent is paired with a
+person there. The agent keeps it for a day and shows it to other sites, which check it
+against this server's published keys without asking anyone.
+
+**Getting one.** The agent sends a signed request to this server, with its host as the
+authority and the sign-in receipt for the site it is paired on. The body is exactly one
+field, that site's audience from `SIWA_WALLET_ORIGINS`:
+
+```http
+POST /api/shared/siwa/hello-card
+content-type: application/json
+
+{"pairedOn":"keyfleet"}
+```
+
+The request is checked here the way `http-verify` checks one for a site, and used up once.
+This server then asks the site, at its first origin, whether the agent is paired there:
+
+```http
+POST https://keyfleet.ai/api/agents/v1/pairing
+authorization: Bearer <service token>
+content-type: application/json
+
+{"subject":"eip155:8453:0xabc..."}
+```
+
+The service token is a compact JWS signed with this server's card key, header
+`{"alg":"EdDSA","typ":"siwa-service+jwt","kid":"..."}`, with the claims `iss` (this server's
+URL), `aud` (the site's origin), `sub` (the agent's subject), `iat`, `exp` (60 seconds later)
+and `jti`. The site checks it against the published keys before it answers:
+
+- `200 {"name":"Astra","person":"Ada","pairedAt":"2026-11-01T09:30:00Z"}`, exactly those
+  three, when the agent is paired with a person there: `name` is the agent's name and
+  `person` the person's name on that site, 1 to 200 characters each, and `pairedAt` is in
+  UTC;
+- `404` when it is not.
+
+The site is asked once, with 5 seconds to connect and 5 to answer, and a redirect is not
+followed. The answer:
+
+```json
+{"code":"hello_card","data":{"card":"eyJ...","cardId":"...","subject":"eip155:8453:0xabc...","name":"Astra","person":"Ada","pairedAt":"2026-11-01T09:30:00Z","pairedOn":"keyfleet","issuedAt":"2026-11-17T12:00:00Z","expiresAt":"2026-11-18T12:00:00Z"}}
+```
+
+`card` is a compact JWS, header `{"alg":"EdDSA","typ":"siwa-hello-card+jws","kid":"..."}`,
+whose payload is exactly the other eight fields. `cardId` is 16 random bytes in unpadded
+base64url, and every time is ISO 8601 UTC in whole seconds. Nothing is stored; the log has
+each card's id, site and subject, never the card or the person. Cards are limited to 60 a
+minute per calling computer.
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `invalid_request` | The body is not exactly `{"pairedOn": "<site>"}`. |
+| 401 | `http_signature_invalid`, `receipt_binding_mismatch`, ... | The signed request does not check out, as `http-verify` would say: for example it was addressed to another host, or its receipt is for another site than `pairedOn`. |
+| 404 | `hello_card_site_unknown` | `pairedOn` is not a Regent site in `SIWA_WALLET_ORIGINS`. |
+| 404 | `hello_card_not_paired` | The site says the agent is not paired there. |
+| 409 | `request_replayed` | The signed request was already used. |
+| 429 | `rate_limited` | Over 60 a minute from one computer; `retry-after` says when to try again. |
+| 502 | `hello_card_site_unavailable` | The site gave any other answer, a redirect, or none in time. The log has the site and the reason, never the token. Nothing is retried; the agent asks again. |
+| 503 | `hello_card_not_configured` | `SIWA_CARD_KEYS` is not set on this server. |
+
+**Keys.** `GET /.well-known/jwks.json` lists each key in `SIWA_CARD_KEYS` as a public Ed25519
+JWK (`kty` `OKP`, `crv` `Ed25519`, `alg` `EdDSA`, `use` `sig`, `kid`, `x`), the signing key
+first, and may be cached for an hour. `kid` is the key's RFC 7638 thumbprint. While no key is
+set, the list is empty. To change keys, add the new one second, wait an hour, swap them so it
+signs, and drop the old one a day and an hour later, when the last card it signed has
+expired.
+
+**Checking a card.** An agent shows its card in the `x-siwa-hello-card` header beside a
+signed request. The signature does not cover that header, so a site checks four things:
+
+1. The signed request, as for any agent (`http-verify` or `Siwa.AgentAuthPlug`), which gives
+   its subject.
+2. The card's signature, with the published key its `kid` names; `alg` is `EdDSA` and `typ`
+   is `siwa-hello-card+jws`.
+3. The card's payload: exactly its eight fields, and `expiresAt` still ahead.
+4. The card's `subject` is the signed request's subject. Otherwise the card is another
+   agent's and says nothing about this one.
+
+A card that passes says only that, until it expires, the site `pairedOn` had this agent
+paired with a person it calls `person`. A site must not conclude from it:
+
+- that the agent is paired here, on the site reading it;
+- that the person approved this request, or anything the agent does here;
+- that `name` is unique or verified: it is what the agent is called on that site;
+- that `person` is signed in here, or is anyone in particular here;
+- that the agent or its person can pay;
+- that the agent is honest or capable;
+- anything at all once the card has expired, or when the request beside it is not signed by
+  the card's `subject`.
+
+Page copy says "paired with <person> on <site>", never "trusted" or "verified".
+
+Both agent clients get and show cards: `hello-card SITE` asks for one from the site it is
+paired on and keeps it in `<home>/cards/<audience>.json`, and `request ... --hello-card SITE`
+sends the kept card from that site. With no card kept, or an expired one, the client refuses
+and sends nothing; it never gets a card on its own.
 
 ## Control API
 
@@ -465,6 +567,7 @@ long; it leaves no rows behind and cancels the subscriptions it made. The usual 
 | `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS` | `300` | Clock skew allowed on a signed HTTP request, and the longest one may last. At least `120`, the contract's signing lifetime. |
 | `SIWA_HOSTED_SIGNERS` | unset | Each site's own key for hosted signing (Patchbay's ChatGPT app, Keyfleet's, the template's and Chainagent's Claude connectors), as `site=key` pairs. Unset lets no site sign. |
 | `SIWA_WALLET_ORIGINS` | unset | Approved `audience=origin` pairs for wallet sign-in, comma separated; an audience may repeat with more origins. Unset disables it. |
+| `SIWA_CARD_KEYS` | unset | Secret. One or two Ed25519 keys for [hello cards](#hello-card), comma separated, each 32 random bytes as unpadded base64url, for example `fly secrets set SIWA_CARD_KEYS="$(elixir -e 'IO.write(Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false))')"`. The first signs; both are published. Unset turns hello cards off. |
 | `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Expired nonce, replay and activity rows removed per batch. A sweep runs once a minute and repeats batches until one comes back short, at most 20 for each kind. |
 | `PRIVY_APP_ID` | unset | The Privy app whose signed-in people may use the [control API](#control-api). Unset turns the control API off. |
 | `PRIVY_VERIFICATION_KEY` | unset | That Privy app's ES256 verification **public** key, not its app secret: the PEM with real line breaks, for example `fly secrets set PRIVY_VERIFICATION_KEY="$(cat privy-verification-key.pem)"`. Unset turns the control API off. |
@@ -494,7 +597,7 @@ at zero, installs the `e2e/` libraries, runs the test suite with warnings as err
 runs the Touch ID page checks in headless Chromium (`e2e/`, Playwright 1.64.1, on a Mac). It
 needs a local PostgreSQL, because the test alias creates and migrates a database first,
 Playwright's Chromium (`npx --prefix e2e playwright install --only-shell chromium`, once),
-and `uv` on the path. The first-signed-request test runs the served Python client through
+and `uv` on the path. The first-signed-request and hello card client tests run the served Python client through
 `uv` (its first run downloads the client's libraries, so it needs the network or a warm uv
 cache) and the Node client beside `e2e/node_modules`, so a bare `mix test` on a fresh clone
 needs `npm --prefix e2e ci` first.

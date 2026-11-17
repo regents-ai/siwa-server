@@ -5,6 +5,24 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- Hello cards. An agent paired with a person on a Regent site asks for one with a signed
+  request to `POST /api/shared/siwa/hello-card`, body `{"pairedOn": "<site>"}`. This server
+  asks that site at `POST /api/agents/v1/pairing`, with a 60-second service token it signs,
+  and when the site answers the agent's `name`, its `person` and `pairedAt`, it answers a
+  card it signs, good for a day. Sites check a card against the keys at
+  `GET /.well-known/jwks.json`. A card says only that the site has the agent paired with that
+  person: not that the person approved anything, nor that the agent is paired anywhere else.
+  Nothing is stored. The new answers are `404 hello_card_site_unknown`,
+  `404 hello_card_not_paired`, `502 hello_card_site_unavailable` and
+  `503 hello_card_not_configured`; cards are limited to 60 a minute per computer.
+- Both served clients are 2.12. `hello-card <site>` gets a card from a site you are paired on
+  and keeps it; `request ... --hello-card <site>` sends the kept card in `x-siwa-hello-card`.
+  With no card kept, or an expired one, the client stops and sends nothing.
+- For whoever releases: hello cards stay off, answering `503 hello_card_not_configured` with an
+  empty key list, until `SIWA_CARD_KEYS` (a secret, one or two keys; the README says how to
+  make one) is set. No migration. A site answers the pairing read only once it builds
+  `POST /api/agents/v1/pairing`; until then its agents get `502 hello_card_site_unavailable`.
+
 ## 17 November 2026, billing
 
 - Customers pay through Stripe. `POST /api/control/v1/billing/checkout` answers a Stripe
