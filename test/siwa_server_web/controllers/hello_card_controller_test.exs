@@ -230,6 +230,25 @@ defmodule SiwaServerWeb.HelloCardControllerTest do
              signer |> signed(own) |> send_card() |> json_response(404)
   end
 
+  test "a site whose paired person has no profile there yet gives no card, and says what to do",
+       %{signer: signer, own: own} do
+    for body <- [
+          %{"code" => "person_has_no_profile"},
+          %{"code" => "person_has_no_profile", "message" => "they have not signed in here"}
+        ] do
+      site(fn conn -> conn |> Plug.Conn.put_status(409) |> Req.Test.json(body) end)
+
+      answer = signer |> signed(own) |> send_card() |> json_response(409)
+
+      assert %{"error" => %{"code" => "hello_card_person_has_no_profile", "hint" => hint}} =
+               answer
+
+      assert hint != ""
+      refute Map.has_key?(answer, "data")
+      assert_received {:asked, _asked, _body}
+    end
+  end
+
   test "a site that is down, slow, redirects or answers anything else gives no card",
        %{signer: signer, own: own} do
     for answer <- [
@@ -237,6 +256,9 @@ defmodule SiwaServerWeb.HelloCardControllerTest do
           &Req.Test.transport_error(&1, :timeout),
           &redirect/1,
           &Plug.Conn.send_resp(&1, 500, ""),
+          &Plug.Conn.send_resp(&1, 409, ""),
+          &(&1 |> Plug.Conn.put_status(409) |> Req.Test.text("person_has_no_profile")),
+          &(&1 |> Plug.Conn.put_status(409) |> Req.Test.json(%{"code" => "person_unknown"})),
           &Req.Test.json(&1, Map.delete(@paired, "person")),
           &Req.Test.json(&1, Map.put(@paired, "extra", "x")),
           &Req.Test.json(&1, Map.put(@paired, "name", "")),

@@ -5,6 +5,12 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- When a site says an agent is paired with a person who has no profile there yet (the site
+  answers the pairing read with `409` and `{"code": "person_has_no_profile"}`), the agent now
+  gets `409 hello_card_person_has_no_profile`, with a hint to ask that person to sign in on
+  that site with a wallet and then run `hello-card` again, instead of
+  `502 hello_card_site_unavailable`. No card is issued.
+
 ## 17 November 2026, profile code
 
 - A hello card's `person` is the person's profile code: the random id of their Regent

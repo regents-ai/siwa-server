@@ -17,6 +17,10 @@ defmodule SiwaServer.HelloCard do
       name), 1 to 200 characters each, and `pairedAt` (ISO 8601, UTC) gives a
       card;
     * `404` means the agent is not paired there;
+    * `409` with a JSON body whose `code` is `person_has_no_profile` means the
+      agent is paired there with a person who has no profile on that site
+      yet, so there is no profile code to sign; any other field in the body is
+      ignored;
     * anything else, no answer within 5 seconds, or a redirect, is the site
       being unavailable. It is logged with the site and the reason, never the
       token, and nothing is retried: the agent asks again.
@@ -110,6 +114,11 @@ defmodule SiwaServer.HelloCard do
       :not_paired ->
         {:error, {404, "hello_card_not_paired", "the site says this agent is not paired there"}}
 
+      :no_profile ->
+        {:error,
+         {409, "hello_card_person_has_no_profile",
+          "the site says this agent is paired with a person who has no profile there yet"}}
+
       {:unavailable, reason} ->
         Logger.warning("hello card pairing read failed paired_on=#{paired_on} reason=#{reason}")
 
@@ -185,11 +194,16 @@ defmodule SiwaServer.HelloCard do
   end
 
   defp pairing({:ok, %Req.Response{status: 404}}), do: :not_paired
+
+  defp pairing({:ok, %Req.Response{status: 409, body: %{"code" => "person_has_no_profile"}}}),
+    do: :no_profile
+
   defp pairing({:ok, %Req.Response{status: status}}), do: {:unavailable, "status #{status}"}
   defp pairing({:error, exception}), do: {:unavailable, Exception.message(exception)}
 
   defp result({:ok, _pairing}), do: :paired
   defp result(:not_paired), do: :not_paired
+  defp result(:no_profile), do: :no_profile
   defp result({:unavailable, _reason}), do: :unavailable
 
   defp text?(value), do: is_binary(value) and String.length(value) in 1..200

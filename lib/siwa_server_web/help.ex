@@ -241,6 +241,13 @@ defmodule SiwaServerWeb.Help do
     ]
   end
 
+  defp steps("hello_card_person_has_no_profile", _context) do
+    [
+      "The site says the person you are paired with has no Regent profile there yet. ",
+      "Ask them to sign in on that site with a wallet, then run `hello-card` again."
+    ]
+  end
+
   defp steps("hello_card_site_unavailable", _context) do
     [
       "The site could not say just now whether you are paired there. Wait a minute, then run ",

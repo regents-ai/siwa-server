@@ -159,8 +159,10 @@ paths:
         {"alg": "EdDSA", "kid": ..., "typ": "siwa-service+jwt"}, claims iss
         (this server's origin), aud (the site's origin), sub (the subject),
         iat, exp (iat + 60) and jti. The site answers 200 with exactly
-        {"name", "person", "pairedAt"} for an agent paired there, or 404. The
-        card is a compact JWS, header {"alg": "EdDSA", "kid": ..., "typ":
+        {"name", "person", "pairedAt"} for an agent paired there, 404 for one
+        that is not, or 409 with {"code": "person_has_no_profile"} for one
+        paired with a person who has no profile there yet. The card is a
+        compact JWS, header {"alg": "EdDSA", "kid": ..., "typ":
         "siwa-hello-card+jws"}, whose payload is exactly the eight fields
         below. Nothing is stored. At most 60 requests a minute for each caller
         address.
@@ -200,7 +202,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "409":
-          description: The signed request was used before (request_replayed)
+          description: >-
+            The signed request was used before (request_replayed), or the site
+            says the agent is paired with a person who has no profile there yet
+            (hello_card_person_has_no_profile)
           content:
             application/json:
               schema:
@@ -219,9 +224,10 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "502":
           description: >-
-            The site did not answer 200 with the pairing or 404 within 5
-            seconds, without a redirect (hello_card_site_unavailable); or a
-            smart wallet signature lookup failed
+            The site did not answer 200 with the pairing, 404, or 409
+            person_has_no_profile within 5 seconds, without a redirect
+            (hello_card_site_unavailable); or a smart wallet signature lookup
+            failed
           content:
             application/json:
               schema:

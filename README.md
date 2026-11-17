@@ -228,7 +228,10 @@ and `jti`. The site checks it against the published keys before it answers:
   exactly those three, when the agent is paired with a person there: `name` is the agent's
   name and `person` is the person's profile code, the random id of their Regent profile and
   never a name, 1 to 200 characters each, and `pairedAt` is in UTC;
-- `404` when it is not.
+- `404` when it is not;
+- `409 {"code":"person_has_no_profile"}` when the agent is paired with a person who has no
+  profile there yet, which the site makes only once that person signs in there with a
+  wallet. Any other field beside `code` is ignored.
 
 The site is asked once, with 5 seconds to connect and 5 to answer, and a redirect is not
 followed. The answer:
@@ -250,6 +253,7 @@ minute per calling computer.
 | 404 | `hello_card_site_unknown` | `pairedOn` is not a Regent site in `SIWA_WALLET_ORIGINS`. |
 | 404 | `hello_card_not_paired` | The site says the agent is not paired there. |
 | 409 | `request_replayed` | The signed request was already used. |
+| 409 | `hello_card_person_has_no_profile` | The site says the agent is paired with a person who has no profile there yet. No card is made; the agent asks again once that person has signed in on that site with a wallet. |
 | 429 | `rate_limited` | Over 60 a minute from one computer; `retry-after` says when to try again. |
 | 502 | `hello_card_site_unavailable` | The site gave any other answer, a redirect, or none in time. The log has the site and the reason, never the token. Nothing is retried; the agent asks again. |
 | 503 | `hello_card_not_configured` | `SIWA_CARD_KEYS` is not set on this server. |
