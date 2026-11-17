@@ -35,6 +35,9 @@ a release moves those lines under its date. Which version and commit each releas
   and its function, which hashed the plain keys of releases before v90. After it runs, never roll back
   to v89 or earlier; a rollback to v90 or later needs nothing, and the migration's undo puts the
   trigger back.
+
+## 17 November 2026, empty body
+
 - No body and an empty body are the same signed request (Sean, 16 Nov). A request without a
   body verifies whether the agent signed no `content-digest` or the empty body's, and whether
   the site reports no `body_digest` or the empty body's; either way it is used once. A request
