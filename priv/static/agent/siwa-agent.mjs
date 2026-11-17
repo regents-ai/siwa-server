@@ -241,7 +241,7 @@ const SIWA_CONTRACT = {
   ]
 };
 // END SIWA CONTRACT
-const USER_AGENT = "siwa-agent-client/2.11 (node)";
+const USER_AGENT = "siwa-agent-client/2.12 (node)";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const SIGNATURE_PATTERN = /0x[0-9a-fA-F]{130,}/g;
 const BOX_INFO = "agent key box";
@@ -1179,6 +1179,10 @@ function receiptPath(config, audience) {
   return join(config.home, "receipts", `${audience}.json`);
 }
 
+function cardPath(config, audience) {
+  return join(config.home, "cards", `${audience}.json`);
+}
+
 async function httpJson(method, url, body, headers = {}) {
   const init = { method, headers: { accept: "application/json", "user-agent": USER_AGENT, ...headers } };
   if (body !== undefined) {
@@ -1552,9 +1556,9 @@ function receiptRejected(body) {
   return text.includes("receipt_invalid") || text.includes("receipt_binding_mismatch");
 }
 
-async function sendSigned(config, method, url, body, extra = {}) {
+// Send one request signed with this key's sign-in for `audience`, signing in again once if it was refused.
+async function sendSigned(config, audience, method, url, body, extra = {}) {
   const key = requireKey(config);
-  const audience = await audienceFor(config, url);
   let receipt = await freshReceipt(config, key, audience);
   let result = await httpJson(method, url, body, { ...extra, ...(await signedHeaders(key, receipt, method, url, body)) });
   if (result.status === 401 && receiptRejected(result.body)) {
@@ -1601,8 +1605,11 @@ Use any Regent site:
   pair SITE < pair.json            pair with your person's account; pair.json holds
                                    {"code": "...", "name": "Astra", "harness": "claude_code"}
   me SITE                          see which account you are paired with
-  request METHOD URL [--body TEXT] [--header NAME=VALUE]
-                                   send a signed request and print the answer
+  hello-card SITE                  get a card, good for a day, saying SITE paired you with
+                                   your person, and keep it
+  request METHOD URL [--body TEXT] [--header NAME=VALUE] [--hello-card SITE]
+                                   send a signed request and print the answer;
+                                   --hello-card also shows the card you keep from SITE
   headers METHOD URL [--body TEXT] print signed headers without sending the request
                                    a request with no body leaves --body off; no body
                                    and an empty body are the same request
@@ -1647,6 +1654,25 @@ function readPairing() {
 function required(value, usage) {
   if (value === undefined) throw new SiwaError(`usage: ${usage}`);
   return value;
+}
+
+// Ask the sign-in server for a card from the site you are paired on, and keep it.
+async function helloCard(config, site) {
+  const audience = await audienceFor(config, site);
+  const body = Buffer.from(JSON.stringify({ pairedOn: audience }), "utf8");
+  const result = await sendSigned(config, audience, "POST", `${config.broker}/api/shared/siwa/hello-card`, body);
+  if (result.status === 200 && result.body?.code === "hello_card") saveJson(cardPath(config, audience), result.body.data);
+  return printResponse(result);
+}
+
+// The card kept for `audience`; a missing or expired one is refused here, never fetched.
+function savedCard(config, audience) {
+  const card = loadJson(cardPath(config, audience));
+  if (!card) throw new SiwaError(`no hello card from ${audience}; run hello-card with that site's address first`);
+  if (Date.parse(card.expiresAt) <= Date.now()) {
+    throw new SiwaError(`the hello card from ${audience} expired at ${card.expiresAt}; run hello-card with that site's address again`);
+  }
+  return card.card;
 }
 
 function parseRequestArgs(args) {
@@ -1959,15 +1985,22 @@ async function main(argv) {
       const site = required(args[0], "pair <site> < pair.json");
       const { code, name, harness } = readPairing();
       const body = Buffer.from(JSON.stringify({ code, name, harness }), "utf8");
-      return printResponse(await sendSigned(config, "POST", `${originOf(site)}/api/agents/v1/pair`, body));
+      const url = `${originOf(site)}/api/agents/v1/pair`;
+      return printResponse(await sendSigned(config, await audienceFor(config, url), "POST", url, body));
     }
     case "me": {
       const site = required(args[0], "me <site>");
-      return printResponse(await sendSigned(config, "GET", `${originOf(site)}/api/agents/v1/me`, undefined));
+      const url = `${originOf(site)}/api/agents/v1/me`;
+      return printResponse(await sendSigned(config, await audienceFor(config, url), "GET", url, undefined));
     }
+    case "hello-card":
+      return helloCard(config, required(args[0], "hello-card <site>"));
     case "request": {
+      const cardSite = takeOption(args, "--hello-card");
       const request = parseRequestArgs(args);
-      return printResponse(await sendSigned(config, request.method, request.url, request.body, request.extra));
+      if (cardSite !== undefined) request.extra["x-siwa-hello-card"] = savedCard(config, await audienceFor(config, cardSite));
+      const audience = await audienceFor(config, request.url);
+      return printResponse(await sendSigned(config, audience, request.method, request.url, request.body, request.extra));
     }
     case "register-agent":
       return registerAgent(config, args);

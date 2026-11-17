@@ -38,7 +38,7 @@ SIGNER_TIMEOUT_SECONDS = 300
 PASSKEY_WAIT_SECONDS = 300
 HELPER_ANSWER_SECONDS = 10
 HELPER_START_SECONDS = 10
-USER_AGENT = "siwa-agent-client/2.11 (python)"
+USER_AGENT = "siwa-agent-client/2.12 (python)"
 # BEGIN SIWA CONTRACT
 # Contract 26f6ba8e03e944a955114615c69f6d699480ac2e9e44bd171c892a7ac0b720a0, written by `mix siwa_server.agent_clients` from the siwa library; do not edit.
 SIWA_CONTRACT = json.loads(
@@ -1189,6 +1189,10 @@ def receipt_path(config: dict, audience: str) -> str:
     return os.path.join(config["home"], "receipts", f"{audience}.json")
 
 
+def card_path(config: dict, audience: str) -> str:
+    return os.path.join(config["home"], "cards", f"{audience}.json")
+
+
 def http_json(method: str, url: str, body: bytes | None = None, headers: dict | None = None) -> tuple[int, dict | str]:
     request = urllib.request.Request(url, data=body, method=method)
     request.add_header("accept", "application/json")
@@ -1610,9 +1614,9 @@ def receipt_rejected(response: dict | str) -> bool:
     return "receipt_invalid" in text or "receipt_binding_mismatch" in text
 
 
-def send_signed(config: dict, method: str, url: str, body: bytes | None, extra: dict | None = None) -> tuple[int, dict | str]:
+def send_signed(config: dict, audience: str, method: str, url: str, body: bytes | None, extra: dict | None = None) -> tuple[int, dict | str]:
+    """Send one request signed with this key's sign-in for `audience`, signing in again once if it was refused."""
     key = require_key(config)
-    audience = audience_for(config, url)
     receipt = fresh_receipt(config, key, audience)
     status, response = http_json(method, url, body, {**(extra or {}), **signed_headers(key, receipt, method, url, body)})
     if status == 401 and receipt_rejected(response):
@@ -1779,8 +1783,11 @@ Use any Regent site:
   pair SITE < pair.json            pair with your person's account; pair.json holds
                                    {"code": "...", "name": "Astra", "harness": "claude_code"}
   me SITE                          see which account you are paired with
-  request METHOD URL [--body TEXT] [--header NAME=VALUE]
-                                   send a signed request and print the answer
+  hello-card SITE                  get a card, good for a day, saying SITE paired you with
+                                   your person, and keep it
+  request METHOD URL [--body TEXT] [--header NAME=VALUE] [--hello-card SITE]
+                                   send a signed request and print the answer;
+                                   --hello-card also shows the card you keep from SITE
   headers METHOD URL [--body TEXT] print signed headers without sending the request
                                    a request with no body leaves --body off; no body
                                    and an empty body are the same request
@@ -1822,17 +1829,42 @@ def read_pairing() -> dict:
 
 def command_pair(config: dict, args: argparse.Namespace) -> None:
     body = json_body(read_pairing())
-    print_response(*send_signed(config, "POST", site_url(args.site, "/api/agents/v1/pair"), body))
+    url = site_url(args.site, "/api/agents/v1/pair")
+    print_response(*send_signed(config, audience_for(config, url), "POST", url, body))
 
 
 def command_me(config: dict, args: argparse.Namespace) -> None:
-    print_response(*send_signed(config, "GET", site_url(args.site, "/api/agents/v1/me"), None))
+    url = site_url(args.site, "/api/agents/v1/me")
+    print_response(*send_signed(config, audience_for(config, url), "GET", url, None))
+
+
+def command_hello_card(config: dict, args: argparse.Namespace) -> None:
+    """Ask the sign-in server for a card from the site you are paired on, and keep it."""
+    audience = audience_for(config, args.site)
+    url = f"{config['broker']}/api/shared/siwa/hello-card"
+    status, response = send_signed(config, audience, "POST", url, json_body({"pairedOn": audience}))
+    if status == 200 and isinstance(response, dict) and response.get("code") == "hello_card":
+        save_json(card_path(config, audience), response["data"])
+    print_response(status, response)
+
+
+def saved_card(config: dict, audience: str) -> str:
+    """The card kept for `audience`; a missing or expired one is refused here, never fetched."""
+    card = load_json(card_path(config, audience))
+    if card is None:
+        raise SiwaError(f"no hello card from {audience}; run hello-card with that site's address first")
+    expires = datetime.fromisoformat(card["expiresAt"].replace("Z", "+00:00"))
+    if expires <= datetime.now(timezone.utc):
+        raise SiwaError(f"the hello card from {audience} expired at {card['expiresAt']}; run hello-card with that site's address again")
+    return card["card"]
 
 
 def command_request(config: dict, args: argparse.Namespace) -> None:
     body = None if args.body is None else args.body.encode("utf-8")
     extra = dict(pair.split("=", 1) for pair in args.header)
-    print_response(*send_signed(config, args.method.upper(), args.url, body, extra))
+    if args.hello_card is not None:
+        extra["x-siwa-hello-card"] = saved_card(config, audience_for(config, args.hello_card))
+    print_response(*send_signed(config, audience_for(config, args.url), args.method.upper(), args.url, body, extra))
 
 
 def command_headers(config: dict, args: argparse.Namespace) -> None:
@@ -1992,6 +2024,10 @@ def main(argv: list[str]) -> None:
     me.add_argument("site")
     me.set_defaults(run=command_me)
 
+    hello_card = commands.add_parser("hello-card")
+    hello_card.add_argument("site")
+    hello_card.set_defaults(run=command_hello_card)
+
     register = commands.add_parser("register-agent")
     register.add_argument("--name", required=True)
     register.add_argument("--description", required=True)
@@ -2014,6 +2050,7 @@ def main(argv: list[str]) -> None:
         sub.add_argument("--body")
         sub.add_argument("--header", action="append", default=[], metavar="NAME=VALUE")
         sub.set_defaults(run=handler)
+    commands.choices["request"].add_argument("--hello-card", metavar="SITE")
 
     if argv[0] not in commands.choices:
         print(json.dumps({"error": f"unknown command '{argv[0]}'; run --help to see the commands"}), file=sys.stderr)
