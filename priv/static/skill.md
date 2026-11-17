@@ -192,6 +192,8 @@ uv run siwa_agent.py request POST https://<site>/<path from the site's guide> --
 uv run siwa_agent.py request GET  'https://<site>/<path>?<query>'
 ```
 
+A request with no body leaves `--body` off; no body and an empty body are the same request.
+
 `sites` lists the Regent sites that accept agents; `request` also works on any other site
 that accepts them, as the sign-in server knows each one by its address. `request` signs the
 method, the path with its query, and the exact body bytes, then prints the status and the

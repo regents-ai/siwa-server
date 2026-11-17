@@ -10,9 +10,9 @@ defmodule SiwaServer.Customers.SiteFile do
       (`SiwaServer.Config.https_origin?/1`): https on the default port, to a
       host name, never a number;
     * every address the name resolves to, IPv4 and IPv6, must be public, by the
-      shared rule (`Regent.MCPEvents.Callback.public_ip?/1`): loopback,
-      private, link-local, unique-local, shared (CGNAT), multicast,
-      unspecified, IPv4-mapped and other special addresses are refused;
+      shared rule (`RegentHttp.Public.public_ip?/1`): loopback, private,
+      link-local, unique-local, shared (CGNAT), multicast, unspecified,
+      IPv4-mapped and other special addresses are refused;
     * the connection goes to an address that was checked, with the host name
       kept for TLS and the `host` header, so the name is never resolved again;
     * one GET on a new connection, closed after it: a redirect is an answer and
@@ -21,7 +21,7 @@ defmodule SiwaServer.Customers.SiteFile do
       most 1 KB (1,024 bytes) of body.
   """
 
-  alias Regent.MCPEvents.Callback
+  alias RegentHttp.Public
   alias SiwaServer.Config
 
   @path "/.well-known/siwa-site.txt"
@@ -75,7 +75,7 @@ defmodule SiwaServer.Customers.SiteFile do
 
     cond do
       {:error, :timeout} in answers or addresses == [] -> {:error, :unreachable}
-      Enum.all?(addresses, &Callback.public_ip?/1) -> {:ok, hd(addresses)}
+      Enum.all?(addresses, &Public.public_ip?/1) -> {:ok, hd(addresses)}
       true -> {:error, :address_not_allowed}
     end
   end

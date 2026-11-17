@@ -102,7 +102,8 @@ mix phx.server
 
 Sign-in has one path: the agent's wallet. A signed request binds the wallet, chain,
 audience and the request body when it has one. A site checking a request sends
-`body_digest`, the content-digest of the body it read, and never the body itself.
+`body_digest`, the content-digest of the body it read, and never the body itself. A request
+without a body needs no `body_digest`; no body and an empty body are the same request.
 Protected request verification also expects the signed path to include the query string when
 one is present. A customer's site asks with its server key; a Regent site named in
 `SIWA_WALLET_ORIGINS` may still ask with only its audience in `x-siwa-audience`.

@@ -35,6 +35,22 @@ a release moves those lines under its date. Which version and commit each releas
   and its function, which hashed the plain keys of releases before v90. After it runs, never roll back
   to v89 or earlier; a rollback to v90 or later needs nothing, and the migration's undo puts the
   trigger back.
+- No body and an empty body are the same signed request (Sean, 16 Nov). A request without a
+  body verifies whether the agent signed no `content-digest` or the empty body's, and whether
+  the site reports no `body_digest` or the empty body's; either way it is used once. A request
+  that signed a body which did not arrive is refused as `401 http_body_binding_invalid`
+  ("content-digest does not match the request body"), and its next step now says a request
+  with no body leaves `--body` off. The reasons `request_body_required` and
+  `missing_content_digest`, and the code `http_body_binding_missing`, are gone from the
+  contract (26f6ba8e), and both served clients carry it. The clients sign as before:
+  `--body ''` signs the empty body's digest and no `--body` signs none, and both are valid.
+  No allowed hosted request has an empty body, so hosted signing is unchanged.
+- The shared library pin is elixir-utils e40068b, which brings the body rule. It also moves the
+  address rule a customer's site file is read under to the shared outbound package
+  (`RegentHttp.Public`); the rule and every limit of that read are unchanged, and the MCP
+  Events package is no longer a dependency. The Privy package now brings Phoenix LiveView and
+  Phoenix HTML into the build for its own sign-in pages; the token check the control API
+  uses is unchanged. Nothing the service uses from the chain package changed.
 
 ## 14 November 2026, site proof
 

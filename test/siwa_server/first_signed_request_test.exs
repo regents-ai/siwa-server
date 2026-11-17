@@ -90,7 +90,8 @@ defmodule SiwaServer.FirstSignedRequestTest do
       for {audience, other} <- [{"keyfleet", "patchbay"}, {"patchbay", "keyfleet"}],
           {method, path, request_body} <- [
             {"GET", "/api/agents/v1/whoami", nil},
-            {"POST", "/api/agents/v1/pair", body}
+            {"POST", "/api/agents/v1/pair", body},
+            {"POST", "/api/agents/v1/pair", ""}
           ] do
         body_args = if request_body, do: ["--body", request_body], else: []
         headers = run.(["headers", method, @sites[audience] <> path | body_args])

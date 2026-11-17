@@ -1986,7 +1986,7 @@ components:
           additionalProperties:
             type: string
         body_digest:
-          description: The content-digest of the body the site read (sha-256=:<base64>:), sent only when the request had a body. The body itself is never sent.
+          description: The content-digest of the body the site read (sha-256=:<base64>:). A request without a body needs none; no body and an empty body are the same request. The body itself is never sent.
           type: string
         lease:
           description: True only on a request that changes nothing and spends nothing. Asks for a lease, answered with leaseExpiresAt when the wallet signed with its own key.

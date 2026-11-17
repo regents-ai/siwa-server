@@ -40,7 +40,7 @@ HELPER_ANSWER_SECONDS = 10
 HELPER_START_SECONDS = 10
 USER_AGENT = "siwa-agent-client/2.11 (python)"
 # BEGIN SIWA CONTRACT
-# Contract d04115bcf297030bf57a19293b3a9dc0cb5cae8aed8e9c62676bc06d16efebaf, written by `mix siwa_server.agent_clients` from the siwa library; do not edit.
+# Contract 26f6ba8e03e944a955114615c69f6d699480ac2e9e44bd171c892a7ac0b720a0, written by `mix siwa_server.agent_clients` from the siwa library; do not edit.
 SIWA_CONTRACT = json.loads(
     r"""
 {
@@ -192,18 +192,6 @@ SIWA_CONTRACT = json.loads(
       "status": 401,
       "code": "http_signature_invalid",
       "message": "signed request is for another site"
-    },
-    {
-      "reason": "request_body_required",
-      "status": 401,
-      "code": "http_body_binding_missing",
-      "message": "request body is required when content-digest is present"
-    },
-    {
-      "reason": "missing_content_digest",
-      "status": 401,
-      "code": "http_body_binding_missing",
-      "message": "missing content-digest header"
     },
     {
       "reason": "content_digest_mismatch",
@@ -1794,6 +1782,8 @@ Use any Regent site:
   request METHOD URL [--body TEXT] [--header NAME=VALUE]
                                    send a signed request and print the answer
   headers METHOD URL [--body TEXT] print signed headers without sending the request
+                                   a request with no body leaves --body off; no body
+                                   and an empty body are the same request
   sign-in SITE                     sign in now (requests do this on their own)
   whoami                           show your address, how you sign and where you are signed in
 
