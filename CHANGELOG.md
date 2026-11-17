@@ -5,6 +5,13 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- Plug 1.20.4 closes EEF-CVE-2026-120287: the multipart parser did not count part and header
+  framing towards its length limit. This service parses only JSON bodies, at most 64 KB, so
+  it was not open to it; the fixed version is in anyway. Bandit 1.15.0 comes with it and
+  closes GHSA-j9wq-h5xx-5qx5 (a small compressed HTTP/2 trailer section could cost much CPU
+  and log volume), and Telemetry moves from 1.4.2 to 1.4.3 beside them. Phoenix 1.8.16 and
+  Plug Crypto 2.2.1 were already the newest. No route, answer or setting changes.
+
 ## 17 November 2026, empty body
 
 - No body and an empty body are the same signed request (Sean, 16 Nov). A request without a
