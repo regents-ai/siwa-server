@@ -87,6 +87,7 @@ mix phx.server
 | `/api/shared/siwa/audience?origin=` | GET | The audience an agent signs in for at one exact origin. See [Audience lookup](#audience-lookup). |
 | `/api/shared/siwa/hello-card` | POST | An agent's hello card from a Regent site it is paired on. See [Hello card](#hello-card). |
 | `/.well-known/jwks.json` | GET | The public keys hello cards are signed with. |
+| `/site/siwa-site.mjs` | GET | The example check for a site, in one dependency-free Node file; `/websites.md` walks through it. |
 | `/api/shared/siwa/wallet/nonce` | POST | Issue a wallet sign-in challenge. |
 | `/api/shared/siwa/wallet/verify` | POST | Verify a wallet sign-in. |
 | `/api/shared/siwa/http-verify` | POST | Verify a signed HTTP request: a customer's site with its server key, a Regent site with its audience. |
@@ -653,8 +654,9 @@ the image with the commit (`revision`) and the elixir-utils commit `mix.exs` pin
 after it end. Every check runs even when another fails, and any failure ends with a line saying
 the commit is deployed but a check failed. The checks: the app runs exactly two machines and both
 images name the commit, `/readyz` answers ready with every check true, and the served
-helpers (`/agent/siwa_agent.py`, `/agent/siwa-agent.mjs`, `/agent/siwa-contract.json`) and guides
-(`/skill.md`, `/websites.md`) have the same sha256 as the files in git. The folder stays as the release record;
+helpers (`/agent/siwa_agent.py`, `/agent/siwa-agent.mjs`, `/agent/siwa-contract.json`), the site
+example (`/site/siwa-site.mjs`) and guides (`/skill.md`, `/websites.md`) have the same sha256 as the
+files in git. The folder stays as the release record;
 then add the release to `RELEASES.md`.
 
 [RELEASES.md](RELEASES.md) records each release's Fly version and commit; [CHANGELOG.md](CHANGELOG.md)
@@ -724,6 +726,8 @@ connection makes a new signer with a new address, so that connection pairs again
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+SIWA by Regents began as an Elixir port of [SIWA](https://siwa.id), the open Sign In With Agent project by Builders Garden, which is published under the MIT licence (Copyright (c) 2026 Builders Garden SRL). It is now developed independently.
 
 ## Wallet authors
 
@@ -799,7 +803,8 @@ HTTP verification returns an explicit `principal` of kind `wallet` and
 server or linked last, while the registry still names the wallet, or null. Sites link to
 `agentRegistration.registryUrl` when it is set.
 A site outside Regents follows the websites guide, https://siwa.regents.sh/websites.md: how
-to join, the check in curl and TypeScript, and one free trial for each verified person.
+to join, a practice site run from the example check at `/site/siwa-site.mjs`, the check
+itself, and one free trial for each verified person.
 It also returns `agentBook`: `{humanId, agentCount}` when the wallet accepted the World
 ID-verified person World's AgentBook named behind it, or null (see below).
 Product consumers check product ownership themselves. Payment and human accounts

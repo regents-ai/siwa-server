@@ -1,180 +1,341 @@
-# Websites
+# SIWA by Regents
 
-SIWA (Sign-In With Agent) lets your website know which agent sent a request. Each agent
-holds one Ethereum key. Its address is the agent's lasting identity: the same on every
-site, for as long as the agent keeps the key. Agents need no account or password on your
-site, and they pay nothing to sign in.
+SIWA (Sign-In With Agent) helps a service recognise the agents that come back to it. Each
+agent holds one Ethereum key and signs every request it sends you. Your server asks SIWA
+about each request, and SIWA answers with the agent that signed it: the same caller ID on
+every visit, for as long as the agent keeps its key.
 
-For each signed request, SIWA tells your server:
+Agents need no account, password or API key on your site, and they pay nothing to sign in.
+Your company pays, once a billing period, for each agent it lets in. This guide covers
+everything your server does.
 
-- **The agent:** its wallet address.
-- **A registry listing, if the agent has one:** its entry in the public ERC-8004 agent
-  registry on Base, with a page you can link to.
-- **A verified person, if one vouched for it:** an anonymous World ID number. All agents
-  of the same person share it.
+## Start
 
-## Join
+Open an account on the SIWA pages of a Regent site, signed in as a person or as an agent
+with its own wallet. Today those pages are at
+[template.regents.sh/siwa](https://template.regents.sh/siwa).
 
-Open an issue at [github.com/regents-ai/siwa-server](https://github.com/regents-ai/siwa-server/issues)
-and send:
+1. Name your company.
+2. On **Sites**, add a site. A site has a name, an address and a **handle**: the short name
+   agents sign in for, which can never change.
+3. On the site's page, press **New key**. Copy the server key; it is shown once.
 
-- A short name for your site, such as `acme`: lowercase letters, digits, `-` and `_`.
-- Each `https://` origin agents use, such as `https://acme.example`.
+There are two kinds of site, and each has its own kind of key:
 
-When your site is added, it is in the
-[site list](https://siwa.regents.sh/api/shared/siwa/audiences). You get no key to keep
-secret. Each signed request names the host it is sent to, and SIWA accepts it only for
-the site that has that host.
+| Site | Address | Key | Billed |
+| --- | --- | --- | --- |
+| Practice | `http://localhost:<port>`, on your own computer | `siwa_sk_test_...` | Never |
+| Production | `https://` and your host | `siwa_sk_live_...` | Yes |
 
-## Agents
+Start with a practice site. It needs no subscription and no proof of its address.
 
-Agents follow [the agent guide](https://siwa.regents.sh/skill.md). When your site is
-added, an agent sends a signed request to your site like this:
+There are two keys in SIWA, and they are never the same thing:
 
-```bash
-uv run siwa_agent.py request GET https://acme.example/api/hello
-```
+- **Server key.** Your company's. It tells SIWA which site is asking. Keep it on your
+  server, the way you keep any secret: never in a page, an app, a repository or a message
+  to an agent. A site can have five in use; revoke one on the site's page and it stops at once.
+- **Agent key.** The agent's own. It never leaves the agent's computer, and you
+  never see it. You see only its address.
 
-The client finds your site in the site list, signs in for it and signs every request.
+## Practice
 
-## Check
+This runs a practice site on your computer and sends it one signed request. You need Node
+20 or newer for the site and `uv` for the agent client.
 
-For each request that must come from an agent, your server asks SIWA. Send:
-
-- Your site's name, in the `x-siwa-audience` header.
-- The method, the path with its query, and `authority`: the host the agent sent the
-  request to, such as `acme.example`.
-- The signed headers.
-- When the request has a body, its digest. Never send the body itself.
+Save the test key in a file only you can read, then start the example site on the port in
+your practice site's address:
 
 ```bash
-curl https://siwa.regents.sh/api/shared/siwa/http-verify \
-  -H "x-siwa-audience: acme" \
-  -H "content-type: application/json" \
-  -d '{
-    "method": "GET",
-    "path": "/api/hello",
-    "authority": "acme.example",
-    "headers": {
-      "x-siwa-signature": "...",
-      "x-siwa-signature-input": "...",
-      "x-siwa-receipt": "...",
-      "x-key-id": "...",
-      "x-timestamp": "...",
-      "x-agent-wallet-address": "...",
-      "x-agent-chain-id": "..."
-    }
-  }'
+curl -fsSO https://siwa.regents.sh/site/siwa-site.mjs
+SIWA_SERVER_KEY="$(cat ~/.siwa-site-key)" node siwa-site.mjs 4000
 ```
 
-The same check in TypeScript, for any server with the standard `Request`
-(Node 18 or newer, Deno, Bun, Cloudflare Workers):
+In another shell, make an agent and send a request, naming your site's handle:
 
-```ts
-const VERIFY = "https://siwa.regents.sh/api/shared/siwa/http-verify";
-const SITE = "acme";
+```bash
+curl -fsSO https://siwa.regents.sh/agent/siwa_agent.py
+uv run siwa_agent.py keygen
+uv run siwa_agent.py request GET http://localhost:4000/api/hello --handle <handle>
+```
 
-const SIGNED_HEADERS = [
-  "x-siwa-signature",
-  "x-siwa-signature-input",
-  "x-siwa-receipt",
-  "x-key-id",
-  "x-timestamp",
-  "x-agent-wallet-address",
-  "x-agent-chain-id",
-  "content-digest",
-];
+The agent client prints your site's answer:
 
-export type Agent = {
-  walletAddress: string;
-  agentRegistration: { agentId: string; registryUrl: string; profileUrl: string | null } | null;
-  agentBook: { humanId: string; agentCount: number } | null;
-};
-
-// The agent, or null when the request is not a valid signed request for this site.
-export async function verifyAgent(request: Request): Promise<Agent | null> {
-  const url = new URL(request.url);
-  const headers: Record<string, string> = {};
-
-  for (const name of SIGNED_HEADERS) {
-    const value = request.headers.get(name);
-    if (value !== null) headers[name] = value;
+```json
+{
+  "status": 200,
+  "body": {
+    "caller": "eip155:8453:0x25182c93fd8b2e3b490f0c4aede5f93a885ebeb8",
+    "wallet": "0x25182c93fd8b2e3b490f0c4aede5f93a885ebeb8",
+    "visits": 1,
+    "listing": null,
+    "person": null
   }
-
-  const check: Record<string, string | Record<string, string>> = {
-    method: request.method,
-    path: url.pathname + url.search,
-    authority: url.host,
-    headers,
-  };
-
-  const body = await request.clone().arrayBuffer();
-
-  if (body.byteLength > 0) {
-    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", body));
-    check.body_digest = `sha-256=:${btoa(String.fromCharCode(...digest))}:`;
-  }
-
-  const answer = await fetch(VERIFY, {
-    method: "POST",
-    headers: { "x-siwa-audience": SITE, "content-type": "application/json" },
-    body: JSON.stringify(check),
-  });
-
-  if (answer.status === 200) return (await answer.json()).data;
-  if ([400, 401, 409, 413, 415].includes(answer.status)) return null;
-  throw new Error(`SIWA could not check the request: ${answer.status}`);
 }
 ```
 
-A request without a body needs no `body_digest`; no body and an empty body are the same request.
+Send it again and `visits` is 2 with the same `caller`: your site knows the agent that came
+back. On a Mac, `keygen` asks the person at the computer for Touch ID once; elsewhere it
+asks nothing.
 
-`url.host` is the host your server saw. Behind a proxy, use the public host instead.
+[`siwa-site.mjs`](https://siwa.regents.sh/site/siwa-site.mjs) is about a hundred lines with
+no dependencies. Its `checkAgent` function is the whole integration: import it into a Node
+server, or read it and write the same check in your own language from the next section. A
+complete small site built this way runs at [demo.regents.sh](https://demo.regents.sh), with
+[its code](https://github.com/regents-ai/siwa-server/tree/main/examples/phoenix) in Elixir.
+
+## Check
+
+For each request that must come from an agent, your server sends one request to SIWA:
+
+```http
+POST https://siwa.regents.sh/api/shared/siwa/http-verify
+Authorization: Bearer <your server key>
+Content-Type: application/json
+
+{
+  "method": "POST",
+  "path": "/v1/notes?draft=1",
+  "authority": "acme.example",
+  "headers": {
+    "x-siwa-signature": "...",
+    "x-siwa-signature-input": "...",
+    "x-siwa-receipt": "...",
+    "x-key-id": "...",
+    "x-timestamp": "...",
+    "x-agent-wallet-address": "...",
+    "x-agent-chain-id": "...",
+    "content-digest": "sha-256=:...:"
+  },
+  "body_digest": "sha-256=:...:"
+}
+```
+
+| Field | Value |
+| --- | --- |
+| `method` | The request's method. |
+| `path` | Its path, with the query string when it has one. |
+| `authority` | The host the agent sent it to, in lowercase, with the port only when it is not the usual one: `acme.example`, `localhost:4000`. Behind a proxy, use the public host, not the one your server sees. It must be one of the site's addresses. |
+| `headers` | The eight headers above, as the agent sent them. Leave out any it did not send, and send no others. |
+| `body_digest` | Only when the request has a body: `sha-256=:` then the base64 SHA-256 of the exact bytes you received, then `:`. Work it out yourself; never copy the agent's `content-digest`. Never send the body. |
+
+A request with no body, or an empty one, has no `body_digest` and no `content-digest`.
+
+Refuse a request that carries no `x-siwa-signature` header yourself, with a `401`; there is
+nothing to check.
 
 ## Answer
 
-A `200` answer means the agent signed this exact request for your site. Its `data` has:
+A `200` means the agent signed this exact request for your site. Its `data` holds:
 
-| Field | What it is |
+| Field | Meaning |
 | --- | --- |
-| `walletAddress` | The agent's address, in lowercase. Use it as the agent's ID on your site. |
-| `agentRegistration` | The agent's registry listing, or `null`. Link to `registryUrl`. `profileUrl` is the listing's own profile address, or `null`. |
-| `agentBook` | The verified person, or `null`. `humanId` is the person's number; `agentCount` is how many agents accepted that person. |
+| `subject` | The caller ID: `eip155:<chain id>:<address>`, in lowercase. Store this. |
+| `walletAddress` | The agent's address, in lowercase. |
+| `chainId` | The chain the agent signed in on: `8453` for Base, `1` for Ethereum. |
+| `verificationMethod` | `eoa_recovery` for an ordinary key; `erc1271` or `erc6492` for a smart wallet. |
+| `agentRegistration` | The agent's listing in the public ERC-8004 agent registry on Base, or `null`. It has `agentId`, `registryUrl` (a page you can link to) and `profileUrl` (the listing's own profile, or `null`). |
+| `agentBook` | The person who vouched for the agent with World ID, or `null`. `humanId` is that person's anonymous number; `agentCount` is how many agents have accepted the same person. |
+| `usage` | Production sites only. `newThisPeriod` is `true` on the agent's first check this billing period, the one that counts toward your bill, and `false` every time after. |
 
-Other answers:
+Other fields describe the signature and can be ignored.
 
-| Answer | Meaning | Your site |
+## Caller
+
+Use `subject` as the agent's ID in your own records: the key of its account, its quota, its
+history. It stays the same on every visit and on every site, because it comes from the
+agent's key and nothing else.
+
+- **Key.** One key is one caller. The agent client keeps its key in `~/.siwa-agent/key.json` (or
+  the folder named in `SIWA_AGENT_HOME`) and uses it on every run, from any tool on that
+  computer. An agent that loses the file, or starts in an empty folder, is a new caller
+  with no history, and counts again toward your bill. If you run agents yourself, keep
+  that folder between runs.
+- **Chain.** The chain is part of the ID. The same address signed in on Base and on Ethereum is
+  two callers. Never merge them yourself.
+- **Names.** SIWA gives you no name, email or operator for an agent. Ask for those in
+  your own product if you need them.
+
+## Evidence
+
+Each part of an answer is evidence for one thing. Treat them separately; none of them is a
+badge of trust.
+
+| Evidence | Proves | Not proven |
 | --- | --- | --- |
-| `400`, `401`, `409`, `413`, `415` | Not a valid signed request for your site, or a request seen before. | Refuse the request. |
-| `429`, `500`, `502` | SIWA could not check the request now. | Ask the agent to try again later. |
+| A `200` | The holder of that address's key signed this method, path, host and body, for your site, within the last five minutes, and SIWA has not passed this request before. | That the holder is an AI and not a person or a script. That it is honest, capable or able to pay. That it is the only key its operator holds. |
+| `agentRegistration` | The registry on Base names this address as the listing's owner or agent wallet. SIWA reads the registry again every few minutes and drops a listing that no longer does. | Anything the listing says. Its name, description and picture are the agent's own claims. |
+| `agentBook` | World's AgentBook names this person behind the address, and the agent signed to accept them. | Who the person is, or that they approved this request. The number is public; never use it as a secret. |
 
-Each signed request is good once, for two minutes. Never check the same request twice.
+A signed request passes once. That stops a copied request from being used again; it does
+not make your own action happen once. If an agent's answer is lost and it sends the same
+order again, freshly signed, SIWA passes it. Guard your own writes the way you would for
+any client, with a request key of your own.
 
-## Free trial
+## Refusals
 
-This example gives one free trial to each verified person, however many agents they have.
+Any answer but `200` is a refusal: `{"error": {"code": "...", "message": "...", "hint": "..."}}`.
+There are two kinds, and your site treats them differently.
+
+**Agent.** The agent's own request is at fault: a `401` or `409` whose code does not begin `site_`. Answer the
+agent `401` with SIWA's `code` and `message`.
+
+| Code | Meaning | Retry |
+| --- | --- | --- |
+| `http_headers_missing`, `http_signature_input_invalid`, `http_required_components_missing` | Signed headers are missing or malformed. | No. The agent needs the current client. |
+| `http_signature_invalid` | The request has expired, is for another host, or was changed on the way. | Yes, signed fresh. |
+| `http_body_binding_invalid` | The body is not the one the agent signed. | Yes, signed fresh. |
+| `receipt_invalid`, `receipt_binding_mismatch` | The agent's sign-in has ended or is for another site. | Yes. The client signs in again by itself. |
+| `signature_invalid` | The signature is not from that address. | No. |
+| `request_replayed` | SIWA has passed this signed request before. | Only signed fresh, and only after the agent has read whether its first try landed. |
+
+**Site.** Everything else: your site's account, or SIWA itself. Answer the agent `503`, pass on `retry-after` when
+SIWA sent it, and write the code to your own log. Never show these to an agent: they
+describe your account, and an agent must never be asked to pay your bill.
+
+| Refusal | Meaning | Next step |
+| --- | --- | --- |
+| `401 site_key_invalid` | The key is unknown or revoked, or its site is archived. | Use a key in use. |
+| `401 site_audience_mismatch` | You sent an `x-siwa-audience` header that is not this key's handle. | Leave the header out. |
+| `403 site_not_verified` | The production site's address is not proven. | Prove it; see Production. |
+| `402 billing_required` | Your company has no subscription running. | Subscribe on **Billing**. |
+| `402 agent_cap_reached` | Your cap has no room for a new agent this period. Agents already counted still pass. | Raise the cap, or wait for the next period. |
+| `429 site_rate_limited`, `429 rate_limited` | Too many checks this minute; see Limits. | Wait the `retry-after` seconds. |
+| `400` | Your check is malformed. | Compare it with Check. |
+| `502 signature_lookup_failed` | A smart wallet could not be read on its chain just now. | The agent tries again shortly. |
+| `503 verification_unavailable`, `500` | SIWA could not record the check, so it did not pass. | The agent sends the request again, signed fresh. |
+
+Refusals on `402`, `403`, `429` and `503` leave the agent's request unused, and nothing is
+counted for any refusal. Never act on a request SIWA did not answer `200` for, and never
+ask SIWA about the same request twice: the second answer is `409 request_replayed`.
+
+## Production
+
+A production site takes agents once two things are true.
+
+1. **Address.** The site's address is proven. Its page shows a token and a file address,
+   `https://<your host>/.well-known/siwa-site.txt`. Publish a file there holding exactly
+   the token and nothing else, then press **Check**. The page shows **Proven**. Changing
+   the site's addresses sets it back to **Not proven**.
+2. **Subscription.** Your company is subscribed, on **Billing**.
+
+Then make a key on the production site's page (`siwa_sk_live_...`) and give your server
+that key in place of the test key. Nothing else in your code changes.
+
+Agents find a production site by its address. An agent sends
+`uv run siwa_agent.py request GET https://acme.example/<path>` with no handle: its client
+asks SIWA which site answers at `https://acme.example`, signs in for it, and signs the
+request.
+
+## Billing
+
+- **Price.** $99 a month, which covers your first 1,000 agents. Each agent after that is
+  $0.099. It is billed at the end of each billing period.
+- **Count.** An agent counts once for your company in a billing period: on its first `200`
+  from any of your production sites. Every later check of that agent that period is free,
+  on all your sites. An agent is a chain and an address.
+- **Free.** Never counted: practice sites, refusals, and any request SIWA could not check.
+- **Blocking.** Blocking an agent later does not take it off that period's count.
+- **Cap.** On **Overview** you can set the most your fees can reach in a period. Once they
+  reach it, new agents are refused until the next period, and agents already counted still
+  pass.
+- **Record.** **Overview** lists every agent counted this period, with the site and day it
+  was first seen, so each line of an invoice can be traced to an agent.
+
+For now, subscriptions run on Stripe's test system: you subscribe with Stripe's test card
+and no money is taken. This guide will say so when that changes.
+
+## Limits
+
+| Limit | Amount |
+| --- | --- |
+| Checks for one site | 6,000 a minute, across all its servers and keys |
+| Checks from one server address | 3,000 a minute |
+| Checks of one agent | 600 a minute |
+| A signed request | Good once, until it expires: two minutes after signing with the agent clients here, and never more than five |
+| An agent's sign-in | One hour; its client renews it without being asked |
+| Keys in use on one site | 5 |
+
+A check past a limit answers `429` with `retry-after`, and leaves the agent's request unused.
+
+## Agents
+
+Agents follow [the agent guide](https://siwa.regents.sh/skill.md). Three commands are all
+an agent needs for your site:
+
+```bash
+curl -fsSO https://siwa.regents.sh/agent/siwa_agent.py
+uv run siwa_agent.py keygen
+uv run siwa_agent.py request POST https://acme.example/v1/notes --body '{"text":"hello"}'
+```
+
+`siwa-agent.mjs` is the same client for Node. An agent with its own wallet tool signs with
+that instead of `keygen`. An agent that sends requests with its own tool runs `headers` in
+place of `request` and gets the signed headers to send.
+
+In your own guide for agents, give the address, the paths and what each answers. Say that
+refusals carry a `code`, and that a `503` means try again later.
+
+## Wallet
+
+The address in an answer is an ordinary address on a public chain, so your site can read
+anything public about it and decide for itself: a balance, a token, a pass. SIWA reads
+none of this for you. This reads an agent's USDC on Base with [viem](https://viem.sh):
+
+```ts
+import { createPublicClient, erc20Abi, http } from "viem";
+import { base } from "viem/chains";
+
+const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const chain = createPublicClient({ chain: base, transport: http() });
+
+// USDC has six decimals: 10_000_000 units is ten dollars.
+export async function holdsTenDollars(agent: { walletAddress: `0x${string}`; chainId: number }) {
+  if (agent.chainId !== 8453) return false;
+
+  const units = await chain.readContract({
+    address: USDC,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [agent.walletAddress],
+  });
+
+  return units >= 10_000_000n;
+}
+```
+
+- **Timing.** Read at the moment you decide. Holdings change with every block. Store the decision
+  you made, not the balance.
+- **Chain.** Read the chain the agent signed in on. An ordinary key (`eoa_recovery`) controls the
+  same address on every chain. A smart wallet's address on another chain can belong to
+  someone else.
+- **Payment.** A balance is not a payment. It shows the wallet holds the money now, not that the
+  agent will send it.
+
+## Trial
+
+This gives one free trial to each verified person, however many agents they run.
 
 ```sql
 CREATE TABLE free_trials (
   human_id text PRIMARY KEY,
-  wallet_address text NOT NULL,
+  subject text NOT NULL,
   started_at timestamptz NOT NULL DEFAULT now()
 );
 ```
 
 ```ts
-const agent = await verifyAgent(request);
+const { agent, refusal } = await checkAgent(request);
 
-if (agent === null) return new Response("Sign-in failed", { status: 401 });
+if (refusal) return Response.json({ error: refusal }, { status: refusal.status });
 
 if (agent.agentBook === null) {
   return new Response("The free trial needs a verified person", { status: 403 });
 }
 
 const started = await db.query(
-  `INSERT INTO free_trials (human_id, wallet_address) VALUES ($1, $2)
+  `INSERT INTO free_trials (human_id, subject) VALUES ($1, $2)
    ON CONFLICT (human_id) DO NOTHING`,
-  [agent.agentBook.humanId, agent.walletAddress],
+  [agent.agentBook.humanId, agent.subject],
 );
 
 if (started.rowCount === 0) {
@@ -185,7 +346,8 @@ return new Response("Free trial started", { status: 201 });
 ```
 
 The `PRIMARY KEY` on `human_id` keeps one trial for each person, also when two of their
-agents ask at the same moment.
+agents ask at the same moment. Many agents have no verified person; choose what your site
+gives them.
 
 ## Cards
 
@@ -201,8 +363,8 @@ things:
    keep for an hour.
 3. The payload has exactly `cardId`, `subject`, `name`, `person`, `pairedAt`, `pairedOn`,
    `issuedAt` and `expiresAt`, and `expiresAt` is still ahead.
-4. `subject` is `eip155:<x-agent-chain-id>:<walletAddress>` of the signed request.
-   Otherwise the card is another agent's.
+4. The card's `subject` is the `subject` of the signed request. Otherwise the card is
+   another agent's.
 
 A card that passes says only that the site `pairedOn` has this agent paired with a person,
 and calls the agent `name`. `person` is that person's profile code: the random id of their
@@ -220,13 +382,15 @@ Regent profile, never a name, and it says nothing else about them. Do not conclu
 On your pages, say "paired with a person on <site>". Never say "trusted" or "verified", and
 never greet anyone with `person`: it is a code, not a name.
 
-## Know
+## Origin
 
-- **The person number is public.** Anyone can read it from World's AgentBook with the
-  agent's address. Use it to count people, never as a secret or a password.
-- **One number for each person.** World ID gives each person one number, and an agent
-  accepts its person once, for good.
-- **Many agents have no person.** `agentBook` is `null` for them. Choose what your site
-  gives them.
-- **The listing is optional.** An agent listed by any tool can link its listing. What a
-  listing says about the agent is the agent's own claim.
+SIWA by Regents began as an Elixir port of [SIWA](https://siwa.id), the open Sign In With
+Agent project by Builders Garden, published under the MIT licence (Copyright (c) 2026
+Builders Garden SRL). It is now developed independently, and our thanks go to its authors.
+Two differences matter to a site:
+
+- **Listing.** Optional here: an agent signs in with a key alone, and a registry listing
+  is extra evidence when it has one. The original asks every agent to register on chain
+  first.
+- **Hosted.** Here the check is a service your server calls with a key. The original is a
+  library you run yourself.

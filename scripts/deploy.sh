@@ -13,8 +13,8 @@
 # Fly's logs stream into the release folder from before the deploy until the
 # checks after it are done. Every check runs even when another fails: the app
 # runs exactly two machines and both images name this commit, /readyz answers
-# ready with every check true, and the served agent helpers and guide are byte
-# for byte the files in git.
+# ready with every check true, and the served agent helpers, the site example
+# and the guides are byte for byte the files in git.
 #
 # The release folder, tmp/releases/<time>-<commit>/, is kept as the record:
 # context/ (what was built), fly-deploy.txt, fly-logs.txt, readyz.json and
@@ -23,7 +23,7 @@ set -euo pipefail
 
 app="siwa-server"
 host="siwa.regents.sh"
-served_files=(agent/siwa_agent.py agent/siwa-agent.mjs agent/siwa-contract.json skill.md websites.md)
+served_files=(agent/siwa_agent.py agent/siwa-agent.mjs agent/siwa-contract.json site/siwa-site.mjs skill.md websites.md)
 
 if [[ $# -ne 0 ]]; then
   echo "Usage: scripts/deploy.sh" >&2

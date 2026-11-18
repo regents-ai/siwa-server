@@ -5,6 +5,15 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The guide for sites at `/websites.md` is rewritten for a site that holds a server key. It
+  walks through opening an account and making a key, running a practice site on your own
+  computer and sending it a signed request, the one check your server sends, the answer and
+  the caller ID to store, what a passed check proves and what it does not, the refusals and
+  which ones an agent may see, going to production, billing, limits, reading an agent's
+  wallet on the chain, and credit to the original SIWA project. The example check it starts
+  from is served at `/site/siwa-site.mjs`: one Node file with no dependencies, which runs as
+  a practice site that answers each signed request with the agent that sent it, or which a
+  Node server imports to check its own agents.
 - An example site, in `examples/phoenix`: a small Phoenix app that accepts agents with its
   server key, and the demo at https://demo.regents.sh. `GET /api/hello` tells a signed agent
   its caller ID, whether it is back this billing period, its registry listing and how many

@@ -305,6 +305,25 @@ features:
       - The cap test was run once against a conditional update with its cap condition removed (14 Nov 2026) and failed; the database's own cap rule fired too. No test breaks the other billing rules in the database (no overlapping periods, cap at least 9900, subject shape) directly.
       - btree_gist, which the no-overlap rule needs, was created on the local database only; that the production role may create it is not proven.
 
+  - id: site-example
+    what: A site's developer downloads one Node file with no dependencies and runs it with the site's server key as a practice site that answers each signed request, with or without a body, with the agent that sent it and how often it has come back; an unsigned request is refused without asking this server, and the site's own trouble reaches the agent only as 503 service_unavailable while the site's log names the code.
+    who: person
+    level: protected
+    paths:
+      - priv/static/site/siwa-site.mjs
+      - priv/static/websites.md
+      - lib/siwa_server_web.ex
+    entry:
+      - route: GET /site/siwa-site.mjs
+      - cli: node siwa-site.mjs <port>
+    proofs:
+      - test/siwa_server/site_example_test.exs
+    gaps:
+      - Only the Python client is walked against the example; the Node client reaches a practice site in test/siwa_server/practice_site_clients_test.exs through the shared Elixir plug, not this file.
+      - checkAgent imported into another Node server is not walked on its own; the test runs the file as the practice site.
+      - A production site's live key, an answer with a listing or a person, a smart wallet, and retry-after passed on from a 429 are not walked.
+      - The suite runs the Node in .tool-versions (26.12.0), not Node 20, the oldest the guide names.
+
   - id: billing-cap-and-usage
     what: A person reads their customer's usage this billing period, sets or removes its cap, never below the base fee or the fee already reached, and lists the agents counted this period a page at a time, only their own.
     who: person
