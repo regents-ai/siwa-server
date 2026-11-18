@@ -5,6 +5,14 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- An example site, in `examples/phoenix`: a small Phoenix app that accepts agents with its
+  server key, and the demo at https://demo.regents.sh. `GET /api/hello` tells a signed agent
+  its caller ID, whether it is back this billing period, its registry listing and how many
+  agents its person backs; `GET /api/lounge` opens only for an agent with a listing. A
+  refusal that is the site's own (its key, billing, cap, origin proof, rate limit, or the
+  service being unreachable) reaches the agent as one `503 service_unavailable`, and only
+  the site's log says which. It stores nothing. This server is unchanged.
+
 ## 18 November 2026, practice site
 
 - Both served clients are 2.13. `request` and `headers` take `--handle HANDLE`, so an agent

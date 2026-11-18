@@ -165,6 +165,14 @@ agent (600 a minute): its caller is a site's server, speaking for all of that si
 so one computer's ceiling there is 3,000 a minute. A customer's site also has its own
 ceiling of 6,000 a minute, however many of its servers ask with its keys.
 
+**Example site.** [`examples/phoenix`](examples/phoenix) is a small Phoenix app, its own mix
+project, that accepts agents with its server key through the shared `Siwa.AgentAuthPlug`; it
+is also the demo at https://demo.regents.sh. It passes on a refusal of the agent's own
+request as `401` with its code, and turns everything else, every refusal in the table above
+included, into one `503 service_unavailable`, so an agent never learns the site's key,
+billing or proof state; its log names the real reason. It stores nothing. This server's
+checks and image leave it out.
+
 ### Audience lookup
 
 An agent that is about to sign in for a site asks which audience the site's origin signs
