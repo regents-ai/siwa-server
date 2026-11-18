@@ -5,6 +5,13 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The guide for sites says how to try a practice site with nobody at the computer (an agent that
+  signs with a wallet tool instead of a Touch ID key), names the Node agent client beside the
+  Python one, takes the test key from any place secrets are kept, says the port must be the one
+  in the site's address, and names the code for an unsigned request. Found by two fresh agents
+  given only the guide's address and a test key; both reached a first accepted request in under
+  two minutes.
+
 ## 18 November 2026, site guide
 
 - The example served at `/site/siwa-site.mjs` starts when it is run by a full path through a linked

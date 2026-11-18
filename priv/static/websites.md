@@ -40,15 +40,19 @@ There are two keys in SIWA, and they are never the same thing:
 ## Practice
 
 This runs a practice site on your computer and sends it one signed request. You need Node
-20 or newer for the site and `uv` for the agent client.
+20 or newer for the site, and `uv` or Node for the agent client.
 
-Save the test key in a file only you can read, then start the example site on the port in
-your practice site's address:
+Start the example site on the port in your practice site's address, with the test key in
+the `SIWA_SERVER_KEY` environment variable. Take the key from wherever you keep secrets;
+here it is in a file only you can read:
 
 ```bash
 curl -fsSO https://siwa.regents.sh/site/siwa-site.mjs
-SIWA_SERVER_KEY="$(cat ~/.siwa-site-key)" node siwa-site.mjs 4000
+SIWA_SERVER_KEY="$(cat <key file>)" node siwa-site.mjs 4000
 ```
+
+The port must be the one in the site's address. To use another, change the address on the
+site's page first.
 
 In another shell, make an agent and send a request, naming your site's handle:
 
@@ -74,10 +78,20 @@ The agent client prints your site's answer:
 ```
 
 Send it again and `visits` is 2 with the same `caller`: your site knows the agent that came
-back. On a Mac, `keygen` asks the person at the computer for Touch ID once; elsewhere it
-asks nothing.
+back.
 
-[`siwa-site.mjs`](https://siwa.regents.sh/site/siwa-site.mjs) is about a hundred lines with
+Two things can differ on your computer:
+
+- **Mac.** `keygen` opens a page in the browser of the person at the computer and asks for
+  Touch ID once. With nobody there, or with a wallet tool of your own, run `use-wallet` in
+  place of `keygen`, as step 2 of [the agent guide](https://siwa.regents.sh/skill.md)
+  shows. With Foundry:
+  `uv run siwa_agent.py use-wallet <address> --signer 'cast wallet sign --keystore <file> --password-file <file> "$SIWA_MESSAGE"'`.
+- **Node.** [`siwa-agent.mjs`](https://siwa.regents.sh/agent/siwa-agent.mjs) is the same
+  client without `uv`: `node siwa-agent.mjs` in place of `uv run siwa_agent.py`. Run
+  `npm install viem` beside it first if it is to make the key.
+
+[`siwa-site.mjs`](https://siwa.regents.sh/site/siwa-site.mjs) is one short file with
 no dependencies. Its `checkAgent` function is the whole integration: import it into a Node
 server, or read it and write the same check in your own language from the next section. A
 complete small site built this way runs at [demo.regents.sh](https://demo.regents.sh), with
@@ -121,7 +135,7 @@ Content-Type: application/json
 A request with no body, or an empty one, has no `body_digest` and no `content-digest`.
 
 Refuse a request that carries no `x-siwa-signature` header yourself, with a `401`; there is
-nothing to check.
+nothing to check. The example's code for it is `signature_required`.
 
 ## Answer
 
@@ -195,7 +209,7 @@ describe your account, and an agent must never be asked to pay your bill.
 | Refusal | Meaning | Next step |
 | --- | --- | --- |
 | `401 site_key_invalid` | The key is unknown or revoked, or its site is archived. | Use a key in use. |
-| `401 site_audience_mismatch` | You sent an `x-siwa-audience` header that is not this key's handle. | Leave the header out. |
+| `401 site_audience_mismatch` | Only when you send the optional `x-siwa-audience` header: it is not this key's handle. | Leave the header out. |
 | `403 site_not_verified` | The production site's address is not proven. | Prove it; see Production. |
 | `402 billing_required` | Your company has no subscription running. | Subscribe on **Billing**. |
 | `402 agent_cap_reached` | Your cap has no room for a new agent this period. Agents already counted still pass. | Raise the cap, or wait for the next period. |
