@@ -8,6 +8,7 @@
 // In your own server, import `checkAgent` and call it with a standard Request.
 // Guide: https://siwa.regents.sh/websites.md
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
 
@@ -97,8 +98,9 @@ export async function checkAgent(request, { key = process.env.SIWA_SERVER_KEY, h
 }
 
 // Run directly: a practice site that answers each request with the agent that signed
-// it, and how many times that agent has called since the site started.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// it, and how many times that agent has called since the site started. The path is
+// compared resolved, since a folder such as /tmp on a Mac is a link to another.
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const port = Number(process.argv[2]);
 
   if (!process.env.SIWA_SERVER_KEY || !Number.isInteger(port)) {

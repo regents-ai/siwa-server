@@ -34,8 +34,11 @@ defmodule SiwaServer.SiteExampleTest do
     served = Req.get!(broker <> "/site/siwa-site.mjs", retry: false)
     assert served.status == 200
     assert served.body == File.read!(@example)
-    example = Path.join(tmp_dir, "siwa-site.mjs")
-    File.write!(example, served.body)
+    # Run through a linked folder, as a download into /tmp on a Mac is.
+    File.mkdir_p!(Path.join(tmp_dir, "downloads"))
+    File.write!(Path.join(tmp_dir, "downloads/siwa-site.mjs"), served.body)
+    File.ln_s!(Path.join(tmp_dir, "downloads"), Path.join(tmp_dir, "linked"))
+    example = Path.join(tmp_dir, "linked/siwa-site.mjs")
 
     port = free_port()
     site = sandbox_site("http://localhost:#{port}")
