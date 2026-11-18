@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 17 November 2026, no profile
+
 - When a site says an agent is paired with a person who has no profile there yet (the site
   answers the pairing read with `409` and `{"code": "person_has_no_profile"}`), the agent now
   gets `409 hello_card_person_has_no_profile`, with a hint to ask that person to sign in on
