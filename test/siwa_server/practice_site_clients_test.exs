@@ -14,11 +14,11 @@ defmodule SiwaServer.PracticeSiteClientsTest do
 
   use SiwaServer.DataCase, async: false
 
-  import SiwaServer.PracticeSiteWalk
+  import SiwaServer.AgentWalk
 
   alias Siwa.AgentAuthPlug
+  alias SiwaServer.AgentWalk.Server
   alias SiwaServer.Customers.SiteCredential
-  alias SiwaServer.PracticeSiteWalk.Server
 
   @moduletag :tmp_dir
 

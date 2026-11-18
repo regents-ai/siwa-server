@@ -1,8 +1,8 @@
-defmodule SiwaServer.PracticeSiteWalk do
+defmodule SiwaServer.AgentWalk do
   @moduledoc """
-  An agent's walk to a practice site on its person's own computer: this server on a real
-  loopback port, a customer's sandbox site, a new key in an empty home, and a served
-  client run as a person installs it.
+  An agent's walk on its person's own computer: this server on a real loopback port, a
+  customer's sandbox site, a new key in an empty home, and a served client run as a
+  person installs it.
   """
 
   alias SiwaServer.Customers.{Customer, Site}
@@ -65,7 +65,10 @@ defmodule SiwaServer.PracticeSiteWalk do
     })
   end
 
-  @doc "A new key in the file `keygen` writes off a Mac, in `home`; answers its address."
+  @doc """
+  A new key in the file `keygen` writes off a Mac, in `home`; answers its address. A
+  Mac's `keygen` locks it with Touch ID, which the e2e walk covers.
+  """
   def new_key!(home) do
     private_key = :crypto.strong_rand_bytes(32)
     {:ok, <<4, public_key::binary-size(64)>>} = ExSecp256k1.create_public_key(private_key)
@@ -85,12 +88,16 @@ defmodule SiwaServer.PracticeSiteWalk do
   end
 
   @doc """
-  Runs a client command as a person installs it, with its home in `tmp_dir/home`, and
-  reads its exit status and the JSON it says: the site's answer on stdout (exit 1 when
-  the site refused), or the client's own refusal on stderr.
+  Runs a client command as a person installs it, with its home in `tmp_dir/home` and
+  `client_env`, when given, added to its environment, and reads its exit status and the
+  JSON it says: the site's answer on stdout (exit 1 when the site refused), or the
+  client's own refusal on stderr.
   """
-  def client_runner(client, %{broker: broker, tmp_dir: tmp_dir}) do
-    env = [{"SIWA_AGENT_HOME", Path.join(tmp_dir, "home")}, {"SIWA_BROKER", broker}]
+  def client_runner(client, %{broker: broker, tmp_dir: tmp_dir} = context) do
+    env = [
+      {"SIWA_AGENT_HOME", Path.join(tmp_dir, "home")},
+      {"SIWA_BROKER", broker} | Map.get(context, :client_env, [])
+    ]
 
     {command, start} =
       case client do
@@ -105,6 +112,7 @@ defmodule SiwaServer.PracticeSiteWalk do
           {"node", [Path.join(folder, "siwa-agent.mjs")]}
       end
 
+    # What the client says on stderr is kept apart: a warning there is not its answer.
     fn args ->
       stderr = Path.join(tmp_dir, "stderr.txt")
 

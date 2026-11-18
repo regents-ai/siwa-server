@@ -14,14 +14,13 @@ defmodule SiwaServer.HelloCardClientsTest do
 
   use SiwaServer.DataCase, async: false
 
+  import SiwaServer.AgentWalk
+
   alias SiwaServer.HelloCard
   alias SiwaServerWeb.Endpoint
 
   @moduletag :tmp_dir
 
-  @python Path.expand("priv/static/agent/siwa_agent.py")
-  @node Path.expand("priv/static/agent/siwa-agent.mjs")
-  @node_modules Path.expand("e2e/node_modules")
   @person "8c1f2e7a-3b4d-4f60-9a12-5de7c0b8a941"
   @paired %{"name" => "Astra", "person" => @person, "pairedAt" => "2026-11-01T09:30:00Z"}
 
@@ -96,7 +95,11 @@ defmodule SiwaServer.HelloCardClientsTest do
       :public_key.pem_encode(for der <- [root | roots], do: {:Certificate, der, :not_encrypted})
     )
 
-    %{broker: "http://127.0.0.1:#{port(server)}", site: site, trusted: trusted}
+    %{
+      broker: "http://127.0.0.1:#{port(server)}",
+      site: site,
+      client_env: [{"SSL_CERT_FILE", trusted}, {"NODE_EXTRA_CA_CERTS", trusted}]
+    }
   end
 
   for client <- [:python, :node] do
@@ -139,11 +142,6 @@ defmodule SiwaServer.HelloCardClientsTest do
     end
   end
 
-  defp port(server) do
-    {:ok, {_ip, port}} = ThousandIsland.listener_info(server)
-    port
-  end
-
   defp move_endpoint(config), do: Endpoint.config_change([{Endpoint, config}], [])
 
   # A certificate for 127.0.0.1 from a root made for this run, carrying the key
@@ -177,58 +175,5 @@ defmodule SiwaServer.HelloCardClientsTest do
       })
 
     {root.cert, Keyword.take(peer, [:cert, :key])}
-  end
-
-  # A new key in the file `keygen` writes off a Mac.
-  defp new_key!(home) do
-    private_key = :crypto.strong_rand_bytes(32)
-    {:ok, <<4, public_key::binary-size(64)>>} = ExSecp256k1.create_public_key(private_key)
-    hash = ExKeccak.hash_256(public_key)
-    address = "0x" <> Base.encode16(binary_part(hash, 12, 20), case: :lower)
-    File.mkdir_p!(home)
-
-    File.write!(
-      Path.join(home, "key.json"),
-      Jason.encode!(%{
-        address: address,
-        private_key: "0x" <> Base.encode16(private_key, case: :lower)
-      })
-    )
-
-    address
-  end
-
-  # Runs a client command as a person installs it, and reads its exit status and the
-  # JSON it says: the answer on stdout, or the refusal on stderr.
-  defp client_runner(client, %{broker: broker, tmp_dir: tmp_dir, trusted: trusted}) do
-    env = [
-      {"SIWA_AGENT_HOME", Path.join(tmp_dir, "home")},
-      {"SIWA_BROKER", broker},
-      {"SSL_CERT_FILE", trusted},
-      {"NODE_EXTRA_CA_CERTS", trusted}
-    ]
-
-    {command, start} =
-      case client do
-        :python ->
-          {"uv", ["run", "-q", @python]}
-
-        :node ->
-          folder = Path.join(tmp_dir, "node")
-          File.mkdir_p!(folder)
-          File.cp!(@node, Path.join(folder, "siwa-agent.mjs"))
-          File.ln_s!(@node_modules, Path.join(folder, "node_modules"))
-          {"node", [Path.join(folder, "siwa-agent.mjs")]}
-      end
-
-    fn args ->
-      stderr = Path.join(tmp_dir, "stderr.txt")
-
-      {output, status} =
-        System.cmd("sh", ["-c", ~s("$@" 2>"#{stderr}"), "sh", command | start ++ args], env: env)
-
-      said = if status == 0, do: output, else: File.read!(stderr)
-      {status, Jason.decode!(said)}
-    end
   end
 end
