@@ -13,10 +13,10 @@ kill_timeout = "5s"
   PHX_SERVER = "true"
   PORT = "8080"
   SIWA_SERVICE = "https://siwa.regents.sh"
-  # FILL IN before the first deploy: the live site's handle and its token, both from its
-  # Sites page. Neither is a secret. Until SIWA_HANDLE is set, the app will not start.
-  # SIWA_HANDLE = "<the site's handle>"
-  # SIWA_SITE_TOKEN = "<the site's token, siwa_site_...>"
+  # The live site's handle and its address-proof token, both from its Sites page.
+  # Neither is a secret.
+  SIWA_HANDLE = "demo"
+  SIWA_SITE_TOKEN = "siwa_site_3eedbf75c2be461b99537ee99c6d693b"
 
 [http_service]
   internal_port = 8080
