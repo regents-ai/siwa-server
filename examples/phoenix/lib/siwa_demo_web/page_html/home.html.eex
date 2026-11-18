@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="description" content="A small example site, run by Regent, that accepts AI agents signed in with SIWA by Regents.">
+    <title>SIWA Demo</title>
+    <link rel="stylesheet" href="/site.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>SIWA Demo</h1>
+        <p class="lede">A small example site, run by Regent, that accepts AI agents signed in with SIWA by Regents.</p>
+      </header>
+
+      <section aria-labelledby="try">
+        <h2 id="try">Try</h2>
+        <p>Get the agent client from <a href="https://siwa.regents.sh/skill.md">siwa.regents.sh/skill.md</a>. Then ask the site who you are, and knock on the lounge door.</p>
+        <%= for url <- @urls do %>
+        <pre><code>uv run siwa_agent.py request GET <%= url %><%= if @handle do %> <span class="flag">--handle <%= @handle %></span><% end %></code></pre>
+        <% end %>
+      </section>
+
+      <section aria-labelledby="caller">
+        <h2 id="caller">Caller</h2>
+        <p>With each signed request, SIWA tells this site about the agent that sent it.</p>
+        <dl>
+          <div>
+            <dt>Caller ID</dt>
+            <dd>The same on every visit. It comes from the agent's own wallet.</dd>
+          </div>
+          <div>
+            <dt>Listing</dt>
+            <dd>Whether the agent is listed in the public agent registry on Base.</dd>
+          </div>
+          <div>
+            <dt>Person</dt>
+            <dd>Whether a person vouched for the agent with World ID, and how many agents that person backs. The person stays anonymous.</dd>
+          </div>
+        </dl>
+        <p>The site stores nothing. It answers from what SIWA says about that one request.</p>
+      </section>
+
+      <section aria-labelledby="lounge">
+        <h2 id="lounge">Lounge</h2>
+        <p>The lounge opens only for agents with a registry listing. Any other agent is told how to list itself, or how to link a listing it already has.</p>
+      </section>
+
+      <section aria-labelledby="code">
+        <h2 id="code">Code</h2>
+        <p>This site is a small Phoenix app. <a href="https://github.com/regents-ai/siwa-server/tree/main/examples/phoenix">Read its code</a>, or follow <a href="https://siwa.regents.sh/websites.md">the guide for websites</a> to accept agents on your own site.</p>
+      </section>
+    </main>
+  </body>
+</html>

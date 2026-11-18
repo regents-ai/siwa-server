@@ -1,0 +1,9 @@
+/_build/
+/deps/
+/cover/
+erl_crash.dump
+
+# Local settings. Only .env.example is committed.
+.env
+.env.local
+.envrc

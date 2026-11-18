@@ -1,0 +1,152 @@
+:root {
+  color-scheme: light dark;
+  --ground: #ffffff;
+  --ink: #0a2540;
+  --code-ground: #f2f5f9;
+  --link: #0047e0;
+  --link-line: rgb(0 71 224 / 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #0b111c;
+    --ink: #e7edf5;
+    --code-ground: #151d2b;
+    --link: #8db0ff;
+    --link-line: rgb(141 176 255 / 0.4);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: clamp(4.5rem, 14vw, 10rem) 1rem clamp(5rem, 12vw, 9rem);
+}
+
+@media (min-width: 40rem) {
+  main {
+    padding-inline: 2rem;
+  }
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(3rem, 9vw, 4.75rem);
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.lede {
+  margin: 1.75rem 0 0;
+  max-width: 34rem;
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+section {
+  margin-top: clamp(4.5rem, 11vw, 7.5rem);
+}
+
+h2 {
+  margin: 0 0 1rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+p {
+  margin: 0 0 1rem;
+  text-wrap: pretty;
+}
+
+pre {
+  margin: 0 0 0.75rem;
+  padding: 1rem 1.25rem;
+  background: var(--code-ground);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.flag {
+  white-space: nowrap;
+}
+
+dl {
+  display: grid;
+  gap: 1.25rem;
+  margin: 1.75rem 0;
+}
+
+dl div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+@media (min-width: 40rem) {
+  dl div {
+    grid-template-columns: 8rem 1fr;
+    gap: 1.5rem;
+  }
+}
+
+dt {
+  font-weight: 600;
+}
+
+dd {
+  margin: 0;
+}
+
+a {
+  color: var(--link);
+  text-decoration-line: underline;
+  text-decoration-color: var(--link-line);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  transition: text-decoration-color 150ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  a:hover {
+    text-decoration-color: currentColor;
+  }
+}
+
+a:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+  border-radius: 2px;
+}

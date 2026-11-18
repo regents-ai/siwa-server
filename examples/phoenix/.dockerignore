@@ -1,0 +1,7 @@
+/_build
+/deps
+/test
+/.formatter.exs
+/.env
+/.env.local
+/.envrc

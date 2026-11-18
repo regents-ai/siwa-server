@@ -1,0 +1,46 @@
+app = "siwa-demo"
+primary_region = "iad"
+kill_signal = "SIGTERM"
+kill_timeout = "5s"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# The server key is a Fly secret, never a line here:
+#   fly secrets set SIWA_SERVER_KEY=siwa_sk_live_...
+[env]
+  PHX_HOST = "demo.regents.sh"
+  PHX_SERVER = "true"
+  PORT = "8080"
+  SIWA_SERVICE = "https://siwa.regents.sh"
+  # FILL IN before the first deploy: the live site's handle and its token, both from its
+  # Sites page. Neither is a secret. Until SIWA_HANDLE is set, the app will not start.
+  # SIWA_HANDLE = "<the site's handle>"
+  # SIWA_SITE_TOKEN = "<the site's token, siwa_site_...>"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_start_machines = true
+  auto_stop_machines = "off"
+  min_machines_running = 1
+  processes = ["app"]
+
+# Fly's check reaches the machine over plain HTTP. It asks as localhost, which
+# force_ssl in config/prod.exs answers instead of redirecting.
+[[http_service.checks]]
+  grace_period = "30s"
+  interval = "10s"
+  method = "GET"
+  path = "/healthz"
+  protocol = "http"
+  timeout = "2s"
+
+  [http_service.checks.headers]
+    Host = "localhost"
+
+# One small machine: the site stores nothing and asks the SIWA service for every check.
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256
