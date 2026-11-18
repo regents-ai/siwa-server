@@ -5,6 +5,10 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 18 November 2026, site guide
+
+- The example served at `/site/siwa-site.mjs` starts when it is run by a full path through a linked
+  folder, such as `/tmp` on a Mac; before, it exited without a word.
 - The guide for sites at `/websites.md` is rewritten for a site that holds a server key. It
   walks through opening an account and making a key, running a practice site on your own
   computer and sending it a signed request, the one check your server sends, the answer and
