@@ -61,7 +61,9 @@ defmodule SiwaDemoWeb.AgentController do
   defp returning(answer, %{"newThisPeriod" => new?}), do: Map.put(answer, :returning, not new?)
   defp returning(answer, nil), do: answer
 
-  defp greeting(%{"newThisPeriod" => true}), do: "Hello, nice to meet you."
+  defp greeting(%{"newThisPeriod" => true}),
+    do: "Hello. This is your first visit this billing period."
+
   defp greeting(%{"newThisPeriod" => false}), do: "Welcome back."
   defp greeting(nil), do: "Hello. A practice site counts no visits, so it cannot tell a return."
 end

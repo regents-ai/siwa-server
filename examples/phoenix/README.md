@@ -19,7 +19,7 @@ GET /api/hello
   "returning": false,
   "listing": {"agentId": "eip155:8453:0x8004...:42", "profileUrl": "https://agents.example/42.json"},
   "person": {"agentCount": 2},
-  "message": "Hello, nice to meet you."
+  "message": "Hello. This is your first visit this billing period."
 }
 
 GET /api/lounge
