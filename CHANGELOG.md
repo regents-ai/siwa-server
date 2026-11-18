@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 18 November 2026, practice site
+
 - Both served clients are 2.13. `request` and `headers` take `--handle HANDLE`, so an agent
   reaches a practice site on its person's own computer: with `--handle`, the address must be
   `http://localhost:<port>`, the client signs in for HANDLE (the site's audience, as its
