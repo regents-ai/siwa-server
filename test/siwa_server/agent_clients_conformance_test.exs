@@ -92,7 +92,8 @@ defmodule SiwaServer.AgentClientsConformanceTest do
     end
   end
 
-  # The clients sign only https addresses, so the fixtures' local ones never reach them.
+  # Without --handle the clients sign only https addresses, so the fixtures' local ones never
+  # reach them.
   for client <- [:python, :node] do
     @tag :tmp_dir
     test "the #{client} client signs the host of every fixture https address", context do
@@ -108,6 +109,30 @@ defmodule SiwaServer.AgentClientsConformanceTest do
         assert File.read!(Path.join(home, "message.txt")) =~
                  ~s("@authority": #{authority}\n),
                url
+      end
+    end
+  end
+
+  # A practice site's http://localhost:PORT address is signed for the audience --handle
+  # names, which the lookup never answers here, with the fixture's own headers.
+  for client <- [:python, :node] do
+    @tag :tmp_dir
+    test "the #{client} client signs a fixture practice address for its handle", context do
+      [signed | _] = context.fixtures["signed"]
+      expected = Map.new(signed["request"]["headers"], fn [name, value] -> {name, value} end)
+      handle = ["--handle", context.fixtures["verify"]["audience"]]
+
+      for %{"url" => "http://localhost:" <> _ = url, "authority" => authority} <-
+            context.fixtures["authorities"] do
+        home = Path.join(context.tmp_dir, authority)
+        seed_home(home, context.fixtures, expected["x-siwa-signature"])
+        headers = run_headers(unquote(client), home, context, %{"method" => "GET"}, url, handle)
+
+        assert File.read!(Path.join(home, "message.txt")) =~
+                 ~s("@authority": #{authority}\n),
+               url
+
+        assert headers == expected, url
       end
     end
   end
@@ -202,9 +227,9 @@ defmodule SiwaServer.AgentClientsConformanceTest do
     """)
   end
 
-  defp run_headers(client, home, context, request, url) do
+  defp run_headers(client, home, context, request, url, options \\ []) do
     body = if request["body"], do: ["--body", request["body"]], else: []
-    args = ["headers", request["method"], url | body]
+    args = ["headers", request["method"], url | body] ++ options
     env = [{"SIWA_AGENT_HOME", home}, {"SIWA_BROKER", context.broker}]
 
     {output, 0} =

@@ -5,6 +5,14 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- Both served clients are 2.13. `request` and `headers` take `--handle HANDLE`, so an agent
+  reaches a practice site on its person's own computer: with `--handle`, the address must be
+  `http://localhost:<port>`, the client signs in for HANDLE (the site's audience, as its
+  Sites page shows it) and never asks `GET /api/shared/siwa/audience`, which answers 404 for
+  every sandbox site. Any other address with `--handle` is refused on the computer and
+  nothing is sent. The site checks those requests with its test key, and they are never
+  counted or billed. Without `--handle` nothing changes.
+
 ## 17 November 2026, no profile
 
 - When a site says an agent is paired with a person who has no profile there yet (the site

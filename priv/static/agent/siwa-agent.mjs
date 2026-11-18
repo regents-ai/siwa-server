@@ -241,8 +241,10 @@ const SIWA_CONTRACT = {
   ]
 };
 // END SIWA CONTRACT
-const USER_AGENT = "siwa-agent-client/2.12 (node)";
+const USER_AGENT = "siwa-agent-client/2.13 (node)";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
+// A practice site's origin as the sign-in server lists it, http://localhost:PORT, then any path.
+const PRACTICE_ADDRESS = /^http:\/\/localhost:[1-9][0-9]{0,4}(?:[/?#]|$)/;
 const SIGNATURE_PATTERN = /0x[0-9a-fA-F]{130,}/g;
 const BOX_INFO = "agent key box";
 const PASSKEY_ASKS = {
@@ -1235,6 +1237,13 @@ async function audienceFor(config, url) {
   return result.body.data.audience;
 }
 
+// The audience a request to `url` signs for: the handle of a practice site at http://localhost:PORT, else the site's own.
+async function requestAudience(config, url, handle) {
+  if (handle === undefined) return audienceFor(config, url);
+  if (!PRACTICE_ADDRESS.test(url)) throw new SiwaError(`--handle is for a practice site at http://localhost:PORT, not ${url}`);
+  return handle;
+}
+
 // The AES-GCM key a passkey's secret opens, the same in the Python and Node clients.
 async function boxKey(secret) {
   const base = await webcrypto.subtle.importKey("raw", Buffer.from(secret, "hex"), "HKDF", false, ["deriveKey"]);
@@ -1607,12 +1616,15 @@ Use any Regent site:
   me SITE                          see which account you are paired with
   hello-card SITE                  get a card, good for a day, saying SITE paired you with
                                    your person, and keep it
-  request METHOD URL [--body TEXT] [--header NAME=VALUE] [--hello-card SITE]
+  request METHOD URL [--body TEXT] [--header NAME=VALUE] [--hello-card SITE] [--handle HANDLE]
                                    send a signed request and print the answer;
                                    --hello-card also shows the card you keep from SITE
-  headers METHOD URL [--body TEXT] print signed headers without sending the request
+  headers METHOD URL [--body TEXT] [--handle HANDLE]
+                                   print signed headers without sending the request
                                    a request with no body leaves --body off; no body
                                    and an empty body are the same request
+                                   --handle names a practice site on your own computer
+                                   (http://localhost:PORT) by the handle on your Sites page
   sign-in SITE                     sign in now (requests do this on their own)
   whoami                           show your address, how you sign and where you are signed in
 
@@ -1676,8 +1688,9 @@ function savedCard(config, audience) {
 }
 
 function parseRequestArgs(args) {
+  const handle = takeOption(args, "--handle");
   const [method, url, ...rest] = args;
-  if (!method || !url) throw new SiwaError("usage: <method> <url> [--body BODY] [--header NAME=VALUE]");
+  if (!method || !url) throw new SiwaError("usage: <method> <url> [--body BODY] [--header NAME=VALUE] [--handle HANDLE]");
   let body;
   const extra = {};
   for (let index = 0; index < rest.length; index += 1) {
@@ -1687,7 +1700,7 @@ function parseRequestArgs(args) {
       extra[name] = value.join("=");
     } else throw new SiwaError(`unknown argument ${rest[index]}`);
   }
-  return { method: method.toUpperCase(), url, body, extra };
+  return { method: method.toUpperCase(), url, body, extra, handle };
 }
 
 async function keygen(config, args) {
@@ -1998,8 +2011,8 @@ async function main(argv) {
     case "request": {
       const cardSite = takeOption(args, "--hello-card");
       const request = parseRequestArgs(args);
+      const audience = await requestAudience(config, request.url, request.handle);
       if (cardSite !== undefined) request.extra["x-siwa-hello-card"] = savedCard(config, await audienceFor(config, cardSite));
-      const audience = await audienceFor(config, request.url);
       return printResponse(await sendSigned(config, audience, request.method, request.url, request.body, request.extra));
     }
     case "register-agent":
@@ -2011,7 +2024,7 @@ async function main(argv) {
     case "headers": {
       const request = parseRequestArgs(args);
       const key = requireKey(config);
-      const receipt = await freshReceipt(config, key, await audienceFor(config, request.url));
+      const receipt = await freshReceipt(config, key, await requestAudience(config, request.url, request.handle));
       return console.log(JSON.stringify(await signedHeaders(key, receipt, request.method, request.url, request.body), null, 2));
     }
     default:

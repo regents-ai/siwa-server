@@ -189,7 +189,12 @@ GET /api/shared/siwa/audience?origin=https%3A%2F%2Facme.example&audience=acme
 ```
 
 Both agent clients ask here to find a site's audience; their `sites` command still prints
-the Regent sites from `/api/shared/siwa/audiences`.
+the Regent sites from `/api/shared/siwa/audiences`. An agent reaches a sandbox site, which
+is never found here, at its `http://localhost:<port>` address by the site's audience, its
+handle: `request METHOD http://localhost:<port>/<path> --handle HANDLE` (and `headers` the
+same way) signs in for HANDLE without asking here, and the clients refuse `--handle` with
+any other address. The site checks those requests with its test key (`siwa_sk_test_...`),
+and they are never counted or billed.
 
 ## Hello card
 

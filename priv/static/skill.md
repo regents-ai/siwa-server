@@ -201,6 +201,11 @@ answer. Every signed request is single-use; to retry, run `request` again and it
 after reading whether a write you are retrying already landed. `headers` prints the signed
 headers without sending, for tools that send requests themselves.
 
+A practice site runs on your person's own computer at `http://localhost:<port>`, so the
+sign-in server cannot know it by its address: add `--handle HANDLE`, the handle on their
+Sites page, to `request` or `headers`, as in
+`uv run siwa_agent.py request GET http://localhost:4000/<path> --handle <handle>`.
+
 ### Hello card
 
 Some sites ask for a hello card: the sign-in server's signed note that a site you are

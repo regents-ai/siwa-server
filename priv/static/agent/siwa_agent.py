@@ -38,7 +38,7 @@ SIGNER_TIMEOUT_SECONDS = 300
 PASSKEY_WAIT_SECONDS = 300
 HELPER_ANSWER_SECONDS = 10
 HELPER_START_SECONDS = 10
-USER_AGENT = "siwa-agent-client/2.12 (python)"
+USER_AGENT = "siwa-agent-client/2.13 (python)"
 # BEGIN SIWA CONTRACT
 # Contract 26f6ba8e03e944a955114615c69f6d699480ac2e9e44bd171c892a7ac0b720a0, written by `mix siwa_server.agent_clients` from the siwa library; do not edit.
 SIWA_CONTRACT = json.loads(
@@ -265,6 +265,8 @@ SIWA_CONTRACT = json.loads(
 )
 # END SIWA CONTRACT
 ADDRESS_PATTERN = re.compile(r"^0x[0-9a-fA-F]{40}$")
+# A practice site's origin as the sign-in server lists it, http://localhost:PORT, then any path.
+PRACTICE_ADDRESS = re.compile(r"\Ahttp://localhost:[1-9][0-9]{0,4}(?:[/?#]|\Z)")
 SIGNATURE_PATTERN = re.compile(r"0x[0-9a-fA-F]{130,}")
 BOX_INFO = b"agent key box"
 PASSKEY_ASKS = {
@@ -1266,6 +1268,15 @@ def audience_for(config: dict, url: str) -> str:
     return body["data"]["audience"]
 
 
+def request_audience(config: dict, url: str, handle: str | None) -> str:
+    """The audience a request to `url` signs for: the handle of a practice site at http://localhost:PORT, else the site's own."""
+    if handle is None:
+        return audience_for(config, url)
+    if not PRACTICE_ADDRESS.match(url):
+        raise SiwaError(f"--handle is for a practice site at http://localhost:PORT, not {url}")
+    return handle
+
+
 def eth_account():
     try:
         from eth_account import Account
@@ -1785,12 +1796,15 @@ Use any Regent site:
   me SITE                          see which account you are paired with
   hello-card SITE                  get a card, good for a day, saying SITE paired you with
                                    your person, and keep it
-  request METHOD URL [--body TEXT] [--header NAME=VALUE] [--hello-card SITE]
+  request METHOD URL [--body TEXT] [--header NAME=VALUE] [--hello-card SITE] [--handle HANDLE]
                                    send a signed request and print the answer;
                                    --hello-card also shows the card you keep from SITE
-  headers METHOD URL [--body TEXT] print signed headers without sending the request
+  headers METHOD URL [--body TEXT] [--handle HANDLE]
+                                   print signed headers without sending the request
                                    a request with no body leaves --body off; no body
                                    and an empty body are the same request
+                                   --handle names a practice site on your own computer
+                                   (http://localhost:PORT) by the handle on your Sites page
   sign-in SITE                     sign in now (requests do this on their own)
   whoami                           show your address, how you sign and where you are signed in
 
@@ -1860,16 +1874,17 @@ def saved_card(config: dict, audience: str) -> str:
 
 
 def command_request(config: dict, args: argparse.Namespace) -> None:
+    audience = request_audience(config, args.url, args.handle)
     body = None if args.body is None else args.body.encode("utf-8")
     extra = dict(pair.split("=", 1) for pair in args.header)
     if args.hello_card is not None:
         extra["x-siwa-hello-card"] = saved_card(config, audience_for(config, args.hello_card))
-    print_response(*send_signed(config, audience_for(config, args.url), args.method.upper(), args.url, body, extra))
+    print_response(*send_signed(config, audience, args.method.upper(), args.url, body, extra))
 
 
 def command_headers(config: dict, args: argparse.Namespace) -> None:
     key = require_key(config)
-    receipt = fresh_receipt(config, key, audience_for(config, args.url))
+    receipt = fresh_receipt(config, key, request_audience(config, args.url, args.handle))
     body = None if args.body is None else args.body.encode("utf-8")
     print(json.dumps(signed_headers(key, receipt, args.method.upper(), args.url, body), indent=2))
 
@@ -2049,6 +2064,7 @@ def main(argv: list[str]) -> None:
         sub.add_argument("url")
         sub.add_argument("--body")
         sub.add_argument("--header", action="append", default=[], metavar="NAME=VALUE")
+        sub.add_argument("--handle")
         sub.set_defaults(run=handler)
     commands.choices["request"].add_argument("--hello-card", metavar="SITE")
 
