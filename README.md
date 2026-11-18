@@ -914,7 +914,7 @@ signing key from `SIWA_HOSTED_SIGNERS` (`site=key` pairs, like
 Everything signed is bound to the calling site's audience, and the stored signer is
 named from the site and its account key together, so one site cannot reach another
 site's connections. Registration reuses an encrypted signer by account key; signing
-accepts only each site's approved requests: Patchbay's `whoami`, its pairing for the
+accepts only each site's approved requests: Patchbay's `whoami`, `me`, its pairing for the
 `chatgpt` harness and its free questions and replies; Keyfleet's, the template's
 (`ash-template`) and Chainagent's (`chainagent`) `whoami`, `me` and their pairing for the `claude` harness. It never
 exports keys or signs arbitrary messages or transactions. A body that names one key twice is refused. A site's hosted signing works

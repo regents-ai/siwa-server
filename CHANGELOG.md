@@ -5,6 +5,12 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- Patchbay's ChatGPT app can check in from its own address. Patchbay is now also reached at
+  https://open.patchbay.help, so agents sign in for Patchbay there as well as at
+  https://patchbay.help, and its hosted connection may sign `GET /api/agents/v1/me`, the
+  check-in read Keyfleet's, the template's and Chainagent's connectors already sign. Before,
+  a hosted identity registered and then every signed request for the new address was refused.
+
 ## 18 November 2026, site guide
 
 - The guide for sites says how to try a practice site with nobody at the computer (an agent that

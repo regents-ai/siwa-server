@@ -150,20 +150,18 @@ defmodule SiwaServer.HostedRequests do
 
   defp identity(_site, _key), do: {:error, :hosted_request_not_allowed}
 
-  # Each site's identity reads and the one harness it may pair.
-  @claude_connector %{reads: ["/api/agents/v1/whoami", "/api/agents/v1/me"], harness: "claude"}
-  @site_requests %{
-    "patchbay" => %{reads: ["/api/agents/v1/whoami"], harness: "chatgpt"},
-    "keyfleet" => @claude_connector,
-    "ash-template" => @claude_connector,
-    "chainagent" => @claude_connector
+  # Every site's identity reads, and the one harness each site may pair.
+  @reads ["/api/agents/v1/whoami", "/api/agents/v1/me"]
+  @harnesses %{
+    "patchbay" => "chatgpt",
+    "keyfleet" => "claude",
+    "ash-template" => "claude",
+    "chainagent" => "claude"
   }
 
   defp allowed_request(site, %{"method" => "GET", "path" => path} = r)
-       when map_size(r) == 2 and is_map_key(@site_requests, site) do
-    if path in @site_requests[site].reads,
-      do: :ok,
-      else: {:error, :hosted_request_not_allowed}
+       when map_size(r) == 2 and is_map_key(@harnesses, site) do
+    if path in @reads, do: :ok, else: {:error, :hosted_request_not_allowed}
   end
 
   defp allowed_request(
@@ -174,8 +172,8 @@ defmodule SiwaServer.HostedRequests do
            "body" => body
          } = r
        )
-       when map_size(r) == 3 and is_map_key(@site_requests, site) do
-    harness = @site_requests[site].harness
+       when map_size(r) == 3 and is_map_key(@harnesses, site) do
+    harness = @harnesses[site]
 
     with {:ok, %{"code" => code, "name" => name, "harness" => ^harness} = args} <- decode(body),
          true <- map_size(args) == 3 and is_binary(code) and byte_size(code) in 1..128,

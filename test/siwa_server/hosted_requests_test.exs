@@ -19,7 +19,7 @@ defmodule SiwaServer.HostedRequestsTest do
       :siwa_server,
       :siwa,
       Keyword.put(previous_siwa, :wallet_origins, %{
-        "patchbay" => ["https://patchbay.help"],
+        "patchbay" => ["https://patchbay.help", "https://open.patchbay.help"],
         "keyfleet" => ["https://keyfleet.ai"],
         "ash-template" => ["https://template.regents.sh"],
         "chainagent" => ["https://chainagent.ai"]
@@ -244,7 +244,9 @@ defmodule SiwaServer.HostedRequestsTest do
           {"chainagent", me},
           {"chainagent", pair.("claude")},
           {"patchbay", whoami},
-          {"patchbay", pair.("chatgpt")}
+          {"patchbay", me},
+          {"patchbay", pair.("chatgpt")},
+          {"patchbay", Map.put(me, "authority", "open.patchbay.help")}
         ] do
       assert {:ok, signed} = sign.(site, request)
 
@@ -261,7 +263,7 @@ defmodule SiwaServer.HostedRequestsTest do
                  receipt_secret: secret,
                  audience: site,
                  wallet_audiences: [site],
-                 authorities: [@hosts[site]]
+                 authorities: [request["authority"] || @hosts[site]]
                )
              )
     end
@@ -269,7 +271,7 @@ defmodule SiwaServer.HostedRequestsTest do
     for {site, request} <- [
           {"keyfleet", pair.("chatgpt")},
           {"patchbay", pair.("claude")},
-          {"patchbay", me},
+          {"patchbay", Map.put(whoami, "authority", "open.patchbay.example")},
           {"ash-template", pair.("chatgpt")},
           {"chainagent", pair.("chatgpt")},
           {"keyfleet", Map.put(whoami, "body", "")},
