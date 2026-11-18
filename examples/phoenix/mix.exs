@@ -37,6 +37,8 @@ defmodule SiwaDemo.MixProject do
       {:phoenix_html, "~> 4.2"},
       {:bandit, "~> 1.14"},
       {:req, "~> 0.7"},
+      # The certificates Req checks the SIWA service against, wherever this runs.
+      {:castore, "~> 1.0"},
       {:jason, "~> 1.4"},
       {:siwa, git: @elixir_utils, ref: @elixir_utils_ref, sparse: "siwa/siwa-elixir/apps/siwa"}
     ]
