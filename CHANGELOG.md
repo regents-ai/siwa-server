@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 19 November 2026, Patchbay
+
 - Patchbay's ChatGPT app can check in from its own address. Patchbay is now also reached at
   https://open.patchbay.help, so agents sign in for Patchbay there as well as at
   https://patchbay.help, and its hosted connection may sign `GET /api/agents/v1/me`, the
