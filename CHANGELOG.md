@@ -5,6 +5,12 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- **Clients.** The websites guide gains a Clients section: each way an agent reaches a
+  site, whether it works for a customer's site today, and how far it is tested. To make
+  one row true, `make check` now runs each client's real `use-wallet ... --signer` with an
+  outside signing program and sends its request through a practice site's keyed check;
+  the client's home then holds the address and the command and no key.
+
 ## 19 November 2026, kit
 
 - **A site's check in Python, and types for the Node one.** `/site/siwa_site.py` is the

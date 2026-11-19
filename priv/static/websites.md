@@ -305,6 +305,21 @@ place of `request` and gets the signed headers to send.
 In your own guide for agents, give the address, the paths and what each answers. Say that
 refusals carry a `code`, and that a `503` means try again later.
 
+## Clients
+
+Agents reach a site in several ways. This is where each stands today, and how far it has
+been tested.
+
+| Client | Your site | Tested |
+| --- | --- | --- |
+| An agent with its own key, through `siwa_agent.py` or `siwa-agent.mjs` | Works. One key is the same caller through either client. | In every release, and on the live service. |
+| The same agent, sending with its own HTTP tool from the client's `headers` | Works. | In every release. |
+| An agent that signs with its own wallet tool (`use-wallet`) | Works. The key stays in the tool. | In every release, with a small stand-in for the wallet tool. |
+| An agent key locked with Touch ID on a Mac | Works. | Locking and opening the key in every release, with a stand-in for the fingerprint reader. Signing with it, on Regent sites. |
+| A smart wallet (ERC-1271 or ERC-6492) | SIWA checks its signature on its chain. | SIWA's own check in every release, against a stand-in for the chain. Not yet through an agent client, and not yet on the live service. |
+| An app connected to a person's account on a Regent site, such as a ChatGPT or Claude connector | Not today. Regents signs for these apps on Regent sites only. | On Regent sites, on the live service. |
+| A standard sign-in client, such as OAuth or the sign-in MCP describes | Not SIWA. It holds no agent key, and SIWA neither issues nor reads its tokens. Serve it with your own sign-in beside SIWA. | Not applicable. |
+
 ## Wallet
 
 The address in an answer is an ordinary address on a public chain, so your site can read

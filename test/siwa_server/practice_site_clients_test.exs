@@ -8,8 +8,11 @@ defmodule SiwaServer.PracticeSiteClientsTest do
   through `uv`, Node beside its one library), starting from an empty home holding only a
   new key: `request ... --handle` signs in for the site's handle and sends a request the
   site's keyed check accepts, and the client never asks this server for the address's
-  audience. With `--handle`, an address that is not `http://localhost:<port>` is refused
-  on the computer, and neither this server nor the site hears anything.
+  audience. The same holds from an empty home given only an address and an outside
+  wallet tool's signing command (`use-wallet ... --signer`): the key stays in the tool, and
+  the client's home holds the address and the command. With `--handle`, an address that
+  is not `http://localhost:<port>` is refused on the computer, and neither this server
+  nor the site hears anything.
   """
 
   use SiwaServer.DataCase, async: false
@@ -135,6 +138,41 @@ defmodule SiwaServer.PracticeSiteClientsTest do
       paths = server_paths()
       assert "/api/shared/siwa/http-verify" in paths
       refute @lookup in paths
+    end
+  end
+
+  for client <- [:python, :node] do
+    test "the #{client} client's request signed by an outside wallet tool is accepted by a practice site's keyed check",
+         context do
+      %{port: port, handle: handle, tmp_dir: tmp_dir} = context
+      {private_key, address} = new_account()
+      wallet = node_folder!(Path.join(tmp_dir, "wallet"))
+      File.write!(Path.join(wallet, "key.txt"), private_key)
+
+      File.write!(Path.join(wallet, "sign.mjs"), """
+      import { readFileSync } from "node:fs";
+      import { privateKeyToAccount } from "viem/accounts";
+      const account = privateKeyToAccount(readFileSync(new URL("key.txt", import.meta.url), "utf8"));
+      console.log(await account.signMessage({ message: process.env.SIWA_MESSAGE }));
+      """)
+
+      signer = ~s(node "#{Path.join(wallet, "sign.mjs")}")
+      run = client_runner(unquote(client), context)
+      url = "http://localhost:#{port}/api/agents/v1/whoami"
+
+      assert {0, %{"address" => ^address}} = run.(["use-wallet", address, "--signer", signer])
+
+      assert {0, %{"status" => 200, "body" => verdict}} =
+               run.(["request", "GET", url, "--handle", handle])
+
+      assert_received {:site, "GET", "/api/agents/v1/whoami"}
+      subject = "eip155:8453:" <> address
+      assert %{"walletAddress" => ^address, "subject" => ^subject} = verdict
+      assert "/api/shared/siwa/http-verify" in server_paths()
+
+      key = tmp_dir |> Path.join("home/key.json") |> File.read!() |> Jason.decode!()
+      assert %{"address" => ^address, "signer" => ^signer} = key
+      assert key |> Map.keys() |> Enum.sort() == ["address", "chain_id", "signer"]
     end
   end
 

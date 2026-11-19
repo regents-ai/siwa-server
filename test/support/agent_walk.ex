@@ -65,26 +65,37 @@ defmodule SiwaServer.AgentWalk do
     })
   end
 
+  @doc "A new private key and its address, each as lowercase `0x` hex."
+  def new_account do
+    private_key = :crypto.strong_rand_bytes(32)
+    {:ok, <<4, public_key::binary-size(64)>>} = ExSecp256k1.create_public_key(private_key)
+    hash = ExKeccak.hash_256(public_key)
+
+    {"0x" <> Base.encode16(private_key, case: :lower),
+     "0x" <> Base.encode16(binary_part(hash, 12, 20), case: :lower)}
+  end
+
   @doc """
   A new key in the file `keygen` writes off a Mac, in `home`; answers its address. A
   Mac's `keygen` locks it with Touch ID, which the e2e walk covers.
   """
   def new_key!(home) do
-    private_key = :crypto.strong_rand_bytes(32)
-    {:ok, <<4, public_key::binary-size(64)>>} = ExSecp256k1.create_public_key(private_key)
-    hash = ExKeccak.hash_256(public_key)
-    address = "0x" <> Base.encode16(binary_part(hash, 12, 20), case: :lower)
+    {private_key, address} = new_account()
     File.mkdir_p!(home)
 
     File.write!(
       Path.join(home, "key.json"),
-      Jason.encode!(%{
-        address: address,
-        private_key: "0x" <> Base.encode16(private_key, case: :lower)
-      })
+      Jason.encode!(%{address: address, private_key: private_key})
     )
 
     address
+  end
+
+  @doc "Makes `folder`, where a Node program finds the e2e packages, viem among them."
+  def node_folder!(folder) do
+    File.mkdir_p!(folder)
+    File.ln_s!(@node_modules, Path.join(folder, "node_modules"))
+    folder
   end
 
   @doc """
@@ -105,10 +116,8 @@ defmodule SiwaServer.AgentWalk do
           {"uv", ["run", "-q", @python]}
 
         :node ->
-          folder = Path.join(tmp_dir, "node")
-          File.mkdir_p!(folder)
+          folder = node_folder!(Path.join(tmp_dir, "node"))
           File.cp!(@node, Path.join(folder, "siwa-agent.mjs"))
-          File.ln_s!(@node_modules, Path.join(folder, "node_modules"))
           {"node", [Path.join(folder, "siwa-agent.mjs")]}
       end
 
