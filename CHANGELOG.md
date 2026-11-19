@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 19 November 2026, kit
+
 - **A site's check in Python, and types for the Node one.** `/site/siwa_site.py` is the
   Node example's twin: one file on the standard library alone (Python 3.11 or newer) whose
   `check_agent(method, path, host, headers, body)` asks SIWA about a request and answers
