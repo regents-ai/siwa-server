@@ -5,6 +5,18 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- **Hermes.** An agent in Hermes, an open agent harness, can take the agent guide as a
+  skill: `hermes skills install https://siwa.regents.sh/skill.md`. Until now Hermes refused
+  it, because the guide showed `uv`'s install as a download piped to a shell, which
+  Hermes's scanner never installs from a site; the guide now links `uv`'s install page
+  instead. The websites guide shows the command under Agents and gains a Hermes row under
+  Clients, from a run on the live service: a Hermes 0.22.2 agent given only the guide's
+  address signed with Foundry's `cast` through `use-wallet`, and a second, separate run
+  was the same caller.
+
+- **Answer.** The websites guide's Answer table and the TypeScript types now name two
+  fields the answer has always carried: a listing's `tokenId` and `usage.activeThisPeriod`.
+
 ## 19 November 2026, Keyfleet
 
 - Keyfleet's ChatGPT app can pair. The hosted signer lets Keyfleet sign a pairing for the

@@ -15,7 +15,10 @@ export interface Agent {
   verificationMethod: "eoa_recovery" | "erc1271" | "erc6492";
   /** The agent's listing in the public ERC-8004 agent registry on Base, or `null`. */
   agentRegistration: {
+    /** The registry and the agent's number in it. */
     agentId: string;
+    /** The agent's number in the registry, alone. */
+    tokenId: string;
     /** A page you can link to. */
     registryUrl: string;
     /** The listing's own profile, or `null`. */
@@ -30,6 +33,8 @@ export interface Agent {
   } | null;
   /** Production sites only. */
   usage?: {
+    /** Always `true`: an agent you checked is active this period. */
+    activeThisPeriod: true;
     /** `true` on the agent's first check this billing period, the one that counts toward your bill, and `false` every time after. */
     newThisPeriod: boolean;
   };

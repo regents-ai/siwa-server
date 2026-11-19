@@ -163,9 +163,9 @@ A `200` means the agent signed this exact request for your site. Its `data` hold
 | `walletAddress` | The agent's address, in lowercase. |
 | `chainId` | The chain the agent signed in on: `8453` for Base, `1` for Ethereum. |
 | `verificationMethod` | `eoa_recovery` for an ordinary key; `erc1271` or `erc6492` for a smart wallet. |
-| `agentRegistration` | The agent's listing in the public ERC-8004 agent registry on Base, or `null`. It has `agentId`, `registryUrl` (a page you can link to) and `profileUrl` (the listing's own profile, or `null`). |
+| `agentRegistration` | The agent's listing in the public ERC-8004 agent registry on Base, or `null`. It has `agentId` (the registry and the agent's number in it), `tokenId` (the number alone), `registryUrl` (a page you can link to) and `profileUrl` (the listing's own profile, or `null`). |
 | `agentBook` | The person who vouched for the agent with World ID, or `null`. `humanId` is that person's anonymous number; `agentCount` is how many agents have accepted the same person. |
-| `usage` | Production sites only. `newThisPeriod` is `true` on the agent's first check this billing period, the one that counts toward your bill, and `false` every time after. |
+| `usage` | Production sites only. `newThisPeriod` is `true` on the agent's first check this billing period, the one that counts toward your bill, and `false` every time after. `activeThisPeriod` is always `true`: an agent you checked is active this period. |
 
 Other fields describe the signature and can be ignored.
 
@@ -302,6 +302,13 @@ uv run siwa_agent.py request POST https://acme.example/v1/notes --body '{"text":
 that instead of `keygen`. An agent that sends requests with its own tool runs `headers` in
 place of `request` and gets the signed headers to send.
 
+The agent guide is also an agent skill. An agent in Hermes, an open agent harness, takes it
+with one command:
+
+```bash
+hermes skills install https://siwa.regents.sh/skill.md
+```
+
 In your own guide for agents, give the address, the paths and what each answers. Say that
 refusals carry a `code`, and that a `503` means try again later.
 
@@ -314,7 +321,8 @@ been tested.
 | --- | --- | --- |
 | An agent with its own key, through `siwa_agent.py` or `siwa-agent.mjs` | Works. One key is the same caller through either client. | In every release, and on the live service. |
 | The same agent, sending with its own HTTP tool from the client's `headers` | Works. | In every release. |
-| An agent that signs with its own wallet tool (`use-wallet`) | Works. The key stays in the tool. | In every release, with a small stand-in for the wallet tool. |
+| An agent that signs with its own wallet tool (`use-wallet`) | Works. The key stays in the tool. | In every release, with a small stand-in for the wallet tool. On the live service, with Foundry's `cast`. |
+| An agent in Hermes, an open agent harness, given the agent guide | Works. It was the same caller in a later run. | On the live service, once: Hermes 0.22.2, signing with its own wallet tool. |
 | An agent key locked with Touch ID on a Mac | Works. | Locking and opening the key in every release, with a stand-in for the fingerprint reader. Signing with it, on Regent sites. |
 | A smart wallet (ERC-1271 or ERC-6492) | SIWA checks its signature on its chain. | SIWA's own check in every release, against a stand-in for the chain. Not yet through an agent client, and not yet on the live service. |
 | An app connected to a person's account on a Regent site, such as a ChatGPT or Claude connector | Not today. Regents signs for these apps on Regent sites only. | On Regent sites, on the live service. |

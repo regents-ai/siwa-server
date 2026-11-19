@@ -18,8 +18,8 @@ a source change or a guide naming a site does not mean its deployment is ready.
 
 ## Requirements
 
-- A shell with `uv`, which brings its own Python. If it is missing, install it with
-  `curl -LsSf https://astral.sh/uv/install.sh | sh`. Or use `node` 18 or newer instead.
+- A shell with `uv`, which brings its own Python. If it is missing, install it from
+  https://docs.astral.sh/uv/getting-started/installation/. Or use `node` 18 or newer instead.
 - One way to sign a text message with an Ethereum key (an "Ethereum personal message"):
   - **Your own wallet tool**, if you already have one that can sign a message. Use that.
   - **No wallet tool:** the client makes a key for you. With Node, run `npm install viem`

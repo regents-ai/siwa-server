@@ -217,7 +217,8 @@ features:
         test: test/siwa_server/first_signed_request_test.exs
     gaps:
       - The first-request walk starts from the key file keygen writes off a Mac; a Mac's Touch ID lock is walked by e2e/touch-id-page.spec.mjs; use-wallet with an outside wallet tool's --signer command is walked to a practice site's keyed check in test/siwa_server/practice_site_clients_test.exs.
-      - The outside wallet tool in that walk is a few lines of viem reading SIWA_MESSAGE, not cast or another real wallet tool; a smart wallet's signature and use-wallet --chain ethereum are not walked.
+      - The outside wallet tool in that walk is a few lines of viem reading SIWA_MESSAGE, not cast or another real wallet tool (cast signed once on the live service, for a Hermes agent on 19 November, outside the suite); a smart wallet's signature and use-wallet --chain ethereum are not walked.
+      - That Hermes will install skill.md as a skill is checked by hand at a release, with Hermes's own scanner; nothing in the suite stops a line it blocks, such as a download piped to a shell, from coming back.
 
   - id: touch-id-page
     what: A person confirms with Touch ID to protect, unlock or show their agent's key, on a page their agent opens.
