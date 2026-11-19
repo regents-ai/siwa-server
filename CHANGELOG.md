@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 19 November 2026, Tests
+
 - The tests and browser walks are gone, on the founder's order of 19 November 2026
   ("Delete all tests from all repos"), and so are the settings and functions only tests
   used. Nothing the service serves or answers changes. `make check` now compiles with
