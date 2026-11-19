@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 19 November 2026, Hermes skill
+
 - **Hermes, with the skill installed.** The guide's Hermes row now rests on one more run on
   the live service: with the guide installed as a skill in Hermes 0.22.2 and nothing
   fetched from the web but the client, the agent made a key, sent one signed request and
