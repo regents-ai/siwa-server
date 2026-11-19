@@ -23,7 +23,7 @@ set -euo pipefail
 
 app="siwa-server"
 host="siwa.regents.sh"
-served_files=(agent/siwa_agent.py agent/siwa-agent.mjs agent/siwa-contract.json site/siwa-site.mjs skill.md websites.md)
+served_files=(agent/siwa_agent.py agent/siwa-agent.mjs agent/siwa-contract.json site/siwa-site.mjs site/siwa-site.d.mts site/siwa_site.py skill.md websites.md)
 
 if [[ $# -ne 0 ]]; then
   echo "Usage: scripts/deploy.sh" >&2

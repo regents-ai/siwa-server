@@ -131,6 +131,7 @@ defmodule SiwaServer.MixProject do
         "check.agent_clients",
         "xref graph --label compile-connected --fail-above 0",
         "cmd npm --prefix e2e ci --silent",
+        "cmd npm --prefix e2e run typecheck --silent",
         "test --warnings-as-errors",
         "cmd npm --prefix e2e test"
       ]

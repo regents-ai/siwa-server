@@ -88,6 +88,8 @@ mix phx.server
 | `/api/shared/siwa/hello-card` | POST | An agent's hello card from a Regent site it is paired on. See [Hello card](#hello-card). |
 | `/.well-known/jwks.json` | GET | The public keys hello cards are signed with. |
 | `/site/siwa-site.mjs` | GET | The example check for a site, in one dependency-free Node file; `/websites.md` walks through it. |
+| `/site/siwa-site.d.mts` | GET | TypeScript declarations for that file's `checkAgent`. |
+| `/site/siwa_site.py` | GET | The same example check in one dependency-free Python file (3.11 or newer). |
 | `/api/shared/siwa/wallet/nonce` | POST | Issue a wallet sign-in challenge. |
 | `/api/shared/siwa/wallet/verify` | POST | Verify a wallet sign-in. |
 | `/api/shared/siwa/http-verify` | POST | Verify a signed HTTP request: a customer's site with its server key, a Regent site with its audience. |
@@ -655,7 +657,7 @@ after it end. Every check runs even when another fails, and any failure ends wit
 the commit is deployed but a check failed. The checks: the app runs exactly two machines and both
 images name the commit, `/readyz` answers ready with every check true, and the served
 helpers (`/agent/siwa_agent.py`, `/agent/siwa-agent.mjs`, `/agent/siwa-contract.json`), the site
-example (`/site/siwa-site.mjs`) and guides (`/skill.md`, `/websites.md`) have the same sha256 as the
+examples (`/site/siwa-site.mjs`, `/site/siwa-site.d.mts`, `/site/siwa_site.py`) and guides (`/skill.md`, `/websites.md`) have the same sha256 as the
 files in git. The folder stays as the release record;
 then add the release to `RELEASES.md`.
 

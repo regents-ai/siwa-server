@@ -5,6 +5,17 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- **A site's check in Python, and types for the Node one.** `/site/siwa_site.py` is the
+  Node example's twin: one file on the standard library alone (Python 3.11 or newer) whose
+  `check_agent(method, path, host, headers, body)` asks SIWA about a request and answers
+  `(agent, refusal)`, and which runs as a practice site with `python3 siwa_site.py <port>`.
+  `/site/siwa-site.d.mts` gives a TypeScript server the types of `checkAgent`: after the
+  refusal is returned, `agent` is an `Agent`. `make check` now walks both examples as
+  practice sites, with the second visit sent by the Node client from the same key, and
+  typechecks the guide's own usage against the declarations (TypeScript 7.0.2, a check
+  dependency only). The websites guide's Practice section shows all three. Nothing in the
+  service's answers changes.
+
 ## 19 November 2026, Patchbay
 
 - Patchbay's ChatGPT app can check in from its own address. Patchbay is now also reached at

@@ -306,23 +306,32 @@ features:
       - btree_gist, which the no-overlap rule needs, was created on the local database only; that the production role may create it is not proven.
 
   - id: site-example
-    what: A site's developer downloads one Node file with no dependencies and runs it with the site's server key as a practice site that answers each signed request, with or without a body, with the agent that sent it and how often it has come back; an unsigned request is refused without asking this server, and the site's own trouble reaches the agent only as 503 service_unavailable while the site's log names the code.
+    what: A site's developer downloads one file with no dependencies, for Node or for Python, and runs it with the site's server key as a practice site that answers each signed request, with or without a body, with the agent that sent it and how often it has come back; an unsigned request is refused without asking this server, and the site's own trouble reaches the agent only as 503 service_unavailable while the site's log names the code. A TypeScript server that imports the Node file's checkAgent gets its types from the declarations served beside it.
     who: person
     level: protected
     paths:
       - priv/static/site/siwa-site.mjs
+      - priv/static/site/siwa-site.d.mts
+      - priv/static/site/siwa_site.py
       - priv/static/websites.md
       - lib/siwa_server_web.ex
     entry:
       - route: GET /site/siwa-site.mjs
+      - route: GET /site/siwa-site.d.mts
+      - route: GET /site/siwa_site.py
       - cli: node siwa-site.mjs <port>
+      - cli: python3 siwa_site.py <port>
     proofs:
       - test/siwa_server/site_example_test.exs
+      - e2e/siwa-site-types.mts
+      - e2e/tsconfig.json
     gaps:
-      - Only the Python client is walked against the example; the Node client reaches a practice site in test/siwa_server/practice_site_clients_test.exs through the shared Elixir plug, not this file.
-      - checkAgent imported into another Node server is not walked on its own; the test runs the file as the practice site.
+      - The Node client sends one request without a body to each example, as the same caller the Python client was; its requests with a body and its refusals are walked in test/siwa_server/practice_site_clients_test.exs through the shared Elixir plug, not these files.
+      - checkAgent imported into another Node server is not walked on its own, nor check_agent imported into another Python server (Flask, FastAPI, Django); the test runs each file as the practice site.
       - A production site's live key, an answer with a listing or a person, a smart wallet, and retry-after passed on from a 429 are not walked.
       - The suite runs the Node in .tool-versions (26.12.0), not Node 20, the oldest the guide names.
+      - The suite runs the Python example on the python3 on the path, not Python 3.11, the oldest its header names.
+      - The TypeScript declarations are written by hand from the contract; only the guide's usage pattern is typechecked against them, and nothing checks them against what this server answers.
 
   - id: billing-cap-and-usage
     what: A person reads their customer's usage this billing period, sets or removes its cap, never below the base fee or the fee already reached, and lists the agents counted this period a page at a time, only their own.

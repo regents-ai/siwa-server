@@ -40,7 +40,7 @@ There are two keys in SIWA, and they are never the same thing:
 ## Practice
 
 This runs a practice site on your computer and sends it one signed request. You need Node
-20 or newer for the site, and `uv` or Node for the agent client.
+20 or Python 3.11, or newer, for the site, and `uv` or Node for the agent client.
 
 Start the example site on the port in your practice site's address, with the test key in
 the `SIWA_SERVER_KEY` environment variable. Take the key from wherever you keep secrets;
@@ -49,6 +49,13 @@ here it is in a file only you can read:
 ```bash
 curl -fsSO https://siwa.regents.sh/site/siwa-site.mjs
 SIWA_SERVER_KEY="$(cat <key file>)" node siwa-site.mjs 4000
+```
+
+The same site in Python, with nothing to install:
+
+```bash
+curl -fsSO https://siwa.regents.sh/site/siwa_site.py
+SIWA_SERVER_KEY="$(cat <key file>)" python3 siwa_site.py 4000
 ```
 
 The port must be the one in the site's address. To use another, change the address on the
@@ -91,10 +98,19 @@ Two things can differ on your computer:
   client without `uv`: `node siwa-agent.mjs` in place of `uv run siwa_agent.py`. Run
   `npm install viem` beside it first if it is to make the key.
 
-[`siwa-site.mjs`](https://siwa.regents.sh/site/siwa-site.mjs) is one short file with
-no dependencies. Its `checkAgent` function is the whole integration: import it into a Node
-server, or read it and write the same check in your own language from the next section. A
-complete small site built this way runs at [demo.regents.sh](https://demo.regents.sh), with
+Each example is one short file with no dependencies, and one function in it is the whole
+integration:
+
+| Server | File | Function |
+| --- | --- | --- |
+| Node | [`siwa-site.mjs`](https://siwa.regents.sh/site/siwa-site.mjs) | `checkAgent(request)` |
+| TypeScript | The same file, with [`siwa-site.d.mts`](https://siwa.regents.sh/site/siwa-site.d.mts) beside it for its types | `checkAgent(request)` |
+| Python | [`siwa_site.py`](https://siwa.regents.sh/site/siwa_site.py) | `check_agent(method, path, host, headers, body)` |
+
+Import the function into your server, or read it and write the same check in your own
+language from the next section. `check_agent` waits for SIWA's answer, so an async Python
+server runs it with `asyncio.to_thread`. A complete small site built this way runs at
+[demo.regents.sh](https://demo.regents.sh), with
 [its code](https://github.com/regents-ai/siwa-server/tree/main/examples/phoenix) in Elixir.
 
 ## Check

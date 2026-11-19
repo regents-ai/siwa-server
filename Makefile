@@ -6,7 +6,8 @@ help:
 # mix precommit compiles with warnings as errors, checks unused locks, formatting,
 # Credo, Sobelow, the usage rules, the served services contract, the agent
 # clients and the compile-connected xref graph, installs the e2e libraries (the
-# Node client's first-request test uses them), runs the tests with warnings as
-# errors, then walks the Touch ID page in headless Chromium (e2e/).
+# Node client's first-request test uses them), typechecks the site example's
+# TypeScript declarations, runs the tests with warnings as errors, then walks
+# the Touch ID page in headless Chromium (e2e/).
 check:
 	mix precommit
