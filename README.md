@@ -587,7 +587,7 @@ long; it leaves no rows behind and cancels the subscriptions it made. The usual 
 | `SIWA_NONCE_TTL_SECONDS` | `300` | How long an issued nonce stays valid. |
 | `SIWA_RECEIPT_TTL_SECONDS` | `3600` | How long a receipt stays valid. |
 | `SIWA_HTTP_SIGNATURE_TOLERANCE_SECONDS` | `300` | Clock skew allowed on a signed HTTP request, and the longest one may last. At least `120`, the contract's signing lifetime. |
-| `SIWA_HOSTED_SIGNERS` | unset | Each site's own key for hosted signing (Patchbay's ChatGPT app, Keyfleet's, the template's and Chainagent's Claude connectors), as `site=key` pairs. Unset lets no site sign. |
+| `SIWA_HOSTED_SIGNERS` | unset | Each site's own key for hosted signing (Patchbay's ChatGPT app, Keyfleet's Claude connector and ChatGPT app, the template's and Chainagent's Claude connectors), as `site=key` pairs. Unset lets no site sign. |
 | `SIWA_WALLET_ORIGINS` | unset | Approved `audience=origin` pairs for wallet sign-in, comma separated; an audience may repeat with more origins. Unset disables it. |
 | `SIWA_CARD_KEYS` | unset | Secret. One or two Ed25519 keys for [hello cards](#hello-card), comma separated, each 32 random bytes as unpadded base64url, for example `fly secrets set SIWA_CARD_KEYS="$(elixir -e 'IO.write(Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false))')"`. The first signs; both are published. Unset turns hello cards off. |
 | `SIWA_CLEANUP_BATCH_SIZE` | `1000` | Expired nonce, replay and activity rows removed per batch. A sweep runs once a minute and repeats batches until one comes back short, at most 20 for each kind. |
@@ -909,16 +909,17 @@ in `mix.exs`, the way the template pins them. The image builds from this reposit
 alone and Docker fetches that exact commit, so the shared commit must be on GitHub
 before a release.
 
-Hosted connections (Patchbay's ChatGPT app, and Keyfleet's, the template's and
-Chainagent's Claude connectors) use `POST /api/shared/siwa/hosted`. Each site asks with its own hosted
+Hosted connections (Patchbay's ChatGPT app, Keyfleet's Claude connector and ChatGPT app,
+and the template's and Chainagent's Claude connectors) use `POST /api/shared/siwa/hosted`. Each site asks with its own hosted
 signing key from `SIWA_HOSTED_SIGNERS` (`site=key` pairs, like
 `SIWA_ACTIVITY_READERS`); that key opens no other route, and unset lets no site sign.
 Everything signed is bound to the calling site's audience, and the stored signer is
 named from the site and its account key together, so one site cannot reach another
 site's connections. Registration reuses an encrypted signer by account key; signing
 accepts only each site's approved requests: Patchbay's `whoami`, `me`, its pairing for the
-`chatgpt` harness and its free questions and replies; Keyfleet's, the template's
-(`ash-template`) and Chainagent's (`chainagent`) `whoami`, `me` and their pairing for the `claude` harness. It never
+`chatgpt` harness and its free questions and replies; Keyfleet's `whoami`, `me` and its
+pairing for the `claude` and `chatgpt` harnesses; the template's (`ash-template`) and
+Chainagent's (`chainagent`) `whoami`, `me` and their pairing for the `claude` harness. It never
 exports keys or signs arbitrary messages or transactions. A body that names one key twice is refused. A site's hosted signing works
 only while that site has an origin in `SIWA_WALLET_ORIGINS` (`fly.toml`), since each
 hosted signer signs in like any agent. Products still verify each resulting request

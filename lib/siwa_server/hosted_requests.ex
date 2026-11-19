@@ -1,15 +1,15 @@
 defmodule SiwaServer.HostedRequests do
   @moduledoc """
   Signing for an account's persistent hosted connection (Patchbay's ChatGPT app,
-  and the Claude connectors of Keyfleet, the template, `ash-template`, and
-  Chainagent), asked
-  for by a site with its own hosted signing key (`SiwaServer.Config.hosted_signer/1`).
+  Keyfleet's Claude connector and ChatGPT app, and the Claude connectors of the
+  template, `ash-template`, and Chainagent), asked for by a site with its own hosted
+  signing key (`SiwaServer.Config.hosted_signer/1`).
 
   The calling site is the audience of everything signed, and each connection's
   key belongs to the site that registered it: the stored signer is named from
   the site and the site's connection key together, so one site cannot reach
   another site's connections. This service signs only each site's identity
-  reads and pairing (for its own harness), and Patchbay's free participation;
+  reads and pairing (for its own harnesses), and Patchbay's free participation;
   never arbitrary messages, transactions or payment requests. Products still
   verify every resulting request through the ordinary SIWA verifier and apply
   their own permissions.
@@ -150,13 +150,13 @@ defmodule SiwaServer.HostedRequests do
 
   defp identity(_site, _key), do: {:error, :hosted_request_not_allowed}
 
-  # Every site's identity reads, and the one harness each site may pair.
+  # Every site's identity reads, and the harnesses each site may pair.
   @reads ["/api/agents/v1/whoami", "/api/agents/v1/me"]
   @harnesses %{
-    "patchbay" => "chatgpt",
-    "keyfleet" => "claude",
-    "ash-template" => "claude",
-    "chainagent" => "claude"
+    "patchbay" => ["chatgpt"],
+    "keyfleet" => ["claude", "chatgpt"],
+    "ash-template" => ["claude"],
+    "chainagent" => ["claude"]
   }
 
   defp allowed_request(site, %{"method" => "GET", "path" => path} = r)
@@ -173,9 +173,8 @@ defmodule SiwaServer.HostedRequests do
          } = r
        )
        when map_size(r) == 3 and is_map_key(@harnesses, site) do
-    harness = @harnesses[site]
-
-    with {:ok, %{"code" => code, "name" => name, "harness" => ^harness} = args} <- decode(body),
+    with {:ok, %{"code" => code, "name" => name, "harness" => harness} = args} <- decode(body),
+         true <- harness in @harnesses[site],
          true <- map_size(args) == 3 and is_binary(code) and byte_size(code) in 1..128,
          true <- is_binary(name) and String.length(name) in 1..100 do
       :ok

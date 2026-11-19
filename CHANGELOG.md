@@ -5,6 +5,11 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- Keyfleet's ChatGPT app can pair. The hosted signer lets Keyfleet sign a pairing for the
+  `chatgpt` harness as well as `claude` (founder's go: Keyfleet's decision 61, a, 19
+  November). Every other site still pairs only its one harness, and any other harness
+  name is refused as before.
+
 ## 19 November 2026, kit
 
 - **Clients.** The websites guide gains a Clients section: each way an agent reaches a

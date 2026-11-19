@@ -208,7 +208,7 @@ defmodule SiwaServer.HostedRequestsTest do
            )
   end
 
-  test "each site signs only its own identity reads and pairing for its own harness", %{
+  test "each site signs only its own identity reads and pairing for its own harnesses", %{
     identity: identity
   } do
     pair = fn harness ->
@@ -237,6 +237,7 @@ defmodule SiwaServer.HostedRequestsTest do
           {"keyfleet", whoami},
           {"keyfleet", me},
           {"keyfleet", pair.("claude")},
+          {"keyfleet", pair.("chatgpt")},
           {"ash-template", whoami},
           {"ash-template", me},
           {"ash-template", pair.("claude")},
@@ -269,7 +270,8 @@ defmodule SiwaServer.HostedRequestsTest do
     end
 
     for {site, request} <- [
-          {"keyfleet", pair.("chatgpt")},
+          {"keyfleet", pair.("codex")},
+          {"keyfleet", pair.(["claude"])},
           {"patchbay", pair.("claude")},
           {"patchbay", Map.put(whoami, "authority", "open.patchbay.example")},
           {"ash-template", pair.("chatgpt")},
