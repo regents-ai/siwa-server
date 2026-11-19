@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 19 November 2026, Hermes
+
 - **Hermes.** An agent in Hermes, an open agent harness, can take the agent guide as a
   skill: `hermes skills install https://siwa.regents.sh/skill.md`. Until now Hermes refused
   it, because the guide showed `uv`'s install as a download piped to a shell, which
