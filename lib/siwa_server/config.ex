@@ -237,7 +237,6 @@ defmodule SiwaServer.Config do
   can check the requests its agents sign for it.
   """
   @spec wallet_origins!(String.t() | nil, keyword()) :: %{String.t() => [String.t(), ...]}
-  def wallet_origins!(value, opts \\ [])
   def wallet_origins!(nil, _opts), do: %{}
 
   def wallet_origins!(value, opts) do

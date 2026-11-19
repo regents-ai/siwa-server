@@ -1,0 +1,11 @@
+{
+  "name": "siwa-server-typecheck",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

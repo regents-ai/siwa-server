@@ -16,15 +16,13 @@ if System.get_env("PHX_SERVER") do
   config :siwa_demo, SiwaDemoWeb.Endpoint, server: true
 end
 
-if config_env() != :test do
-  config :siwa_demo,
-    siwa_server_key: required.("SIWA_SERVER_KEY", "this site's server key from its Sites page"),
-    siwa_handle: required.("SIWA_HANDLE", "this site's handle from its Sites page"),
-    siwa_service: env.("SIWA_SERVICE") || "https://siwa.regents.sh",
-    site_token: env.("SIWA_SITE_TOKEN")
+config :siwa_demo,
+  siwa_server_key: required.("SIWA_SERVER_KEY", "this site's server key from its Sites page"),
+  siwa_handle: required.("SIWA_HANDLE", "this site's handle from its Sites page"),
+  siwa_service: env.("SIWA_SERVICE") || "https://siwa.regents.sh",
+  site_token: env.("SIWA_SITE_TOKEN")
 
-  config :siwa_demo, SiwaDemoWeb.Endpoint, http: [port: String.to_integer(env.("PORT") || "4000")]
-end
+config :siwa_demo, SiwaDemoWeb.Endpoint, http: [port: String.to_integer(env.("PORT") || "4000")]
 
 if config_env() == :prod do
   config :siwa_demo, SiwaDemoWeb.Endpoint,

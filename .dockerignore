@@ -2,8 +2,7 @@
 /deps
 /.elixir_ls
 /.git
-/test
 /.formatter.exs
 /*.ez
-/e2e
+/typecheck
 /examples

@@ -2,11 +2,10 @@ defmodule SiwaServer.Readiness do
   @moduledoc """
   Whether this server can serve sign-in, for `/readyz`.
 
-  `check/0` runs every check now. `answer/0` keeps the last answer for
-  `:readiness_keep_ms` (30 seconds unless set): `/readyz` is public, so
-  requests share one check. A caller that finds the kept answer stale starts
-  the check, and callers arriving meanwhile wait for that same answer instead
-  of starting their own.
+  `check/0` runs every check now. `answer/0` keeps the last answer for 30
+  seconds: `/readyz` is public, so requests share one check. A caller that
+  finds the kept answer stale starts the check, and callers arriving meanwhile
+  wait for that same answer instead of starting their own.
 
   The check runs in its own unlinked task, so a crash in it fails only the
   requests waiting for it, never this process. The reasons a check failed can
@@ -20,6 +19,8 @@ defmodule SiwaServer.Readiness do
 
   alias Siwa.Ethereum
   alias SiwaServer.{Config, HostedRequests, Repo}
+
+  @keep_ms 30_000
 
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
 
@@ -67,10 +68,9 @@ defmodule SiwaServer.Readiness do
   @impl true
   def handle_call(:answer, _from, kept) do
     now = System.monotonic_time(:millisecond)
-    keep_ms = Application.get_env(:siwa_server, :readiness_keep_ms, 30_000)
 
     case kept do
-      {checked_at, readiness} when now - checked_at < keep_ms ->
+      {checked_at, readiness} when now - checked_at < @keep_ms ->
         {:reply, {:ok, readiness}, kept}
 
       _stale ->

@@ -5,6 +5,20 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The tests and browser walks are gone, on the founder's order of 19 November 2026
+  ("Delete all tests from all repos"), and so are the settings and functions only tests
+  used. Nothing the service serves or answers changes. `make check` now compiles with
+  warnings as errors and checks unused locks, formatting, Credo, Sobelow, the usage rules,
+  the services contract, the signing contract in the agent clients and the
+  compile-connected xref graph, then typechecks the websites guide's TypeScript against
+  the served declarations (`typecheck/`). The demo site's check is the same without its
+  tests. Git history keeps every removed file.
+- **Clients.** The websites guide's Clients table no longer says a row is tested "in every
+  release". Each row now says where it was run: on the live service, or against a stand-in.
+  The row for an agent sending with its own HTTP tool was run on the live service on
+  19 November 2026 (signed with Foundry's `cast`, sent with `curl`: first visit, then
+  welcome back).
+
 ## 19 November 2026, Hermes skill
 
 - **Hermes, with the skill installed.** The guide's Hermes row now rests on one more run on

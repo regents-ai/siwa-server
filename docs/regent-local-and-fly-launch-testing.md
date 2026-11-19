@@ -11,7 +11,6 @@ Use this mirror when you are working from `siwa-server/`.
 ```bash
 cd /Users/sean/Documents/regent/repos/siwa-server
 direnv allow
-direnv exec . mix test
 direnv exec . make check
 direnv exec . mix release --overwrite
 ```

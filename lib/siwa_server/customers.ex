@@ -34,9 +34,6 @@ defmodule SiwaServer.Customers do
 
   @max_keys 5
 
-  # Tests read their own answers for each origin.
-  @site_file Application.compile_env(:siwa_server, :site_file, SiteFile)
-
   @type did :: String.t()
   @type refusal ::
           {:error,
@@ -229,7 +226,7 @@ defmodule SiwaServer.Customers do
   end
 
   defp proof_at(origin, token) do
-    case @site_file.fetch(origin) do
+    case SiteFile.fetch(origin) do
       {:ok, body} -> if String.trim(body) == token, do: :proven, else: :wrong_token
       {:error, reason} -> reason
     end

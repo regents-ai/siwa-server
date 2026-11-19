@@ -59,10 +59,6 @@ defmodule SiwaServer.Billing.ReportWorker do
   # well within this; the final count is read after it.
   @grace_seconds 60
 
-  @doc "How long after a period ends its final count is read."
-  @spec grace_seconds() :: pos_integer()
-  def grace_seconds, do: @grace_seconds
-
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"period_id" => period_id}}) do
     with {:ok, %{meter_event_name: event_name}} <- configured(),

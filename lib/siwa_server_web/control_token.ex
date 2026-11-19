@@ -11,9 +11,11 @@ defmodule SiwaServerWeb.ControlToken do
   @salt "siwa control token"
   @max_age 900
 
-  @doc "A token for `did`, signed at `now` (unix seconds), and when it expires."
-  @spec issue(String.t(), integer()) :: {String.t(), DateTime.t()}
-  def issue(did, now \\ System.system_time(:second)) do
+  @doc "A token for `did`, signed now, and when it expires."
+  @spec issue(String.t()) :: {String.t(), DateTime.t()}
+  def issue(did) do
+    now = System.system_time(:second)
+
     {Phoenix.Token.sign(Endpoint, @salt, did, signed_at: now),
      DateTime.from_unix!(now + @max_age)}
   end

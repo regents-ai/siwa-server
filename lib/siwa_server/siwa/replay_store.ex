@@ -3,7 +3,6 @@ defmodule SiwaServer.Siwa.ReplayStore do
   @behaviour Siwa.RequestAuth.ReplayStore
 
   alias SiwaServer.Repo
-  @default_cleanup_limit 1_000
 
   # A key is accepted only when its row is written and its end is still ahead of the
   # database clock read after the write; that rule is the whole replay guard. The
@@ -83,7 +82,7 @@ defmodule SiwaServer.Siwa.ReplayStore do
   # the guard still lets its key be written again, so one request could be
   # accepted twice. `statement_timestamp()` is read once, so the `expires_at`
   # index finds the rows, and is never later than the guard's `clock_timestamp()`.
-  def cleanup_expired(limit \\ @default_cleanup_limit) do
+  def cleanup_expired(limit) do
     case Repo.query(
            """
            DELETE FROM siwa_request_replays

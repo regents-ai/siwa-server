@@ -6,7 +6,7 @@ defmodule SiwaServerWeb.Router do
   end
 
   # One pipeline per SIWA endpoint; they differ only in which rate-limit
-  # bucket they apply (limits are configured per name in :rate_limits).
+  # bucket they apply (limits are set per name in SiwaServer.RateLimiter).
   for name <- [
         :siwa_nonce,
         :siwa_verify,

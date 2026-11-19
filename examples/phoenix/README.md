@@ -64,7 +64,8 @@ client from https://siwa.regents.sh/skill.md for the agent's side.
    A practice site is on your own computer, so the service cannot find it by its address;
    `--handle` tells the client which site to sign in for. A live site needs none.
 
-`mix test` runs the tests, which never reach the service. `mix precommit` runs every check.
+`mix precommit` runs every check: it compiles with warnings as errors, checks for unused
+dependency locks, and checks the formatting.
 
 ## Files
 
@@ -78,7 +79,6 @@ client from https://siwa.regents.sh/skill.md for the agent's side.
 | `lib/siwa_demo_web/router.ex` | The routes. Only `/api` goes through the agent check. |
 | `config/runtime.exs` | Reads the settings in `.env.example`. |
 | `Dockerfile`, `fly.toml` | How Regent builds and runs the demo on Fly. |
-| `test/` | The routes against a stand-in service, and the client against a local one. |
 
 ## Refusals
 

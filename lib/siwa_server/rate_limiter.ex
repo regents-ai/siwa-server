@@ -1,9 +1,8 @@
 defmodule SiwaServer.RateLimiter do
   @moduledoc """
   Counts requests per limit and key in fixed windows, in the database, so every
-  machine counts against the same allowance. Each limit has a default here that
-  the `:rate_limits` setting can replace. `SiwaServer.Siwa.CleanupWorker`
-  removes windows that have ended.
+  machine counts against the same allowance. Each limit is set here.
+  `SiwaServer.Siwa.CleanupWorker` removes windows that have ended.
   """
 
   alias SiwaServer.Repo
@@ -45,8 +44,7 @@ defmodule SiwaServer.RateLimiter do
   @doc "Counts one request under `name` and `key`; the wait in ms once the window is full."
   @spec check(atom(), String.t()) :: :ok | {:error, pos_integer()}
   def check(name, key) do
-    configured = :siwa_server |> Application.get_env(:rate_limits, []) |> Keyword.get(name, [])
-    limits = Keyword.merge(Map.fetch!(@limits, name), configured)
+    limits = Map.fetch!(@limits, name)
     window_ms = Keyword.fetch!(limits, :window_ms)
 
     now = System.os_time(:millisecond)

@@ -31,16 +31,11 @@ defmodule SiwaServer.Billing.StripeSetup do
   @spec event_name() :: String.t()
   def event_name, do: @event_name
 
-  @doc """
-  Finds or makes the meter and price. `metadata:` is put on the product and
-  price it makes.
-  """
-  @spec run(keyword()) :: {:ok, setup()} | {:error, {pos_integer() | atom(), String.t()}}
-  def run(opts \\ []) do
-    metadata = Keyword.get(opts, :metadata, %{})
-
+  @doc "Finds or makes the meter and price."
+  @spec run() :: {:ok, setup()} | {:error, {pos_integer() | atom(), String.t()}}
+  def run do
     with {:ok, meter} <- meter(),
-         {:ok, price} <- price(meter["id"], metadata) do
+         {:ok, price} <- price(meter["id"]) do
       {:ok,
        %{
          meter_id: meter["id"],
@@ -72,7 +67,7 @@ defmodule SiwaServer.Billing.StripeSetup do
     end
   end
 
-  defp price(meter_id, metadata) do
+  defp price(meter_id) do
     with {:ok, %{"data" => found}} <-
            Stripe.call(:get, "/v1/prices", %{
              lookup_keys: [@lookup_key],
@@ -80,13 +75,13 @@ defmodule SiwaServer.Billing.StripeSetup do
              expand: ["data.tiers"]
            }) do
       case found do
-        [] -> create_price(meter_id, metadata)
+        [] -> create_price(meter_id)
         [price] -> same_terms(price, meter_id)
       end
     end
   end
 
-  defp create_price(meter_id, metadata) do
+  defp create_price(meter_id) do
     Stripe.call(:post, "/v1/prices", %{
       currency: "usd",
       lookup_key: @lookup_key,
@@ -98,8 +93,7 @@ defmodule SiwaServer.Billing.StripeSetup do
         %{up_to: "inf", unit_amount_decimal: "9.9"}
       ],
       recurring: %{interval: "month", usage_type: "metered", meter: meter_id},
-      product_data: %{name: "SIWA agents", metadata: metadata},
-      metadata: metadata
+      product_data: %{name: "SIWA agents"}
     })
   end
 

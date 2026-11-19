@@ -3,10 +3,6 @@ defmodule SiwaServer.Billing.Stripe do
   The few Stripe API calls billing makes, form-encoded, on one pinned
   `Stripe-Version`, with the secret key from `SiwaServer.Config.stripe_secret_key/0`.
 
-  Every call goes through `request/4`. Tests replace it by naming another module
-  with a `request/4` under the `:stripe_http` setting (`SiwaServer.TestStripe`),
-  read on each call, so the calls below are built the same way in every run.
-
   An answer is the decoded JSON object, or `{:error, {status, message}}`: Stripe's
   HTTP status and its message, or `:unreachable` and why. Nothing is retried here;
   the Oban job that called retries. Every error's text has the key and any key-shaped
@@ -135,13 +131,6 @@ defmodule SiwaServer.Billing.Stripe do
   @doc "Makes a Stripe object, or reads or lists them: the general form setup and checks use."
   @spec call(:get | :post | :delete, String.t(), map(), keyword()) :: answer()
   def call(method, path, params, opts \\ []) do
-    http = Application.get_env(:siwa_server, :stripe_http, __MODULE__)
-    http.request(method, path, params, opts)
-  end
-
-  @doc false
-  @spec request(:get | :post | :delete, String.t(), map(), keyword()) :: answer()
-  def request(method, path, params, opts) do
     key = Config.stripe_secret_key()
     pairs = form_pairs(params)
 

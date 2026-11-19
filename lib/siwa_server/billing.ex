@@ -14,15 +14,14 @@ defmodule SiwaServer.Billing do
   request that counts a new agent wait its turn. An agent already counted
   passes at the cap.
 
-  `open_period/3` opens a period. A `paid` customer's periods come from its
-  Stripe subscription (`put_period/3`, `SiwaServer.Billing.Subscription`), and
-  its production sites take agents only while that subscription is `active`,
-  `trialing` or `past_due`; otherwise they answer `billing_required`. When a
-  period has ended and Stripe has not yet told this server the next one, the
-  next opens on first use at exactly the previous end, provisionally one
-  calendar month long, and Stripe's own end replaces that when it arrives. An
-  `internal` customer's current UTC calendar month opens on first use
-  (`period_to_count/1`).
+  A `paid` customer's periods come from its Stripe subscription (`put_period/3`,
+  `SiwaServer.Billing.Subscription`), and its production sites take agents only
+  while that subscription is `active`, `trialing` or `past_due`; otherwise they
+  answer `billing_required`. When a period has ended and Stripe has not yet told
+  this server the next one, the next opens on first use at exactly the previous
+  end, provisionally one calendar month long, and Stripe's own end replaces that
+  when it arrives. An `internal` customer's current UTC calendar month opens on
+  first use (`period_to_count/1`).
 
   The control API reads and sets a customer's usage and cap through
   `SiwaServer.Customers`, which finds the customer for its person.
@@ -42,15 +41,6 @@ defmodule SiwaServer.Billing do
   @working_statuses ~w(active trialing past_due)
 
   @type refusal :: {:error, {pos_integer(), String.t(), String.t()} | Ecto.Changeset.t()}
-
-  @doc """
-  Opens a period for `customer` from `starts_at` (inclusive) to `ends_at`
-  (exclusive), with the customer's cap and the most agents it pays for.
-  """
-  @spec open_period(Customer.t(), DateTime.t(), DateTime.t()) ::
-          {:ok, Period.t()} | {:error, Ecto.Changeset.t()}
-  def open_period(customer, starts_at, ends_at),
-    do: customer |> period(starts_at, ends_at) |> Repo.insert()
 
   @doc "The customer's period the database clock is in, or nil."
   @spec current_period(Customer.t(), keyword()) :: Period.t() | nil

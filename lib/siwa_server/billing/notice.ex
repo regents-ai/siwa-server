@@ -27,10 +27,6 @@ defmodule SiwaServer.Billing.Notice do
     "invoice.finalized" => "invoice_finalized"
   }
 
-  @doc "The notice types billing acts on, the ones Stripe's webhook endpoint must send."
-  @spec types() :: [String.t()]
-  def types, do: Map.keys(@kinds)
-
   @doc "Whether the `Stripe-Signature` headers sign `body` with `secret`, at `now` (unix seconds)."
   @spec verify(binary() | nil, [String.t()], String.t(), integer()) :: :ok | :error
   def verify(body, [header], secret, now) when is_binary(body) do

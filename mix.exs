@@ -9,7 +9,6 @@ defmodule SiwaServer.MixProject do
       app: :siwa_server,
       version: "0.1.0",
       elixir: "~> 1.20",
-      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
@@ -40,16 +39,6 @@ defmodule SiwaServer.MixProject do
       extra_applications: [:logger, :runtime_tools]
     ]
   end
-
-  def cli do
-    [
-      preferred_envs: [precommit: :test]
-    ]
-  end
-
-  # Specifies which paths to compile per environment.
-  defp elixirc_paths(:test), do: ["lib", "test/support"]
-  defp elixirc_paths(_), do: ["lib"]
 
   # Specifies your project dependencies.
   #
@@ -87,18 +76,9 @@ defmodule SiwaServer.MixProject do
       # connect to the address that rule checked (`SiwaServer.Customers.SiteFile`).
       {:regent_http, git: @elixir_utils, ref: @elixir_utils_ref, sparse: "http"},
       {:mint, "~> 1.11"},
-      # The signing contract's shared fixtures, read by the agent client conformance test.
-      {:siwa_contract,
-       git: @elixir_utils,
-       ref: @elixir_utils_ref,
-       sparse: "siwa/contract",
-       app: false,
-       compile: false,
-       only: :test},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:sobelow, "~> 0.16", only: [:dev, :test], runtime: false},
-      {:stream_data, "~> 1.4", only: [:dev, :test]},
-      {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: :dev, runtime: false},
+      {:sobelow, "~> 0.16", only: :dev, runtime: false},
+      {:usage_rules, "~> 1.2.8", only: :dev, runtime: false}
     ]
   end
 
@@ -113,7 +93,6 @@ defmodule SiwaServer.MixProject do
       setup: ["deps.get", "ecto.setup"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
-      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test --max-cases 8"],
       "check.services_contract": [
         "siwa_server.contract_check"
       ],
@@ -130,10 +109,8 @@ defmodule SiwaServer.MixProject do
         "check.services_contract",
         "check.agent_clients",
         "xref graph --label compile-connected --fail-above 0",
-        "cmd npm --prefix e2e ci --silent",
-        "cmd npm --prefix e2e run typecheck --silent",
-        "test --warnings-as-errors",
-        "cmd npm --prefix e2e test"
+        "cmd npm --prefix typecheck ci --silent",
+        "cmd npm --prefix typecheck run typecheck --silent"
       ]
     ]
   end

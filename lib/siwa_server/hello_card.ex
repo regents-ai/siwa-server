@@ -33,8 +33,7 @@ defmodule SiwaServer.HelloCard do
   subject, never with the card or the person.
 
   Every key is published as an Ed25519 JWK (`jwks/0`) whose `kid` is its
-  RFC 7638 thumbprint, and a site checks a card with `verify/3` or its own copy
-  of it.
+  RFC 7638 thumbprint, and a site checks a card against those keys.
   """
 
   alias SiwaServer.Config
@@ -46,8 +45,6 @@ defmodule SiwaServer.HelloCard do
   @card_seconds 86_400
   @token_seconds 60
   @timeout_ms 5_000
-  @fields Enum.sort(~w(cardId subject name person pairedAt pairedOn issuedAt expiresAt))
-  @subject ~r/\Aeip155:[1-9][0-9]*:0x[0-9a-f]{40}\z/
 
   @type card :: %{String.t() => String.t()}
   @type refusal :: {:error, {pos_integer(), String.t(), String.t()}}
@@ -128,48 +125,18 @@ defmodule SiwaServer.HelloCard do
     end
   end
 
-  @doc """
-  Checks `card` against `keys`, the `keys` list `/.well-known/jwks.json` gives,
-  at `now`: its type, a published key, its signature, its eight fields in their
-  shapes, and that it has not expired. The answer is the eight fields.
-  """
-  @spec verify(String.t(), [map()], DateTime.t()) ::
-          {:ok, card()}
-          | {:error,
-             :malformed | :wrong_type | :unknown_key | :bad_signature | :bad_fields | :expired}
-  def verify(card, keys, now) do
-    with [header, payload, signature] <- String.split(card, "."),
-         {:ok, %{"alg" => "EdDSA", "typ" => typ, "kid" => kid} = named} when map_size(named) == 3 <-
-           decode_json(header),
-         :ok <- if(typ == @card_typ, do: :ok, else: {:error, :wrong_type}),
-         {:ok, public_key} <- published_key(keys, kid),
-         {:ok, signature} <- decode(signature),
-         :ok <- signed(header <> "." <> payload, signature, public_key),
-         {:ok, fields} <- decode_json(payload),
-         {:ok, expires_at} <- card_fields(fields) do
-      if DateTime.before?(now, expires_at), do: {:ok, fields}, else: {:error, :expired}
-    else
-      {:error, reason} when is_atom(reason) -> {:error, reason}
-      _malformed -> {:error, :malformed}
-    end
-  end
-
   # The site's answer, read once: no retry, and no redirect followed.
   defp ask_site(paired_on, origin, subject, token) do
-    options =
-      Keyword.merge(
-        [
-          method: :post,
-          url: origin <> "/api/agents/v1/pairing",
-          json: %{"subject" => subject},
-          headers: [{"authorization", "Bearer " <> token}],
-          retry: false,
-          redirect: false,
-          receive_timeout: @timeout_ms,
-          connect_options: [timeout: @timeout_ms]
-        ],
-        Application.get_env(:siwa_server, :pairing_http, [])
-      )
+    options = [
+      method: :post,
+      url: origin <> "/api/agents/v1/pairing",
+      json: %{"subject" => subject},
+      headers: [{"authorization", "Bearer " <> token}],
+      retry: false,
+      redirect: false,
+      receive_timeout: @timeout_ms,
+      connect_options: [timeout: @timeout_ms]
+    ]
 
     :telemetry.span([:siwa_server, :hello_card, :pairing], %{audience: paired_on}, fn ->
       answer = options |> Req.request() |> pairing()
@@ -208,48 +175,6 @@ defmodule SiwaServer.HelloCard do
 
   defp text?(value), do: is_binary(value) and String.length(value) in 1..200
 
-  defp published_key(keys, kid) do
-    with %{"kty" => "OKP", "crv" => "Ed25519", "x" => x} <-
-           Enum.find(keys, &match?(%{"kid" => ^kid}, &1)),
-         {:ok, <<_::binary-size(32)>> = public_key} <- decode(x) do
-      {:ok, public_key}
-    else
-      _unknown -> {:error, :unknown_key}
-    end
-  end
-
-  defp signed(message, signature, public_key) do
-    if :crypto.verify(:eddsa, :none, message, signature, [public_key, :ed25519]),
-      do: :ok,
-      else: {:error, :bad_signature}
-  end
-
-  # Exactly the eight fields, each in its shape; the answer is the expiry.
-  defp card_fields(fields) do
-    with true <- is_map(fields) and Enum.sort(Map.keys(fields)) == @fields,
-         {:ok, <<_::binary-size(16)>>} <- decode(fields["cardId"]),
-         true <- is_binary(fields["subject"]) and Regex.match?(@subject, fields["subject"]),
-         true <- text?(fields["name"]) and text?(fields["person"]),
-         true <- is_binary(fields["pairedOn"]) and Config.site_name?(fields["pairedOn"]),
-         {:ok, _paired_at} <- time(fields["pairedAt"]),
-         {:ok, _issued_at} <- time(fields["issuedAt"]),
-         {:ok, expires_at} <- time(fields["expiresAt"]) do
-      {:ok, expires_at}
-    else
-      _other_shape -> {:error, :bad_fields}
-    end
-  end
-
-  # A time in its one spelling: ISO 8601 UTC, whole seconds.
-  defp time(text) when is_binary(text) do
-    with {:ok, time, 0} <- DateTime.from_iso8601(text),
-         ^text <- time |> DateTime.truncate(:second) |> DateTime.to_iso8601() do
-      {:ok, time}
-    end
-  end
-
-  defp time(_not_text), do: :error
-
   defp sign(seed, typ, claims) do
     header = encode(Jason.encode!(%{"alg" => "EdDSA", "typ" => typ, "kid" => jwk(seed)["kid"]}))
     payload = encode(Jason.encode!(claims))
@@ -275,20 +200,4 @@ defmodule SiwaServer.HelloCard do
   end
 
   defp encode(bytes), do: Base.url_encode64(bytes, padding: false)
-
-  # Unpadded base64url in its one spelling.
-  defp decode(text) when is_binary(text) do
-    with {:ok, bytes} <- Base.url_decode64(text, padding: false),
-         ^text <- encode(bytes) do
-      {:ok, bytes}
-    else
-      _other -> :error
-    end
-  end
-
-  defp decode(_not_text), do: :error
-
-  defp decode_json(part) do
-    with {:ok, json} <- decode(part), do: Jason.decode(json)
-  end
 end

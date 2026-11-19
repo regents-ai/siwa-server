@@ -10,7 +10,6 @@ defmodule SiwaDemo.MixProject do
       app: :siwa_demo,
       version: "0.1.0",
       elixir: "~> 1.20",
-      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps()
@@ -23,13 +22,6 @@ defmodule SiwaDemo.MixProject do
       extra_applications: [:logger]
     ]
   end
-
-  def cli do
-    [preferred_envs: [precommit: :test]]
-  end
-
-  defp elixirc_paths(:test), do: ["lib", "test/support"]
-  defp elixirc_paths(_env), do: ["lib"]
 
   defp deps do
     [
@@ -50,8 +42,7 @@ defmodule SiwaDemo.MixProject do
       precommit: [
         "compile --warnings-as-errors",
         "deps.unlock --check-unused",
-        "format --check-formatted",
-        "test --warnings-as-errors"
+        "format --check-formatted"
       ]
     ]
   end

@@ -46,7 +46,7 @@ defmodule SiwaDemoWeb.AgentAuth do
   @impl Plug
   def call(conn, _opts) do
     Siwa.AgentAuthPlug.call(conn,
-      client: Application.fetch_env!(:siwa_demo, :siwa_client),
+      client: SiwaDemo.SiwaClient,
       hooks: __MODULE__,
       audience: Application.fetch_env!(:siwa_demo, :siwa_handle)
     )

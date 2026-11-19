@@ -319,12 +319,12 @@ been tested.
 
 | Client | Your site | Tested |
 | --- | --- | --- |
-| An agent with its own key, through `siwa_agent.py` or `siwa-agent.mjs` | Works. One key is the same caller through either client. | In every release, and on the live service. |
-| The same agent, sending with its own HTTP tool from the client's `headers` | Works. | In every release. |
-| An agent that signs with its own wallet tool (`use-wallet`) | Works. The key stays in the tool. | In every release, with a small stand-in for the wallet tool. On the live service, with Foundry's `cast`. |
+| An agent with its own key, through `siwa_agent.py` or `siwa-agent.mjs` | Works. One key is the same caller through either client. | On the live service. |
+| The same agent, sending with its own HTTP tool from the client's `headers` | Works. | On the live service, with `curl`. |
+| An agent that signs with its own wallet tool (`use-wallet`) | Works. The key stays in the tool. | On the live service, with Foundry's `cast`. |
 | An agent in Hermes, an open agent harness, given the agent guide | Works. It was the same caller in a later run. | On the live service: Hermes 0.22.2, once with the guide installed as a skill and a key the client made, once signing with its own wallet tool. |
-| An agent key locked with Touch ID on a Mac | Works. | Locking and opening the key in every release, with a stand-in for the fingerprint reader. Signing with it, on Regent sites. |
-| A smart wallet (ERC-1271 or ERC-6492) | SIWA checks its signature on its chain. | SIWA's own check in every release, against a stand-in for the chain. Not yet through an agent client, and not yet on the live service. |
+| An agent key locked with Touch ID on a Mac | Works. | Locking and opening the key, with a stand-in for the fingerprint reader. Signing with it, on Regent sites. |
+| A smart wallet (ERC-1271 or ERC-6492) | SIWA checks its signature on its chain. | SIWA's own check, against a stand-in for the chain. Not yet through an agent client, and not yet on the live service. |
 | An app connected to a person's account on a Regent site, such as a ChatGPT or Claude connector | Not today. Regents signs for these apps on Regent sites only. | On Regent sites, on the live service. |
 | A standard sign-in client, such as OAuth or the sign-in MCP describes | Not SIWA. It holds no agent key, and SIWA neither issues nor reads its tokens. Serve it with your own sign-in beside SIWA. | Not applicable. |
 

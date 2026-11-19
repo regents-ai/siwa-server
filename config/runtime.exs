@@ -142,33 +142,31 @@ config :siwa_server, :privy,
     env_value.("PRIVY_VERIFICATION_KEY", Keyword.fetch!(current_privy, :verification_key))
 
 # Billing through Stripe: all five set turns it on, any one unset leaves it off
-# (SiwaServer.Config.stripe/0). Tests set their own. Off production, the secret key
-# may instead come from a file holding a Stripe test-mode key, STRIPE_TEST_KEY_FILE.
-if config_env() != :test do
-  stripe_secret_key =
-    case {env_value.("STRIPE_SECRET_KEY", nil), env_value.("STRIPE_TEST_KEY_FILE", nil)} do
-      {key, nil} ->
-        key
+# (SiwaServer.Config.stripe/0). Off production, the secret key may instead come
+# from a file holding a Stripe test-mode key, STRIPE_TEST_KEY_FILE.
+stripe_secret_key =
+  case {env_value.("STRIPE_SECRET_KEY", nil), env_value.("STRIPE_TEST_KEY_FILE", nil)} do
+    {key, nil} ->
+      key
 
-      {nil, path} when not prod? ->
-        key = path |> File.read!() |> String.trim()
+    {nil, path} when not prod? ->
+      key = path |> File.read!() |> String.trim()
 
-        unless String.starts_with?(key, ["sk_test_", "rk_test_"]),
-          do: raise("STRIPE_TEST_KEY_FILE must hold a Stripe test-mode key.")
+      unless String.starts_with?(key, ["sk_test_", "rk_test_"]),
+        do: raise("STRIPE_TEST_KEY_FILE must hold a Stripe test-mode key.")
 
-        key
+      key
 
-      {_key, _path} ->
-        raise("set STRIPE_SECRET_KEY, or off production STRIPE_TEST_KEY_FILE, not both.")
-    end
+    {_key, _path} ->
+      raise("set STRIPE_SECRET_KEY, or off production STRIPE_TEST_KEY_FILE, not both.")
+  end
 
-  config :siwa_server, :stripe,
-    secret_key: stripe_secret_key,
-    webhook_secret: env_value.("STRIPE_WEBHOOK_SECRET", nil),
-    price_id: env_value.("STRIPE_PRICE_ID", nil),
-    meter_event_name: env_value.("STRIPE_METER_EVENT_NAME", nil),
-    portal_origins: SiwaServer.Config.portal_origins!(env_value.("SIWA_PORTAL_ORIGINS", nil))
-end
+config :siwa_server, :stripe,
+  secret_key: stripe_secret_key,
+  webhook_secret: env_value.("STRIPE_WEBHOOK_SECRET", nil),
+  price_id: env_value.("STRIPE_PRICE_ID", nil),
+  meter_event_name: env_value.("STRIPE_METER_EVENT_NAME", nil),
+  portal_origins: SiwaServer.Config.portal_origins!(env_value.("SIWA_PORTAL_ORIGINS", nil))
 
 if prod? do
   database_url =
@@ -186,7 +184,7 @@ if prod? do
   config :siwa_server, SiwaServer.Repo, database_config
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
-  # A default value is used in config/dev.exs and config/test.exs but you
+  # A default value is used in config/dev.exs but you
   # want to use a different value for prod and you most likely don't want
   # to check this value into version control, so we use an environment
   # variable instead.

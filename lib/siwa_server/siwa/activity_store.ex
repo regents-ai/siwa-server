@@ -16,7 +16,6 @@ defmodule SiwaServer.Siwa.ActivityStore do
   alias SiwaServer.{Config, Repo}
 
   @kept_days 30
-  @default_cleanup_limit 1_000
 
   # `synchronous_commit` is set for the transaction this statement runs in. Run on
   # its own, as its one caller does, that is this one statement and nothing else on
@@ -82,7 +81,7 @@ defmodule SiwaServer.Siwa.ActivityStore do
     )
   end
 
-  def cleanup_expired(now \\ DateTime.utc_now(), limit \\ @default_cleanup_limit) do
+  def cleanup_expired(now, limit) do
     case Repo.query(
            """
            DELETE FROM siwa_agent_daily_activity

@@ -4,6 +4,7 @@ defmodule SiwaServer.Ethereum do
   alias SiwaServer.Config
 
   @wallet_chain_names %{1 => "Ethereum", 8453 => "Base"}
+  @rpc_timeout_ms 5_000
 
   @doc "The chains a wallet may sign in on."
   @spec wallet_chain_ids() :: [pos_integer()]
@@ -43,7 +44,7 @@ defmodule SiwaServer.Ethereum do
     [
       rpc_url: rpc_url(chain_id) || "",
       finch: SiwaServer.Finch,
-      timeout_ms: rpc_timeout_ms()
+      timeout_ms: @rpc_timeout_ms
     ]
   end
 
@@ -63,15 +64,13 @@ defmodule SiwaServer.Ethereum do
     telemetry_span(:json_rpc, %{method: method}, fn ->
       result =
         Siwa.Ethereum.json_rpc(url, method, params,
-          timeout_ms: rpc_timeout_ms(),
+          timeout_ms: @rpc_timeout_ms,
           finch: SiwaServer.Finch
         )
 
       {map_ethereum_result(result), %{result: telemetry_result(result)}}
     end)
   end
-
-  defp rpc_timeout_ms, do: Application.get_env(:siwa_server, :ethereum_rpc_timeout_ms, 5_000)
 
   defp telemetry_span(operation, metadata, fun) do
     :telemetry.span(

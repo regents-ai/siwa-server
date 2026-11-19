@@ -114,7 +114,7 @@ one is present. A customer's site asks with its server key; a Regent site named 
 `SIWA_WALLET_ORIGINS` may still ask with only its audience in `x-siwa-audience`.
 
 Malformed expiry values, expired requests, receipt-binding mismatches, and replayed requests
-must fail closed. The SIWA library and the service tests cover these cases.
+must fail closed.
 
 **Server keys.** A customer's site (see [Control API](#control-api)) sends its server key
 as the bearer:
@@ -559,10 +559,6 @@ route and the webhook then answer `503 billing_not_configured`, and the account 
 `"configured": false`. `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are secrets: set them
 with `fly secrets set`, never in `fly.toml`.
 
-`STRIPE_TEST_KEY_FILE=<file holding a test-mode key> mix test --only stripe_live` runs the whole
-of billing against Stripe's test mode in about 30 minutes, with each first period a few minutes
-long; it leaves no rows behind and cancels the subscriptions it made. The usual test run skips it.
-
 ## Required configuration
 
 | Variable | Required | What it is for |
@@ -613,19 +609,15 @@ One command must pass before a change is proposed:
 make check
 ```
 
-`make check` runs `mix precommit` and nothing else. It compiles with warnings as errors, checks unused dependency locks and formatting, runs
-Sobelow, verifies the served services contract, holds the compile-connected `xref` graph
-at zero, installs the `e2e/` libraries, runs the test suite with warnings as errors, then
-runs the Touch ID page checks in headless Chromium (`e2e/`, Playwright 1.65.1, on a Mac). It
-needs a local PostgreSQL, because the test alias creates and migrates a database first,
-Playwright's Chromium (`npx --prefix e2e playwright install --only-shell chromium`, once),
-and `uv` on the path. The first-signed-request and hello card client tests run the served Python client through
-`uv` (its first run downloads the client's libraries, so it needs the network or a warm uv
-cache) and the Node client beside `e2e/node_modules`, so a bare `mix test` on a fresh clone
-needs `npm --prefix e2e ci` first.
+`make check` runs `mix precommit` and nothing else. It compiles with warnings as errors,
+checks unused dependency locks and formatting, runs Credo and Sobelow, checks the usage rules
+block in `AGENTS.md`, verifies the served services contract and the signing contract inside
+the served agent clients, holds the compile-connected `xref` graph at zero, then installs
+TypeScript in `typecheck/` and typechecks the websites guide's usage of
+`priv/static/site/siwa-site.d.mts`. It needs no database and no browser.
 
-[verification/features.yml](verification/features.yml) lists what this service does, its risk
-level and the checks that prove each part, with the gaps that have no check yet.
+[verification/features.yml](verification/features.yml) lists what this service does, the code
+behind each part, its risk level and its known gaps.
 
 ## Deployment
 
@@ -786,9 +778,7 @@ answer back to the helper. The page confirms the passkey step;
 only the agent's subsequent `me` request confirms account pairing. It names the agent
 app that opened it ("Opened by Claude Code"; Codex, Cursor, Gemini CLI, Hermes and
 OpenCode are known, anything else is "your agent"), found by each client from its
-parent processes, and after Touch ID it says "You can safely close this page". What the page
-shows in each step, and that finishing or failing moves nothing at any width from 300 to
-1280, is checked by `e2e/touch-id-page.spec.mjs`.
+parent processes, and after Touch ID it says "You can safely close this page".
 Regenerate both clients and the Regents CLI page from sibling checkouts with:
 
 ```sh
