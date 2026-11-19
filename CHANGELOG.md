@@ -5,6 +5,11 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- **Hermes, with the skill installed.** The guide's Hermes row now rests on one more run on
+  the live service: with the guide installed as a skill in Hermes 0.22.2 and nothing
+  fetched from the web but the client, the agent made a key, sent one signed request and
+  the demo site answered `200` with its caller ID. The skill was removed afterwards.
+
 - The browser checks run on Playwright 1.65.1 (Chromium 159), up from 1.64.1, with the
   rest of the Regent version refresh. A check tool only: nothing the service serves or
   answers changes, and no walk needed a change.
