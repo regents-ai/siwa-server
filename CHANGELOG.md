@@ -5,6 +5,10 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- The browser checks run on Playwright 1.65.1 (Chromium 159), up from 1.64.1, with the
+  rest of the Regent version refresh. A check tool only: nothing the service serves or
+  answers changes, and no walk needed a change.
+
 ## 19 November 2026, Hermes
 
 - **Hermes.** An agent in Hermes, an open agent harness, can take the agent guide as a
