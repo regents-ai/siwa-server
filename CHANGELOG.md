@@ -5,6 +5,12 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 19 November 2026, Demo
+
+- The demo site at https://demo.regents.sh runs on a machine with 512 MB of memory, up
+  from 256 MB. The smaller one ran out after 25 hours and was restarted by Fly, which
+  refused requests for about three seconds. The demo's code is unchanged.
+
 ## 19 November 2026, Tests
 
 - The tests and browser walks are gone, on the founder's order of 19 November 2026

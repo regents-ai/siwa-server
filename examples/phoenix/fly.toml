@@ -40,7 +40,9 @@ kill_timeout = "5s"
     Host = "localhost"
 
 # One small machine: the site stores nothing and asks the SIWA service for every check.
+# 256 MB left it under a fifth of its memory free from the start, and Fly stopped it for
+# running out on 19 November 2026.
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
-  memory_mb = 256
+  memory_mb = 512
