@@ -156,7 +156,8 @@ defmodule SiwaServer.HostedRequests do
     "patchbay" => ["chatgpt"],
     "keyfleet" => ["claude", "chatgpt"],
     "ash-template" => ["claude"],
-    "chainagent" => ["claude"]
+    "chainagent" => ["claude"],
+    "regents" => ["claude"]
   }
 
   defp allowed_request(site, %{"method" => "GET", "path" => path} = r)

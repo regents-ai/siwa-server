@@ -5,6 +5,12 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+## 24 November 2026, Regents hosted connector
+
+- Regents (`regents`, `https://regents.sh`) may use hosted signing for `/api/agents/v1/whoami`,
+  `/api/agents/v1/me`, and `/api/agents/v1/pair` for the `claude` harness once its key is set
+  in `SIWA_HOSTED_SIGNERS`.
+
 ## 19 November 2026, Demo
 
 - The demo site at https://demo.regents.sh runs on a machine with 512 MB of memory, up
