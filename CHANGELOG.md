@@ -5,6 +5,17 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- **Fault isolation & readiness.** Rate-limit checks (`SiwaServer.RateLimiter`) and keyless
+  HTTP verification replay consumption now fail closed as `503 service_unavailable` /
+  `verification_unavailable` on database outages instead of raising unhandled `500`s.
+  `SiwaServer.Readiness` probes the three configured RPC chains in parallel with a bounded
+  2.5 s timeout per probe instead of sequentially.
+- **Client security & one-site URLs.** `siwa-site.mjs` / `siwa_site.py` now block HTTP
+  redirects (`redirect: "manual"` / custom redirect blocker) so `Bearer siwa_sk_...` keys
+  cannot leak across redirects, preserve agent `hint` on `401`/`409` refusals, and normalize
+  `authority` to lowercase in `.mjs`. `siwa-agent.mjs` / `siwa_agent.py` now point the Touch
+  ID footer link to `https://regents.sh/patchbay`.
+
 ## 24 November 2026, Regents hosted connector
 
 - Regents (`regents`, `https://regents.sh`) may use hosted signing for `/api/agents/v1/whoami`,

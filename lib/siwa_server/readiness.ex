@@ -40,6 +40,32 @@ defmodule SiwaServer.Readiness do
     ethereum = Config.ethereum_rpc_url()
     world = Config.world_rpc_url()
 
+    rpc_probes = [
+      {:base_rpc_chain_id, "BASE_RPC_URL", base, "0x2105"},
+      {:ethereum_rpc_chain_id, "ETHEREUM_RPC_URL", ethereum, "0x1"},
+      {:world_rpc_chain_id, "WORLD_RPC_URL", world, "0x1e0"}
+    ]
+
+    rpc_results =
+      SiwaServer.TaskSupervisor
+      |> Task.Supervisor.async_stream_nolink(
+        rpc_probes,
+        fn {key, env_name, url, expected_hex} ->
+          {key, rpc_chain_id_check(env_name, url, expected_hex)}
+        end,
+        max_concurrency: length(rpc_probes),
+        timeout: 2_500,
+        on_timeout: :kill_task
+      )
+      |> Enum.zip_with(rpc_probes, fn
+        {:ok, {key, res}}, _probe ->
+          {key, res}
+
+        {:exit, _reason}, {key, env_name, _url, _expected} ->
+          {key, {:error, "#{env_name} probe timed out"}}
+      end)
+      |> Map.new()
+
     results = %{
       database: database_check(),
       endpoint_secret: endpoint_secret_check(),
@@ -49,11 +75,11 @@ defmodule SiwaServer.Readiness do
       keystore_password: keystore_password_check(),
       hosted_keys: hosted_keys_check(),
       base_rpc_url: rpc_url_check("BASE_RPC_URL", base),
-      base_rpc_chain_id: rpc_chain_id_check("BASE_RPC_URL", base, "0x2105"),
+      base_rpc_chain_id: Map.fetch!(rpc_results, :base_rpc_chain_id),
       ethereum_rpc_url: rpc_url_check("ETHEREUM_RPC_URL", ethereum),
-      ethereum_rpc_chain_id: rpc_chain_id_check("ETHEREUM_RPC_URL", ethereum, "0x1"),
+      ethereum_rpc_chain_id: Map.fetch!(rpc_results, :ethereum_rpc_chain_id),
       world_rpc_url: rpc_url_check("WORLD_RPC_URL", world),
-      world_rpc_chain_id: rpc_chain_id_check("WORLD_RPC_URL", world, "0x1e0")
+      world_rpc_chain_id: Map.fetch!(rpc_results, :world_rpc_chain_id)
     }
 
     checks = Map.new(results, fn {name, result} -> {name, result == :ok} end)
@@ -150,7 +176,7 @@ defmodule SiwaServer.Readiness do
     with :ok <- rpc_url_check(env_name, url) do
       url
       |> Ethereum.json_rpc("eth_chainId", [],
-        timeout_ms: Application.get_env(:siwa_server, :readiness_rpc_timeout_ms, 1_000),
+        timeout_ms: 1_000,
         finch: SiwaServer.Finch
       )
       |> chain_id_answer(env_name, expected_hex)

@@ -36,6 +36,19 @@ defmodule SiwaServerWeb.Plugs.RateLimit do
       :ok ->
         conn
 
+      {:error, :unavailable} ->
+        conn
+        |> put_status(:service_unavailable)
+        |> put_resp_header("retry-after", "5")
+        |> json(
+          ErrorJSON.refusal(
+            conn,
+            "service_unavailable",
+            "The sign-in service is temporarily unavailable."
+          )
+        )
+        |> halt()
+
       {:error, retry_after_ms} ->
         conn
         |> refuse("rate_limited", "Please wait a moment before trying again.", retry_after_ms)

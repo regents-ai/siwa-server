@@ -58,7 +58,7 @@ export async function checkAgent(request, { key = process.env.SIWA_SERVER_KEY, h
   const check = {
     method: request.method,
     path: url.pathname + url.search,
-    authority: host ?? url.host,
+    authority: (host ?? url.host).toLowerCase(),
     headers,
   };
 
@@ -75,6 +75,7 @@ export async function checkAgent(request, { key = process.env.SIWA_SERVER_KEY, h
       method: "POST",
       headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
       body: JSON.stringify(check),
+      redirect: "manual",
       signal: AbortSignal.timeout(10_000),
     });
   } catch (error) {
@@ -90,7 +91,15 @@ export async function checkAgent(request, { key = process.env.SIWA_SERVER_KEY, h
 
   // A 401 or 409 whose code does not begin `site_` is about the agent's own request.
   if ([401, 409].includes(answer.status) && error && !error.code.startsWith("site_")) {
-    return refused(401, error.code, error.message);
+    return {
+      refusal: {
+        status: 401,
+        code: error.code,
+        message: error.message,
+        ...(error.hint ? { hint: error.hint } : {}),
+        retryAfter: null,
+      },
+    };
   }
 
   console.error(`SIWA refused this site's check: ${answer.status} ${error?.code}`);

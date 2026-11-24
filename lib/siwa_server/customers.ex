@@ -205,6 +205,9 @@ defmodule SiwaServer.Customers do
       :ok ->
         :ok
 
+      {:error, :unavailable} ->
+        {:error, {503, "service_unavailable", "The sign-in service is temporarily unavailable."}}
+
       {:error, retry_after_ms} ->
         {:error,
          {429, "rate_limited", "Please wait a moment before trying again.", retry_after_ms}}

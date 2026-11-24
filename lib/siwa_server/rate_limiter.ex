@@ -36,13 +36,13 @@ defmodule SiwaServer.RateLimiter do
     # day for each site it is paired on.
     siwa_hello_card: [limit: 60, window_ms: 60_000],
     # Counted per calling address, which is a Regent site's server for all of its
-    # people. Each needs a new control token every 15 minutes, so 30 a minute
-    # serves about 450 people signed in to one site at once.
+    # people. Each needs a new control token every 15 minutes, so 600 a minute
+    # leaves generous headroom for bursts of concurrent sign-ins.
     siwa_control_session: [limit: 600, window_ms: 60_000]
   }
 
-  @doc "Counts one request under `name` and `key`; the wait in ms once the window is full."
-  @spec check(atom(), String.t()) :: :ok | {:error, pos_integer()}
+  @doc "Counts one request under `name` and `key`; the wait in ms once the window is full, or `:unavailable` on a transient DB error."
+  @spec check(atom(), String.t()) :: :ok | {:error, pos_integer() | :unavailable}
   def check(name, key) do
     limits = Map.fetch!(@limits, name)
     window_ms = Keyword.fetch!(limits, :window_ms)
@@ -55,21 +55,32 @@ defmodule SiwaServer.RateLimiter do
 
     # A key is built from what the caller sent, before anything is proven, so it
     # is stored at a fixed size however long the caller made it.
-    %{rows: [[count]]} =
-      Repo.query!(
-        """
-        INSERT INTO siwa_rate_limits AS r (name, key, bucket, count, expires_at)
-        VALUES ($1, $2, $3, 1, $4)
-        ON CONFLICT (name, key, bucket) DO UPDATE SET count = r.count + 1
-        RETURNING count
-        """,
-        [Atom.to_string(name), :crypto.hash(:sha256, key), bucket, DateTime.to_naive(expires_at)],
-        log: false
-      )
+    case Repo.query(
+           """
+           INSERT INTO siwa_rate_limits AS r (name, key, bucket, count, expires_at)
+           VALUES ($1, $2, $3, 1, $4)
+           ON CONFLICT (name, key, bucket) DO UPDATE SET count = r.count + 1
+           RETURNING count
+           """,
+           [
+             Atom.to_string(name),
+             :crypto.hash(:sha256, key),
+             bucket,
+             DateTime.to_naive(expires_at)
+           ],
+           log: false
+         ) do
+      {:ok, %{rows: [[count]]}} ->
+        if count <= Keyword.fetch!(limits, :limit),
+          do: :ok,
+          else: {:error, max((bucket + 1) * window_ms - now, 1)}
 
-    if count <= Keyword.fetch!(limits, :limit),
-      do: :ok,
-      else: {:error, max((bucket + 1) * window_ms - now, 1)}
+      {:error, _reason} ->
+        {:error, :unavailable}
+    end
+  rescue
+    DBConnection.ConnectionError -> {:error, :unavailable}
+    Postgrex.Error -> {:error, :unavailable}
   end
 
   @doc "Removes up to `limit` ended windows."

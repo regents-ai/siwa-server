@@ -996,7 +996,7 @@ a { color: inherit; text-underline-offset: 3px; }
     <div class="identity"><span class="label">Agent address</span><code id="address"></code></div>
   </main>
   <footer>
-    <p><a href="https://patchbay.help" target="_blank" rel="noopener noreferrer">Questions? Ask on patchbay.help ↗</a></p>
+    <p><a href="https://regents.sh/patchbay" target="_blank" rel="noopener noreferrer">Questions? Ask on regents.sh/patchbay ↗</a></p>
     <p><a href="https://siwa.regents.sh/skill.md" target="_blank" rel="noopener noreferrer">Regents agent guide ↗</a></p>
     <section class="share" id="share" aria-labelledby="share-title">
       <h2 id="share-title">Message for your agent</h2>

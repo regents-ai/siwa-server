@@ -115,12 +115,26 @@ defmodule SiwaServer.Siwa.HttpVerifier do
              audience,
              Map.get(Config.wallet_origins(), audience, []),
              Map.keys(Config.wallet_origins()),
-             &ReplayStore.consume/2
+             &consume_keyless/2
            ) do
       {:ok, answer(request, verified, audience, nil, %{})}
     else
       error -> refusal(error)
     end
+  end
+
+  defp consume_keyless(replay_key, expires) do
+    case ReplayStore.consume(replay_key, expires) do
+      {:error, %fault{}} when fault in @database_faults ->
+        {:error, {503, "verification_unavailable", "could not verify replay state"}}
+
+      other ->
+        other
+    end
+  rescue
+    error in @database_faults ->
+      _ = error
+      {:error, {503, "verification_unavailable", "could not verify replay state"}}
   end
 
   @doc """
@@ -188,6 +202,9 @@ defmodule SiwaServer.Siwa.HttpVerifier do
     case RateLimiter.check(:siwa_keyed_site, site.id) do
       :ok ->
         :ok
+
+      {:error, :unavailable} ->
+        {:error, {503, "verification_unavailable", "could not check site rate limit"}}
 
       {:error, retry_after_ms} ->
         {:error,

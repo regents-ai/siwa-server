@@ -48,6 +48,8 @@ export interface Refusal {
   code: string;
   /** A sentence for the agent. */
   message: string;
+  /** Optional guidance from SIWA on how the agent should recover. */
+  hint?: string;
   /** SIWA's `retry-after` to pass on, or `null`. */
   retryAfter: string | null;
 }

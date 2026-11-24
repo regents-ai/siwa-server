@@ -87,9 +87,16 @@ def check_agent(method, path, host, headers, body=b"", *, key=None):
         method="POST",
     )
 
+    # Never follow HTTP redirects while carrying the site's Bearer server key.
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    opener = urllib.request.build_opener(_NoRedirect())
+
     # This waits for SIWA, so an async server runs check_agent with asyncio.to_thread.
     try:
-        answer = urllib.request.urlopen(request, timeout=10)
+        answer = opener.open(request, timeout=10)
     except urllib.error.HTTPError as refusal:
         answer = refusal  # urllib raises every answer but a 2xx; it is still SIWA's answer.
     except (OSError, http.client.HTTPException) as error:
@@ -109,7 +116,15 @@ def check_agent(method, path, host, headers, body=b"", *, key=None):
 
     # A 401 or 409 whose code does not begin `site_` is about the agent's own request.
     if answer.status in (401, 409) and code and not code.startswith("site_"):
-        return refused(401, code, error.get("message"))
+        agent_refusal = {
+            "status": 401,
+            "code": code,
+            "message": error.get("message"),
+            "retry_after": None,
+        }
+        if error.get("hint"):
+            agent_refusal["hint"] = error["hint"]
+        return None, agent_refusal
 
     log.error("SIWA refused this site's check: %s %s", answer.status, code)
     return unavailable(answer.headers.get("retry-after"))
