@@ -5,6 +5,9 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- **Security advisories.** Upgraded `db_connection` (`2.10.3`, `EEF-CVE-2026-133555`),
+  `phoenix` (`1.8.17`, `EEF-CVE-2026-128361` / `129344`), and `phoenix_live_view`
+  (`1.2.15`, `EEF-CVE-2026-126334`) so `mix hex.audit` is clean.
 - **Fault isolation & readiness.** Rate-limit checks (`SiwaServer.RateLimiter`) and keyless
   HTTP verification replay consumption now fail closed as `503 service_unavailable` /
   `verification_unavailable` on database outages instead of raising unhandled `500`s.
