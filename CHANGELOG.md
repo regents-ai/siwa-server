@@ -5,6 +5,8 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- **SIWA v3 Stage 0 runtime prerequisite (Debian Trixie / OpenSSL 3.5+).** Upgrade `Dockerfile` from `debian:bookworm-20261020-slim` (OpenSSL 3.0) to `hexpm/elixir:1.20.5-erlang-29.1.2-debian-trixie-20261027-slim` and `debian:trixie-20261027-slim`, and assert native `:mldsa65` availability via `SiwaServer.Release.verify_pqc_runtime!/0` during image build. No sign-in endpoints, headers, or database tables change.
+
 ## 24 November 2026, Hardening & security advisories
 
 - **Security advisories.** Upgraded `db_connection` (`2.10.3`, `EEF-CVE-2026-133555`),

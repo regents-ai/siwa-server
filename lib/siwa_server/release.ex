@@ -12,6 +12,18 @@ defmodule SiwaServer.Release do
     end
   end
 
+  @doc """
+  Asserts that the Erlang/OTP runtime is linked against OpenSSL 3.5+ with
+  native FIPS 204 `ML-DSA-65` support (required for SIWA v3 hybrid signing).
+  """
+  def verify_pqc_runtime! do
+    if :mldsa65 in :crypto.supports(:public_keys) do
+      :ok
+    else
+      raise "OTP :crypto runtime lacks native :mldsa65 support (requires OpenSSL 3.5+ / Debian Trixie)"
+    end
+  end
+
   defp load_app do
     Application.load(@app)
   end
