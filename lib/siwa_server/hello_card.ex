@@ -65,9 +65,17 @@ defmodule SiwaServer.HelloCard do
   @doc """
   The published keys, as the body of `/.well-known/jwks.json`: public keys only,
   the signing key first, and an empty list while none is set.
+
+  When `SIWA_CARD_PQ_KEYS` is set, appends FIPS 204 `ML-DSA-65` AKP JWKs
+  (`kty: "AKP"`, `alg: "ML-DSA-65"`) alongside the Ed25519 keys. Unset leaves
+  the JWKS identical to v2.
   """
   @spec jwks() :: %{String.t() => [map()]}
-  def jwks, do: %{"keys" => Enum.map(Config.card_keys(), &jwk/1)}
+  def jwks do
+    ed_keys = Enum.map(Config.card_keys(), &jwk/1)
+    pq_keys = Enum.map(Config.card_pq_keys(), &pq_jwk/1)
+    %{"keys" => ed_keys ++ pq_keys}
+  end
 
   @doc """
   A card for `subject` ("eip155:<chain id>:<address>", already proven by its
@@ -106,7 +114,8 @@ defmodule SiwaServer.HelloCard do
           "hello card issued card_id=#{fields["cardId"]} paired_on=#{paired_on} subject=#{subject}"
         )
 
-        {:ok, Map.put(fields, "card", sign(seed, @card_typ, fields))}
+        issued = Map.put(fields, "card", sign(seed, @card_typ, fields))
+        {:ok, maybe_attach_pq_card(issued, fields)}
 
       :not_paired ->
         {:error, {404, "hello_card_not_paired", "the site says this agent is not paired there"}}
@@ -196,6 +205,43 @@ defmodule SiwaServer.HelloCard do
       "use" => "sig",
       "kid" => encode(thumbprint),
       "x" => x
+    }
+  end
+
+  defp maybe_attach_pq_card(issued, fields) do
+    case Config.card_pq_keys() do
+      [{pub, priv} | _rest] ->
+        if :mldsa65 in :crypto.supports(:public_keys),
+          do: Map.put(issued, "cardPq", sign_pq(pub, priv, @card_typ, fields)),
+          else: issued
+
+      [] ->
+        issued
+    end
+  end
+
+  defp sign_pq(pub, priv, typ, claims) do
+    header =
+      encode(
+        Jason.encode!(%{"alg" => "ML-DSA-65", "typ" => typ, "kid" => pq_jwk({pub, priv})["kid"]})
+      )
+
+    payload = encode(Jason.encode!(claims))
+    signature = :crypto.sign(:mldsa65, :none, header <> "." <> payload, priv)
+    header <> "." <> payload <> "." <> encode(signature)
+  end
+
+  # RFC 7638 / draft-ietf-cose-dilithium AKP JWK thumbprint for ML-DSA-65.
+  defp pq_jwk({public_key, _private_key}) do
+    pub = encode(public_key)
+    thumbprint = :crypto.hash(:sha256, ~s({"alg":"ML-DSA-65","kty":"AKP","pub":"#{pub}"}))
+
+    %{
+      "kty" => "AKP",
+      "alg" => "ML-DSA-65",
+      "use" => "sig",
+      "kid" => encode(thumbprint),
+      "pub" => pub
     }
   end
 

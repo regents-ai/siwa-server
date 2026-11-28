@@ -17,7 +17,8 @@ defmodule SiwaServerWeb.Router do
         :agent_book,
         :agent_profile,
         :siwa_audience,
-        :siwa_hello_card
+        :siwa_hello_card,
+        :siwa_pq_enroll
       ] do
     pipeline name do
       plug :accepts, ["json"]
@@ -107,6 +108,12 @@ defmodule SiwaServerWeb.Router do
     pipe_through :agent_book
     post "/challenge", AgentBookController, :challenge
     post "/accept", AgentBookController, :accept
+  end
+
+  scope "/api/shared/siwa/pq", SiwaServerWeb do
+    pipe_through :siwa_pq_enroll
+    post "/enroll-challenge", PqCredentialsController, :enroll_challenge
+    post "/enroll", PqCredentialsController, :enroll
   end
 
   scope "/", SiwaServerWeb do

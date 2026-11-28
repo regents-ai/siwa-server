@@ -35,6 +35,8 @@ defmodule SiwaServer.RateLimiter do
     # Counted per calling address. Each card asks a site, and an agent needs one a
     # day for each site it is paired on.
     siwa_hello_card: [limit: 60, window_ms: 60_000],
+    # Counted per calling address for SIWA v3 ML-DSA-65 credential enrollment.
+    siwa_pq_enroll: [limit: 30, window_ms: 60_000],
     # Counted per calling address, which is a Regent site's server for all of its
     # people. Each needs a new control token every 15 minutes, so 600 a minute
     # leaves generous headroom for bursts of concurrent sign-ins.

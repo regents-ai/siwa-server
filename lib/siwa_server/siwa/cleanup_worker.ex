@@ -13,6 +13,7 @@ defmodule SiwaServer.Siwa.CleanupWorker do
     max_attempts: 1,
     unique: [period: :infinity, states: :incomplete]
 
+  alias SiwaServer.PostQuantum.Credentials
   alias SiwaServer.RateLimiter
   alias SiwaServer.Siwa.{ActivityStore, Challenge, ReplayStore}
 
@@ -30,12 +31,14 @@ defmodule SiwaServer.Siwa.CleanupWorker do
 
     result =
       with {:ok, nonce_count} <- drain(&Challenge.cleanup_expired/1, limit),
+           {:ok, pq_challenge_count} <- drain(&Credentials.cleanup_expired_challenges/1, limit),
            {:ok, replay_count} <- drain(&ReplayStore.cleanup_expired/1, limit),
            {:ok, activity_count} <- drain(&ActivityStore.cleanup_expired(now, &1), limit),
            {:ok, rate_limit_count} <- drain(&RateLimiter.cleanup_expired/1, limit) do
         {:ok,
          %{
            nonce_count: nonce_count,
+           pq_challenge_count: pq_challenge_count,
            replay_count: replay_count,
            activity_count: activity_count,
            rate_limit_count: rate_limit_count

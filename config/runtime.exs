@@ -126,6 +126,7 @@ config :siwa_server, :siwa,
     |> SiwaServer.Config.http_signature_tolerance_seconds!(),
   receipt_secret: receipt_secret,
   card_keys: SiwaServer.Config.card_keys!(env_value.("SIWA_CARD_KEYS", nil)),
+  card_pq_keys: SiwaServer.Config.card_pq_keys!(env_value.("SIWA_CARD_PQ_KEYS", nil)),
   activity_readers: activity_readers,
   hosted_signers: hosted_signers,
   keystore_password: keystore_password

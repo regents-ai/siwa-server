@@ -1018,6 +1018,136 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "429":
           $ref: "#/components/responses/RateLimitError"
+  /api/shared/siwa/pq/enroll-challenge:
+    post:
+      operationId: issuePqEnrollChallenge
+      tags: [auth]
+      description: Issue a single-use 5-minute enrollment challenge binding an EVM wallet identity to a candidate FIPS 204 ML-DSA-65 public key (1,952 raw bytes, base64-encoded).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PqEnrollChallengeRequest"
+      responses:
+        "200":
+          description: Enrollment challenge issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PqEnrollChallengeResponse"
+        "400":
+          description: Malformed request or unsupported chain/algorithm
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: ML-DSA-65 public key is already enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          description: Request body too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "415":
+          description: Unsupported content type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
+        "500":
+          description: Enrollment store unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Runtime lacks native ML-DSA-65 support
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/shared/siwa/pq/enroll:
+    post:
+      operationId: enrollPqCredential
+      tags: [auth]
+      description: Complete dual Proof-of-Possession enrollment of a FIPS 204 ML-DSA-65 credential by verifying both the classical wallet signature (EOA EIP-191 or ERC-1271) and the domain-separated ML-DSA-65 signature.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PqEnrollRequest"
+      responses:
+        "200":
+          description: Post-quantum credential enrolled under hybrid_both policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PqEnrollResponse"
+        "400":
+          description: Malformed request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Invalid classical or ML-DSA-65 signature, mismatched message, or expired challenge
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Enrollment challenge not found or already used
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: ML-DSA-65 key is already enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          description: Request body too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "415":
+          description: Unsupported content type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimitError"
+        "500":
+          description: Enrollment store unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "502":
+          description: Smart wallet ERC-1271 verification lookup failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Runtime lacks native ML-DSA-65 support
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /agent-profiles/{profile_id}:
     get:
       operationId: readAgentProfile
@@ -3222,3 +3352,119 @@ components:
               format: date-time
             revokedAt:
               type: "null"
+    PqEnrollChallengeRequest:
+      type: object
+      additionalProperties: false
+      required: [wallet_address, chain_id, public_key]
+      properties:
+        wallet_address:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{40}$"
+        chain_id:
+          type: integer
+        algorithm:
+          type: string
+          enum: [mldsa65]
+        public_key:
+          type: string
+          description: Base64-encoded raw 1,952-byte FIPS 204 ML-DSA-65 public key.
+    PqEnrollChallengeResponse:
+      type: object
+      additionalProperties: false
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [pq_enroll_challenge_issued]
+        data:
+          type: object
+          additionalProperties: false
+          required: [subject, walletAddress, chainId, algorithm, pqKeyId, nonce, message, pqSigningPrefix, issuedAt, expiresAt]
+          properties:
+            subject:
+              type: string
+            walletAddress:
+              type: string
+            chainId:
+              type: integer
+            algorithm:
+              type: string
+              enum: [mldsa65]
+            pqKeyId:
+              type: string
+              pattern: "^mldsa65:[0-9a-f]{64}$"
+            nonce:
+              type: string
+              pattern: "^[0-9a-f]{32}$"
+            message:
+              type: string
+            pqSigningPrefix:
+              type: string
+            issuedAt:
+              type: string
+              format: date-time
+            expiresAt:
+              type: string
+              format: date-time
+    PqEnrollRequest:
+      type: object
+      additionalProperties: false
+      required: [wallet_address, chain_id, pq_key_id, nonce, message, ecc_signature, pq_signature]
+      properties:
+        wallet_address:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{40}$"
+        chain_id:
+          type: integer
+        pq_key_id:
+          type: string
+          pattern: "^mldsa65:[0-9a-f]{64}$"
+        nonce:
+          type: string
+          pattern: "^[0-9a-f]{32}$"
+        message:
+          type: string
+        ecc_signature:
+          type: string
+          pattern: "^0x(?:[0-9a-fA-F]{2})+$"
+        pq_signature:
+          type: string
+          description: Base64-encoded raw 3,309-byte ML-DSA-65 signature over "siwa-v3-enroll\\n" + message.
+    PqEnrollResponse:
+      type: object
+      additionalProperties: false
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [pq_credential_enrolled]
+        data:
+          type: object
+          additionalProperties: false
+          required: [id, subject, walletAddress, chainId, pqKeyId, algorithm, algVersion, policy, eccVerificationMethod, enrolledAt]
+          properties:
+            id:
+              type: string
+              format: uuid
+            subject:
+              type: string
+            walletAddress:
+              type: string
+            chainId:
+              type: integer
+            pqKeyId:
+              type: string
+              pattern: "^mldsa65:[0-9a-f]{64}$"
+            algorithm:
+              type: string
+              enum: [mldsa65]
+            algVersion:
+              type: integer
+            policy:
+              type: string
+              enum: [ecc_only, hybrid_both, pq_only]
+            eccVerificationMethod:
+              type: string
+            enrolledAt:
+              type: string
+              format: date-time

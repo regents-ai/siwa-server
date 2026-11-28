@@ -155,6 +155,50 @@ defmodule SiwaServer.Config do
     seeds
   end
 
+  @doc """
+  Optional ML-DSA-65 hello card signing keypairs (`SiwaServer.HelloCard`),
+  each a `{public_key_1952, private_key_4032}` tuple parsed from
+  `SIWA_CARD_PQ_KEYS`. Empty list while unset, leaving v2 Ed25519 JWKS and
+  hello cards unchanged.
+  """
+  @spec card_pq_keys() :: [{binary(), binary()}]
+  def card_pq_keys, do: Keyword.get(siwa(), :card_pq_keys, [])
+
+  @doc """
+  Parses `SIWA_CARD_PQ_KEYS`: one or two comma-separated `<pub>.<priv>` pairs,
+  each part unpadded base64url (1,952-byte ML-DSA-65 public key and 4,032-byte
+  ML-DSA-65 private key). Unset or empty is `[]`. Never echoes secrets on error.
+  """
+  @spec card_pq_keys!(String.t() | nil) :: [{binary(), binary()}]
+  def card_pq_keys!(nil), do: []
+
+  def card_pq_keys!(value) do
+    pairs =
+      value
+      |> entries()
+      |> Enum.map(&parse_pq_card_key!/1)
+
+    unless length(pairs) in 1..2 and Enum.uniq(pairs) == pairs do
+      raise ArgumentError, "SIWA_CARD_PQ_KEYS must hold one or two different keypairs"
+    end
+
+    pairs
+  end
+
+  defp parse_pq_card_key!(entry) do
+    with [pub_b64, priv_b64] <- String.split(entry, ".", parts: 2),
+         {:ok, <<_::binary-size(1_952)>> = pub} <- Base.url_decode64(pub_b64, padding: false),
+         {:ok, <<_::binary-size(4_032)>> = priv} <- Base.url_decode64(priv_b64, padding: false),
+         ^pub_b64 <- Base.url_encode64(pub, padding: false),
+         ^priv_b64 <- Base.url_encode64(priv, padding: false) do
+      {pub, priv}
+    else
+      _malformed ->
+        raise ArgumentError,
+              "SIWA_CARD_PQ_KEYS entries must each be <base64url(1952B pub)>.<base64url(4032B priv)>"
+    end
+  end
+
   @doc "Whether `name` is a site's name, the audience its agents sign in for."
   @spec site_name?(String.t()) :: boolean()
   def site_name?(name), do: Regex.match?(@site_regex, name)

@@ -17,6 +17,8 @@ config :siwa_server, :siwa,
   lease_seconds: 600,
   http_signature_tolerance_seconds: 300,
   receipt_secret: nil,
+  card_keys: [],
+  card_pq_keys: [],
   activity_readers: %{},
   hosted_signers: %{},
   keystore_password: nil

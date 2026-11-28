@@ -5,6 +5,7 @@ a release moves those lines under its date. Which version and commit each releas
 
 ## Unreleased
 
+- **SIWA v3 Stage 2 additive post-quantum credentials & dual JWKS.** Add additive `agent_credentials` and `pq_enrollment_challenges` tables (`20261128120000_create_siwa_pq_credentials`), dual Proof-of-Possession ML-DSA-65 enrollment endpoints (`POST /api/shared/siwa/pq/enroll-challenge`, `POST /api/shared/siwa/pq/enroll`), expired PQ challenge cleanup in `SiwaServer.Siwa.CleanupWorker`, and opt-in `SIWA_CARD_PQ_KEYS` AKP (`ML-DSA-65`) support in `SiwaServer.HelloCard` (inactive when unset so v2 JWKS and sign-in stay byte-for-byte unchanged).
 - **SIWA v3 Stage 0 runtime prerequisite (Debian Trixie / OpenSSL 3.5+).** Upgrade `Dockerfile` from `debian:bookworm-20261020-slim` (OpenSSL 3.0) to `hexpm/elixir:1.20.5-erlang-29.1.2-debian-trixie-20261027-slim` and `debian:trixie-20261027-slim`, and assert native `:mldsa65` availability via `SiwaServer.Release.verify_pqc_runtime!/0` during image build. No sign-in endpoints, headers, or database tables change.
 
 ## 24 November 2026, Hardening & security advisories

@@ -29,6 +29,10 @@ defmodule Mix.Tasks.SiwaServer.ContractCheck do
       MapSet.new(~w(200 400 404 409 413 415 429 502)),
     {"POST", "/api/shared/siwa/agent-book/accept"} =>
       MapSet.new(~w(200 400 401 404 409 413 415 429 502)),
+    {"POST", "/api/shared/siwa/pq/enroll-challenge"} =>
+      MapSet.new(~w(200 400 409 413 415 429 500 503)),
+    {"POST", "/api/shared/siwa/pq/enroll"} =>
+      MapSet.new(~w(200 400 401 404 409 413 415 429 500 502 503)),
     {"GET", "/agent-profiles/{profile_id}"} => MapSet.new(~w(200 404 429)),
     {"POST", "/api/shared/siwa/wallet/nonce"} =>
       MapSet.new(~w(200 400 401 403 404 413 415 429 500)),
